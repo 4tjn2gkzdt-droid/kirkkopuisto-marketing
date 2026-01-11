@@ -14,6 +14,9 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [taskAiContent, setTaskAiContent] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [viewMode, setViewMode] = useState('list'); // 'list', 'month', 'week'
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedWeek, setSelectedWeek] = useState(new Date());
 
   const years = [2021, 2022, 2023, 2024, 2025, 2026];
   
@@ -220,12 +223,53 @@ export default function Home() {
   const filterPosts = () => {
     const currentPosts = posts[selectedYear] || [];
     if (!searchQuery) return currentPosts;
-    
+
     const q = searchQuery.toLowerCase();
-    return currentPosts.filter(p => 
+    return currentPosts.filter(p =>
       p.title.toLowerCase().includes(q) ||
       (p.artist && p.artist.toLowerCase().includes(q))
     );
+  };
+
+  // Apufunktiot kalenterinäkymiä varten
+  const getDaysInMonth = (year, month) => {
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startingDayOfWeek = firstDay.getDay();
+
+    const days = [];
+    // Lisää tyhjät päivät ennen kuukauden alkua
+    for (let i = 0; i < (startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1); i++) {
+      days.push(null);
+    }
+    // Lisää kuukauden päivät
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push(new Date(year, month, i));
+    }
+    return days;
+  };
+
+  const getWeekDays = (date) => {
+    const day = date.getDay();
+    const diff = date.getDate() - (day === 0 ? 6 : day - 1);
+    const monday = new Date(date);
+    monday.setDate(diff);
+
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(monday);
+      day.setDate(monday.getDate() + i);
+      days.push(day);
+    }
+    return days;
+  };
+
+  const getEventsForDate = (date) => {
+    if (!date) return [];
+    const dateStr = date.toISOString().split('T')[0];
+    const allPosts = filterPosts();
+    return allPosts.filter(post => post.date === dateStr);
   };
 
   const currentYearPosts = filterPosts();
@@ -261,12 +305,34 @@ export default function Home() {
         <div className="bg-white rounded-lg shadow-lg p-6">
           <div className="flex justify-between items-center mb-6 flex-wrap gap-3">
             <h2 className="text-2xl font-bold">Kalenteri {selectedYear}</h2>
-            <button
-              onClick={() => setShowImportModal(true)}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-            >
-              ➕ Tuo taulukosta
-            </button>
+            <div className="flex gap-3 items-center">
+              <div className="bg-gray-100 rounded-lg p-1 flex gap-1">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`px-4 py-2 rounded ${viewMode === 'list' ? 'bg-green-600 text-white' : 'text-gray-700 hover:bg-gray-200'}`}
+                >
+                  📋 Lista
+                </button>
+                <button
+                  onClick={() => setViewMode('month')}
+                  className={`px-4 py-2 rounded ${viewMode === 'month' ? 'bg-green-600 text-white' : 'text-gray-700 hover:bg-gray-200'}`}
+                >
+                  📅 Kuukausi
+                </button>
+                <button
+                  onClick={() => setViewMode('week')}
+                  className={`px-4 py-2 rounded ${viewMode === 'week' ? 'bg-green-600 text-white' : 'text-gray-700 hover:bg-gray-200'}`}
+                >
+                  📆 Viikko
+                </button>
+              </div>
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+              >
+                ➕ Tuo taulukosta
+              </button>
+            </div>
           </div>
 
           <div className="mb-4">
@@ -279,14 +345,16 @@ export default function Home() {
             />
           </div>
 
-          {currentYearPosts.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <p className="text-4xl mb-4">📅</p>
-              <p>Ei tapahtumia</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {currentYearPosts.sort((a, b) => new Date(a.date) - new Date(b.date)).map(post => {
+          {/* Lista-näkymä */}
+          {viewMode === 'list' && (
+            currentYearPosts.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                <p className="text-4xl mb-4">📅</p>
+                <p>Ei tapahtumia</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {currentYearPosts.sort((a, b) => new Date(a.date) - new Date(b.date)).map(post => {
                 const isExpanded = expandedEvents[post.id];
                 const completed = post.tasks.filter(t => t.completed).length;
                 const total = post.tasks.length;
@@ -395,7 +463,176 @@ export default function Home() {
                     )}
                   </div>
                 );
-              })}
+                })}
+              </div>
+            )
+          )}
+
+          {/* Kuukausi-näkymä */}
+          {viewMode === 'month' && (
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <button
+                  onClick={() => setSelectedMonth(m => m === 0 ? 11 : m - 1)}
+                  className="px-4 py-2 bg-gray-100 rounded hover:bg-gray-200"
+                >
+                  ← Edellinen
+                </button>
+                <h3 className="text-xl font-bold">
+                  {new Date(selectedYear, selectedMonth).toLocaleDateString('fi-FI', { month: 'long', year: 'numeric' })}
+                </h3>
+                <button
+                  onClick={() => setSelectedMonth(m => m === 11 ? 0 : m + 1)}
+                  className="px-4 py-2 bg-gray-100 rounded hover:bg-gray-200"
+                >
+                  Seuraava →
+                </button>
+              </div>
+
+              <div className="grid grid-cols-7 gap-2">
+                {['Ma', 'Ti', 'Ke', 'To', 'Pe', 'La', 'Su'].map(day => (
+                  <div key={day} className="text-center font-bold text-gray-600 py-2">
+                    {day}
+                  </div>
+                ))}
+                {getDaysInMonth(selectedYear, selectedMonth).map((date, idx) => {
+                  const dayEvents = date ? getEventsForDate(date) : [];
+                  const isToday = date && date.toDateString() === new Date().toDateString();
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`min-h-[100px] border rounded p-2 ${
+                        !date ? 'bg-gray-50' : isToday ? 'bg-blue-50 border-blue-300' : 'bg-white hover:bg-gray-50'
+                      }`}
+                    >
+                      {date && (
+                        <>
+                          <div className="text-right text-sm font-semibold mb-1">
+                            {date.getDate()}
+                          </div>
+                          <div className="space-y-1">
+                            {dayEvents.map(event => {
+                              const completed = event.tasks.filter(t => t.completed).length;
+                              const total = event.tasks.length;
+
+                              return (
+                                <div
+                                  key={event.id}
+                                  className="text-xs bg-green-100 border border-green-300 rounded p-1 cursor-pointer hover:bg-green-200"
+                                  onClick={() => {
+                                    setExpandedEvents(prev => ({ ...prev, [event.id]: true }));
+                                    setViewMode('list');
+                                  }}
+                                  title={event.title}
+                                >
+                                  <div className="font-semibold truncate">{event.title}</div>
+                                  {event.time && (
+                                    <div className="text-gray-600">{event.time}</div>
+                                  )}
+                                  <div className="flex items-center gap-1 mt-1">
+                                    <div className="flex-1 bg-gray-200 rounded-full h-1">
+                                      <div
+                                        className="bg-green-600 h-1 rounded-full"
+                                        style={{ width: `${(completed / total) * 100}%` }}
+                                      ></div>
+                                    </div>
+                                    <span className="text-[10px]">{completed}/{total}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Viikko-näkymä */}
+          {viewMode === 'week' && (
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <button
+                  onClick={() => {
+                    const newDate = new Date(selectedWeek);
+                    newDate.setDate(newDate.getDate() - 7);
+                    setSelectedWeek(newDate);
+                  }}
+                  className="px-4 py-2 bg-gray-100 rounded hover:bg-gray-200"
+                >
+                  ← Edellinen viikko
+                </button>
+                <h3 className="text-xl font-bold">
+                  Viikko {Math.ceil((selectedWeek.getDate() + new Date(selectedYear, 0, 1).getDay()) / 7)}
+                </h3>
+                <button
+                  onClick={() => {
+                    const newDate = new Date(selectedWeek);
+                    newDate.setDate(newDate.getDate() + 7);
+                    setSelectedWeek(newDate);
+                  }}
+                  className="px-4 py-2 bg-gray-100 rounded hover:bg-gray-200"
+                >
+                  Seuraava viikko →
+                </button>
+              </div>
+
+              <div className="grid grid-cols-7 gap-2">
+                {getWeekDays(selectedWeek).map((date, idx) => {
+                  const dayEvents = getEventsForDate(date);
+                  const isToday = date.toDateString() === new Date().toDateString();
+                  const dayName = ['Ma', 'Ti', 'Ke', 'To', 'Pe', 'La', 'Su'][idx];
+
+                  return (
+                    <div
+                      key={idx}
+                      className={`border rounded p-2 ${
+                        isToday ? 'bg-blue-50 border-blue-300' : 'bg-white'
+                      }`}
+                    >
+                      <div className="text-center mb-2">
+                        <div className="font-bold text-gray-600">{dayName}</div>
+                        <div className="text-sm">{date.getDate()}.{date.getMonth() + 1}</div>
+                      </div>
+                      <div className="space-y-2">
+                        {dayEvents.map(event => {
+                          const completed = event.tasks.filter(t => t.completed).length;
+                          const total = event.tasks.length;
+
+                          return (
+                            <div
+                              key={event.id}
+                              className="text-xs bg-green-100 border border-green-300 rounded p-2 cursor-pointer hover:bg-green-200"
+                              onClick={() => {
+                                setExpandedEvents(prev => ({ ...prev, [event.id]: true }));
+                                setViewMode('list');
+                              }}
+                            >
+                              <div className="font-semibold mb-1">{event.title}</div>
+                              {event.time && (
+                                <div className="text-gray-600 mb-1">🕐 {event.time}</div>
+                              )}
+                              <div className="flex items-center gap-1">
+                                <div className="flex-1 bg-gray-200 rounded-full h-1.5">
+                                  <div
+                                    className="bg-green-600 h-1.5 rounded-full"
+                                    style={{ width: `${(completed / total) * 100}%` }}
+                                  ></div>
+                                </div>
+                                <span className="text-[10px]">{completed}/{total}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>

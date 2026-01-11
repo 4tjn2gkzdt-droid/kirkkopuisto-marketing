@@ -187,4 +187,374 @@ export default function Home() {
     savePosts(selectedYear, updatedPosts);
     setShowTaskEditModal(false);
     setEditingTask(null);
-    setTaskAiContent('​​​​​​​​​​​​​​​​
+    setTaskAiContent('');
+  };
+
+  const deletePost = (id) => {
+    const currentPosts = posts[selectedYear] || [];
+    savePosts(selectedYear, currentPosts.filter(p => p.id !== id));
+  };
+
+  const toggleImage = (formatId) => {
+    if (!currentEventForImages) return;
+    
+    const currentPosts = posts[selectedYear] || [];
+    const updatedPosts = currentPosts.map(post => {
+      if (post.id === currentEventForImages.id) {
+        const newImages = { ...post.images };
+        if (newImages[formatId]) {
+          delete newImages[formatId];
+        } else {
+          newImages[formatId] = { added: new Date().toISOString() };
+        }
+        return { ...post, images: newImages };
+      }
+      return post;
+    });
+    
+    savePosts(selectedYear, updatedPosts);
+    setCurrentEventForImages(updatedPosts.find(p => p.id === currentEventForImages.id));
+  };
+
+  const filterPosts = () => {
+    const currentPosts = posts[selectedYear] || [];
+    if (!searchQuery) return currentPosts;
+    
+    const q = searchQuery.toLowerCase();
+    return currentPosts.filter(p => 
+      p.title.toLowerCase().includes(q) ||
+      (p.artist && p.artist.toLowerCase().includes(q))
+    );
+  };
+
+  const currentYearPosts = filterPosts();
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-yellow-50 p-4">
+      <div className="max-w-6xl mx-auto">
+        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+          <div className="flex justify-between items-start flex-wrap gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-green-800">Kirkkopuiston Terassi</h1>
+              <p className="text-gray-600">Markkinoinnin työkalut</p>
+            </div>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="px-4 py-2 border rounded-lg"
+            >
+              {years.map(year => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <div className="flex justify-between items-center mb-6 flex-wrap gap-3">
+            <h2 className="text-2xl font-bold">Kalenteri {selectedYear}</h2>
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+            >
+              ➕ Tuo taulukosta
+            </button>
+          </div>
+
+          <div className="mb-4">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="🔍 Hae tapahtumia..."
+              className="w-full px-4 py-2 border rounded-lg"
+            />
+          </div>
+
+          {currentYearPosts.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              <p className="text-4xl mb-4">📅</p>
+              <p>Ei tapahtumia</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {currentYearPosts.sort((a, b) => new Date(a.date) - new Date(b.date)).map(post => {
+                const isExpanded = expandedEvents[post.id];
+                const completed = post.tasks.filter(t => t.completed).length;
+                const total = post.tasks.length;
+                
+                return (
+                  <div key={post.id} className="border rounded-lg">
+                    <div className="p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <button
+                              onClick={() => setExpandedEvents(prev => ({ ...prev, [post.id]: !prev[post.id] }))}
+                              className="text-gray-400 text-xl"
+                            >
+                              {isExpanded ? '▼' : '▶'}
+                            </button>
+                            <div>
+                              <h3 className="font-semibold text-lg">{post.title}</h3>
+                              <p className="text-sm text-gray-500">
+                                {new Date(post.date).toLocaleDateString('fi-FI')}
+                                {post.time && ` klo ${post.time}`}
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <div className="ml-8 flex items-center gap-4 flex-wrap">
+                            <div className="flex items-center gap-2">
+                              <span className="text-green-600">✓</span>
+                              <span className="text-sm">{completed}/{total}</span>
+                            </div>
+                            <div className="flex-1 min-w-[100px] max-w-xs">
+                              <div className="w-full bg-gray-200 rounded-full h-2">
+                                <div 
+                                  className="bg-green-600 h-2 rounded-full"
+                                  style={{ width: `${(completed / total) * 100}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setCurrentEventForImages(post);
+                                setShowImageModal(true);
+                              }}
+                              className="text-sm bg-purple-100 text-purple-700 px-3 py-1 rounded-lg"
+                            >
+                              📸 Kuvat
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <button
+                          onClick={() => deletePost(post.id)}
+                          className="p-2 bg-red-100 text-red-700 rounded"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {isExpanded && (
+                      <div className="border-t bg-gray-50 p-4">
+                        <div className="space-y-2 ml-8">
+                          {post.tasks.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate)).map(task => {
+                            const channel = channels.find(c => c.id === task.channel);
+                            
+                            return (
+                              <div
+                                key={task.id}
+                                className={`flex items-start gap-3 p-3 rounded-lg ${
+                                  task.completed ? 'bg-green-50 border border-green-200' : 'bg-white border'
+                                }`}
+                              >
+                                <button
+                                  onClick={() => toggleTask(post.id, task.id)}
+                                  className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                                    task.completed ? 'bg-green-600 border-green-600 text-white' : 'border-gray-300'
+                                  }`}
+                                >
+                                  {task.completed && '✓'}
+                                </button>
+                                
+                                <span className={`${channel?.color} text-white px-2 py-1 rounded text-xs`}>
+                                  {channel?.name}
+                                </span>
+                                
+                                <div className="flex-1">
+                                  <h5 className={`text-sm font-medium ${task.completed ? 'line-through text-gray-500' : ''}`}>
+                                    {task.title}
+                                  </h5>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    📅 {new Date(task.dueDate).toLocaleDateString('fi-FI')} {task.dueTime}
+                                  </p>
+                                </div>
+                                
+                                <button
+                                  onClick={() => openTaskEdit(post.id, task)}
+                                  className="p-2 bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
+                                >
+                                  ✏️
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {showImportModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+              <h3 className="text-xl font-bold mb-4">Tuo tapahtumia</h3>
+              <textarea
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+                className="w-full p-3 border rounded-lg h-48 font-mono text-sm"
+                placeholder="Liitä taulukko..."
+              />
+              <div className="flex gap-3 mt-4">
+                <button
+                  onClick={handleImport}
+                  className="flex-1 bg-green-600 text-white py-2 rounded-lg"
+                >
+                  Lisää
+                </button>
+                <button
+                  onClick={() => {
+                    setShowImportModal(false);
+                    setImportText('');
+                  }}
+                  className="flex-1 bg-gray-200 py-2 rounded-lg"
+                >
+                  Peruuta
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showTaskEditModal && editingTask && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+              <h3 className="text-xl font-bold mb-4">Muokkaa tehtävää</h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Otsikko</label>
+                  <input
+                    value={editingTask.task.title}
+                    onChange={(e) => setEditingTask({
+                      ...editingTask,
+                      task: { ...editingTask.task, title: e.target.value }
+                    })}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Deadline</label>
+                    <input
+                      type="date"
+                      value={editingTask.task.dueDate}
+                      onChange={(e) => setEditingTask({
+                        ...editingTask,
+                        task: { ...editingTask.task, dueDate: e.target.value }
+                      })}
+                      className="w-full p-2 border rounded"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Aika</label>
+                    <input
+                      type="time"
+                      value={editingTask.task.dueTime}
+                      onChange={(e) => setEditingTask({
+                        ...editingTask,
+                        task: { ...editingTask.task, dueTime: e.target.value }
+                      })}
+                      className="w-full p-2 border rounded"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Sisältö</label>
+                  <textarea
+                    value={taskAiContent}
+                    onChange={(e) => {
+                      setTaskAiContent(e.target.value);
+                      setEditingTask({
+                        ...editingTask,
+                        task: { ...editingTask.task, content: e.target.value }
+                      });
+                    }}
+                    className="w-full p-3 border rounded h-32"
+                    placeholder="Sisältö..."
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={updateTask}
+                  className="flex-1 bg-green-600 text-white py-2 rounded-lg"
+                >
+                  Tallenna
+                </button>
+                <button
+                  onClick={() => {
+                    setShowTaskEditModal(false);
+                    setEditingTask(null);
+                    setTaskAiContent('');
+                  }}
+                  className="flex-1 bg-gray-200 py-2 rounded-lg"
+                >
+                  Peruuta
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showImageModal && currentEventForImages && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
+              <h3 className="text-xl font-bold mb-4">{currentEventForImages.title}</h3>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {imageFormats.map(format => (
+                  <div key={format.id} className="border rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-2xl">{format.icon}</span>
+                      <div>
+                        <h4 className="font-semibold text-sm">{format.name}</h4>
+                        <p className="text-xs text-gray-500">{format.ratio}</p>
+                      </div>
+                    </div>
+                    
+                    {currentEventForImages.images[format.id] ? (
+                      <button
+                        onClick={() => toggleImage(format.id)}
+                        className="w-full bg-green-100 text-green-700 text-xs py-2 rounded"
+                      >
+                        ✅ Lisätty - Poista
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => toggleImage(format.id)}
+                        className="w-full bg-purple-600 text-white text-xs py-2 rounded"
+                      >
+                        ➕ Merkitse lisätyksi
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              
+              <button
+                onClick={() => {
+                  setShowImageModal(false);
+                  setCurrentEventForImages(null);
+                }}
+                className="w-full mt-6 bg-gray-200 py-2 rounded-lg"
+              >
+                Sulje
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

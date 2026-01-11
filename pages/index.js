@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 
 export default function Home() {
   const [selectedYear, setSelectedYear] = useState(2026);
@@ -238,15 +239,22 @@ export default function Home() {
               <h1 className="text-3xl font-bold text-green-800">Kirkkopuiston Terassi</h1>
               <p className="text-gray-600">Markkinoinnin työkalut</p>
             </div>
-            <select
-              value={selectedYear}
-              onChange={(e) => setSelectedYear(Number(e.target.value))}
-              className="px-4 py-2 border rounded-lg"
-            >
-              {years.map(year => (
-                <option key={year} value={year}>{year}</option>
-              ))}
-            </select>
+            <div className="flex gap-3 items-center">
+              <Link href="/ideoi">
+                <button className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
+                  💡 Ideoi sisältöä
+                </button>
+              </Link>
+              <select
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(Number(e.target.value))}
+                className="px-4 py-2 border rounded-lg"
+              >
+                {years.map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 

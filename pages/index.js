@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { supabase } from '../lib/supabase';
 
 export default function Home() {
   const [selectedYear, setSelectedYear] = useState(2026);
@@ -39,20 +40,136 @@ export default function Home() {
     { id: 'calendar', name: 'Tapahtumakalenteri', ratio: '16:9 (1200x675px)', icon: '📅' }
   ];
 
+  // Lataa tapahtumat vuodelle
   useEffect(() => {
-    const loadYear = () => {
-      const stored = localStorage.getItem(`posts-${selectedYear}`);
-      if (stored) {
-        setPosts(prev => ({ ...prev, [selectedYear]: JSON.parse(stored) }));
+    const loadYear = async () => {
+      if (supabase) {
+        // Ladataan Supabasesta
+        const { data: events, error } = await supabase
+          .from('events')
+          .select(`
+            *,
+            tasks (*)
+          `)
+          .eq('year', selectedYear)
+          .order('date', { ascending: true });
+
+        if (error) {
+          console.error('Virhe ladattaessa Supabasesta:', error);
+          // Fallback localStorageen
+          const stored = localStorage.getItem(`posts-${selectedYear}`);
+          setPosts(prev => ({ ...prev, [selectedYear]: stored ? JSON.parse(stored) : [] }));
+        } else {
+          // Muunna Supabase-data sovelluksen formaattiin
+          const formattedEvents = events.map(event => ({
+            id: event.id,
+            title: event.title,
+            date: event.date,
+            time: event.time,
+            artist: event.artist,
+            images: event.images || {},
+            tasks: event.tasks || []
+          }));
+          setPosts(prev => ({ ...prev, [selectedYear]: formattedEvents }));
+        }
       } else {
-        setPosts(prev => ({ ...prev, [selectedYear]: [] }));
+        // Ei Supabasea, käytetään localStoragea
+        const stored = localStorage.getItem(`posts-${selectedYear}`);
+        setPosts(prev => ({ ...prev, [selectedYear]: stored ? JSON.parse(stored) : [] }));
       }
     };
     loadYear();
   }, [selectedYear]);
 
-  const savePosts = (year, updatedPosts) => {
-    localStorage.setItem(`posts-${year}`, JSON.stringify(updatedPosts));
+  // Tallenna tapahtumat
+  const savePosts = async (year, updatedPosts) => {
+    if (supabase) {
+      // Tallenna Supabaseen
+      try {
+        // Käy läpi jokainen tapahtuma ja tallenna/päivitä
+        for (const post of updatedPosts) {
+          if (typeof post.id === 'number' && post.id > 1000000000000) {
+            // Uusi client-side generoitu ID, lisää uusi tapahtuma
+            const { data: newEvent, error: eventError } = await supabase
+              .from('events')
+              .insert({
+                title: post.title,
+                date: post.date,
+                time: post.time || null,
+                artist: post.artist || null,
+                year: year,
+                images: post.images || {}
+              })
+              .select()
+              .single();
+
+            if (eventError) throw eventError;
+
+            // Lisää tehtävät
+            if (post.tasks && post.tasks.length > 0) {
+              const tasksToInsert = post.tasks.map(task => ({
+                event_id: newEvent.id,
+                title: task.title,
+                channel: task.channel,
+                due_date: task.dueDate,
+                due_time: task.dueTime || null,
+                completed: task.completed || false,
+                content: task.content || null
+              }));
+
+              const { error: tasksError } = await supabase
+                .from('tasks')
+                .insert(tasksToInsert);
+
+              if (tasksError) throw tasksError;
+            }
+          } else {
+            // Päivitä olemassa oleva tapahtuma
+            const { error: updateError } = await supabase
+              .from('events')
+              .update({
+                title: post.title,
+                date: post.date,
+                time: post.time || null,
+                artist: post.artist || null,
+                images: post.images || {}
+              })
+              .eq('id', post.id);
+
+            if (updateError) throw updateError;
+
+            // Päivitä tehtävät (yksinkertainen: poista vanhat ja lisää uudet)
+            await supabase.from('tasks').delete().eq('event_id', post.id);
+
+            if (post.tasks && post.tasks.length > 0) {
+              const tasksToInsert = post.tasks.map(task => ({
+                event_id: post.id,
+                title: task.title,
+                channel: task.channel,
+                due_date: task.dueDate,
+                due_time: task.dueTime || null,
+                completed: task.completed || false,
+                content: task.content || null
+              }));
+
+              const { error: tasksError } = await supabase
+                .from('tasks')
+                .insert(tasksToInsert);
+
+              if (tasksError) throw tasksError;
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Virhe tallennettaessa Supabaseen:', error);
+        // Fallback localStorageen
+        localStorage.setItem(`posts-${year}`, JSON.stringify(updatedPosts));
+      }
+    } else {
+      // Ei Supabasea, käytetään localStoragea
+      localStorage.setItem(`posts-${year}`, JSON.stringify(updatedPosts));
+    }
+
     setPosts(prev => ({ ...prev, [year]: updatedPosts }));
   };
 
@@ -194,7 +311,14 @@ export default function Home() {
     setTaskAiContent('');
   };
 
-  const deletePost = (id) => {
+  const deletePost = async (id) => {
+    if (supabase && typeof id === 'number' && id < 1000000000000) {
+      // Poista Supabasesta (CASCADE poistaa automaattisesti tehtävät)
+      const { error } = await supabase.from('events').delete().eq('id', id);
+      if (error) {
+        console.error('Virhe poistettaessa Supabasesta:', error);
+      }
+    }
     const currentPosts = posts[selectedYear] || [];
     savePosts(selectedYear, currentPosts.filter(p => p.id !== id));
   };

@@ -78,7 +78,16 @@ export default function Home() {
             time: event.time,
             artist: event.artist,
             images: event.images || {},
-            tasks: event.tasks || []
+            tasks: (event.tasks || []).map(task => ({
+              id: task.id,
+              title: task.title,
+              channel: task.channel,
+              dueDate: task.due_date,
+              dueTime: task.due_time,
+              completed: task.completed,
+              content: task.content,
+              assignee: task.assignee
+            }))
           }));
           setPosts(prev => ({ ...prev, [selectedYear]: formattedEvents }));
         }
@@ -107,6 +116,15 @@ export default function Home() {
     };
     loadTeamMembers();
   }, []);
+
+  // Aseta kuukausinäkymä ensimmäiseen tapahtumaan
+  useEffect(() => {
+    const currentPosts = posts[selectedYear] || [];
+    if (currentPosts.length > 0) {
+      const firstEventDate = new Date(currentPosts[0].date);
+      setSelectedMonth(firstEventDate.getMonth());
+    }
+  }, [posts, selectedYear]);
 
   // Tallenna tapahtumat
   const savePosts = async (year, updatedPosts) => {
@@ -307,7 +325,16 @@ export default function Home() {
           time: event.time,
           artist: event.artist,
           images: event.images || {},
-          tasks: event.tasks || []
+          tasks: (event.tasks || []).map(task => ({
+            id: task.id,
+            title: task.title,
+            channel: task.channel,
+            dueDate: task.due_date,
+            dueTime: task.due_time,
+            completed: task.completed,
+            content: task.content,
+            assignee: task.assignee
+          }))
         }));
         setPosts(prev => ({ ...prev, [selectedYear]: formattedEvents }));
       }

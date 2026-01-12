@@ -638,6 +638,11 @@ export default function Home() {
               <p className="text-gray-600">Markkinoinnin työkalut</p>
             </div>
             <div className="flex gap-3 items-center flex-wrap">
+              <Link href="/materiaalit">
+                <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
+                  📁 Materiaalit
+                </button>
+              </Link>
               <Link href="/tehtavat">
                 <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
                   📋 Kaikki tehtävät

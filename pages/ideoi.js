@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { supabase } from '../lib/supabase';
 
 export default function Ideoi() {
   const [messages, setMessages] = useState([]);
@@ -7,26 +8,58 @@ export default function Ideoi() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
 
-  // Lataa viestit localStoragesta
+  // Lataa viestit
   useEffect(() => {
-    const stored = localStorage.getItem('brainstorm-messages');
-    if (stored) {
-      setMessages(JSON.parse(stored));
-    } else {
-      // Aloitusviesti
-      setMessages([{
-        role: 'assistant',
-        content: 'Hei! 👋 Olen Claude, luova assistenttisi. Autan sinua ideoimaan sisältöä Kirkkopuiston Terassille. Mitä haluaisit suunnitella tänään?'
-      }]);
-    }
+    const loadMessages = async () => {
+      if (supabase) {
+        // Lataa Supabasesta
+        const { data, error } = await supabase
+          .from('brainstorm_messages')
+          .select('*')
+          .order('created_at', { ascending: true });
+
+        if (error) {
+          console.error('Virhe ladattaessa viestejä:', error);
+          // Fallback localStorageen
+          const stored = localStorage.getItem('brainstorm-messages');
+          setMessages(stored ? JSON.parse(stored) : getWelcomeMessage());
+        } else if (data && data.length > 0) {
+          setMessages(data.map(msg => ({ role: msg.role, content: msg.content })));
+        } else {
+          setMessages(getWelcomeMessage());
+        }
+      } else {
+        // Ei Supabasea, käytetään localStoragea
+        const stored = localStorage.getItem('brainstorm-messages');
+        setMessages(stored ? JSON.parse(stored) : getWelcomeMessage());
+      }
+    };
+    loadMessages();
   }, []);
 
-  // Tallenna viestit localStorageen
-  useEffect(() => {
-    if (messages.length > 0) {
-      localStorage.setItem('brainstorm-messages', JSON.stringify(messages));
+  // Tallenna uudet viestit
+  const saveMessage = async (message) => {
+    if (supabase) {
+      const { error } = await supabase
+        .from('brainstorm_messages')
+        .insert({
+          role: message.role,
+          content: message.content
+        });
+
+      if (error) {
+        console.error('Virhe tallennettaessa viestiä:', error);
+      }
+    } else {
+      // Fallback localStorage
+      localStorage.setItem('brainstorm-messages', JSON.stringify([...messages, message]));
     }
-  }, [messages]);
+  };
+
+  const getWelcomeMessage = () => [{
+    role: 'assistant',
+    content: 'Hei! 👋 Olen Claude, luova assistenttisi. Autan sinua ideoimaan sisältöä Kirkkopuiston Terassille. Mitä haluaisit suunnitella tänään?'
+  }];
 
   // Skrollaa aina viimeisimpään viestiin
   useEffect(() => {
@@ -40,6 +73,9 @@ export default function Ideoi() {
       role: 'user',
       content: input
     };
+
+    // Tallenna käyttäjän viesti
+    await saveMessage(userMessage);
 
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
@@ -66,28 +102,44 @@ export default function Ideoi() {
 
       const data = await response.json();
 
-      setMessages([...newMessages, {
+      const assistantMessage = {
         role: 'assistant',
         content: data.message
-      }]);
+      };
+
+      // Tallenna assistentin vastaus
+      await saveMessage(assistantMessage);
+
+      setMessages([...newMessages, assistantMessage]);
 
     } catch (error) {
       console.error('Error:', error);
-      setMessages([...newMessages, {
+      const errorMessage = {
         role: 'assistant',
         content: '❌ Virhe: En voinut hakea vastausta. Tarkista että ANTHROPIC_API_KEY on asetettu .env.local tiedostossa.'
-      }]);
+      };
+      await saveMessage(errorMessage);
+      setMessages([...newMessages, errorMessage]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const clearChat = () => {
+  const clearChat = async () => {
     if (confirm('Haluatko varmasti tyhjentää keskustelun?')) {
-      setMessages([{
-        role: 'assistant',
-        content: 'Hei! 👋 Olen Claude, luova assistenttisi. Autan sinua ideoimaan sisältöä Kirkkopuiston Terassille. Mitä haluaisit suunnitella tänään?'
-      }]);
+      if (supabase) {
+        // Poista kaikki viestit Supabasesta
+        const { error } = await supabase
+          .from('brainstorm_messages')
+          .delete()
+          .neq('id', 0); // Poista kaikki
+
+        if (error) {
+          console.error('Virhe tyhjennettäessä viestejä:', error);
+        }
+      }
+
+      setMessages(getWelcomeMessage());
       localStorage.removeItem('brainstorm-messages');
     }
   };

@@ -18,6 +18,7 @@ export default function Home() {
   const [viewMode, setViewMode] = useState('list'); // 'list', 'month', 'week'
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedWeek, setSelectedWeek] = useState(new Date());
+  const [teamMembers, setTeamMembers] = useState([]);
 
   const years = [2021, 2022, 2023, 2024, 2025, 2026];
   
@@ -81,6 +82,23 @@ export default function Home() {
     loadYear();
   }, [selectedYear]);
 
+  // Lataa vastuuhenkilöt
+  useEffect(() => {
+    const loadTeamMembers = async () => {
+      if (supabase) {
+        const { data, error } = await supabase
+          .from('team_members')
+          .select('*')
+          .order('name');
+
+        if (!error && data) {
+          setTeamMembers(data);
+        }
+      }
+    };
+    loadTeamMembers();
+  }, []);
+
   // Tallenna tapahtumat
   const savePosts = async (year, updatedPosts) => {
     if (supabase) {
@@ -114,7 +132,8 @@ export default function Home() {
                 due_date: task.dueDate,
                 due_time: task.dueTime || null,
                 completed: task.completed || false,
-                content: task.content || null
+                content: task.content || null,
+                assignee: task.assignee || null
               }));
 
               const { error: tasksError } = await supabase
@@ -149,7 +168,8 @@ export default function Home() {
                 due_date: task.dueDate,
                 due_time: task.dueTime || null,
                 completed: task.completed || false,
-                content: task.content || null
+                content: task.content || null,
+                assignee: task.assignee || null
               }));
 
               const { error: tasksError } = await supabase
@@ -408,6 +428,11 @@ export default function Home() {
               <p className="text-gray-600">Markkinoinnin työkalut</p>
             </div>
             <div className="flex gap-3 items-center">
+              <Link href="/tehtavat">
+                <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                  📋 Kaikki tehtävät
+                </button>
+              </Link>
               <Link href="/ideoi">
                 <button className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
                   💡 Ideoi sisältöä
@@ -835,6 +860,25 @@ export default function Home() {
                       className="w-full p-2 border rounded"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Vastuuhenkilö</label>
+                  <select
+                    value={editingTask.task.assignee || ''}
+                    onChange={(e) => setEditingTask({
+                      ...editingTask,
+                      task: { ...editingTask.task, assignee: e.target.value }
+                    })}
+                    className="w-full p-2 border rounded"
+                  >
+                    <option value="">Ei määritetty</option>
+                    {teamMembers.map(member => (
+                      <option key={member.id} value={member.name}>
+                        {member.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>

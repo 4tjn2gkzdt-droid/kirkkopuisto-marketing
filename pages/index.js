@@ -845,25 +845,26 @@ export default function Home() {
               <div className="flex justify-between items-center mb-4">
                 <button
                   onClick={() => setSelectedMonth(m => m === 0 ? 11 : m - 1)}
-                  className="px-4 py-2 bg-gray-100 rounded hover:bg-gray-200"
+                  className="px-2 md:px-4 py-2 bg-gray-100 rounded hover:bg-gray-200 text-sm md:text-base"
                 >
-                  ← Edellinen
+                  ← <span className="hidden sm:inline">Edellinen</span>
                 </button>
-                <h3 className="text-xl font-bold">
+                <h3 className="text-base md:text-xl font-bold">
                   {new Date(selectedYear, selectedMonth).toLocaleDateString('fi-FI', { month: 'long', year: 'numeric' })}
                 </h3>
                 <button
                   onClick={() => setSelectedMonth(m => m === 11 ? 0 : m + 1)}
-                  className="px-4 py-2 bg-gray-100 rounded hover:bg-gray-200"
+                  className="px-2 md:px-4 py-2 bg-gray-100 rounded hover:bg-gray-200 text-sm md:text-base"
                 >
-                  Seuraava →
+                  <span className="hidden sm:inline">Seuraava</span> →
                 </button>
               </div>
 
-              <div className="grid grid-cols-7 gap-2">
-                {['Ma', 'Ti', 'Ke', 'To', 'Pe', 'La', 'Su'].map(day => (
-                  <div key={day} className="text-center font-bold text-gray-600 py-2">
-                    {day}
+              <div className="grid grid-cols-7 gap-1 md:gap-2">
+                {['Ma', 'Ti', 'Ke', 'To', 'Pe', 'La', 'Su'].map((day, idx) => (
+                  <div key={day} className="text-center font-bold text-gray-600 py-1 md:py-2 text-xs md:text-base">
+                    <span className="hidden sm:inline">{day}</span>
+                    <span className="sm:hidden">{['M', 'T', 'K', 'T', 'P', 'L', 'S'][idx]}</span>
                   </div>
                 ))}
                 {getDaysInMonth(selectedYear, selectedMonth).map((date, idx) => {
@@ -873,16 +874,16 @@ export default function Home() {
                   return (
                     <div
                       key={idx}
-                      className={`min-h-[100px] border rounded p-2 ${
+                      className={`min-h-[60px] md:min-h-[100px] border rounded p-1 md:p-2 ${
                         !date ? 'bg-gray-50' : isToday ? 'bg-blue-50 border-blue-300' : 'bg-white hover:bg-gray-50'
                       }`}
                     >
                       {date && (
                         <>
-                          <div className="text-right text-sm font-semibold mb-1">
+                          <div className="text-right text-xs md:text-sm font-semibold mb-1">
                             {date.getDate()}
                           </div>
-                          <div className="space-y-1">
+                          <div className="space-y-0.5 md:space-y-1">
                             {dayEvents.map(event => {
                               const completed = event.tasks.filter(t => t.completed).length;
                               const total = event.tasks.length;
@@ -890,7 +891,7 @@ export default function Home() {
                               return (
                                 <div
                                   key={event.id}
-                                  className="text-xs bg-green-100 border border-green-300 rounded p-1 cursor-pointer hover:bg-green-200"
+                                  className="text-[9px] md:text-xs bg-green-100 border border-green-300 rounded p-0.5 md:p-1 cursor-pointer hover:bg-green-200"
                                   onClick={() => {
                                     setExpandedEvents(prev => ({ ...prev, [event.id]: true }));
                                     setViewMode('list');
@@ -899,16 +900,16 @@ export default function Home() {
                                 >
                                   <div className="font-semibold truncate">{event.title}</div>
                                   {event.time && (
-                                    <div className="text-gray-600">{event.time}</div>
+                                    <div className="text-gray-600 hidden md:block">{event.time}</div>
                                   )}
-                                  <div className="flex items-center gap-1 mt-1">
-                                    <div className="flex-1 bg-gray-200 rounded-full h-1">
+                                  <div className="flex items-center gap-1 mt-0.5 md:mt-1">
+                                    <div className="flex-1 bg-gray-200 rounded-full h-0.5 md:h-1">
                                       <div
-                                        className="bg-green-600 h-1 rounded-full"
+                                        className="bg-green-600 h-0.5 md:h-1 rounded-full"
                                         style={{ width: `${(completed / total) * 100}%` }}
                                       ></div>
                                     </div>
-                                    <span className="text-[10px]">{completed}/{total}</span>
+                                    <span className="text-[8px] md:text-[10px]">{completed}/{total}</span>
                                   </div>
                                 </div>
                               );

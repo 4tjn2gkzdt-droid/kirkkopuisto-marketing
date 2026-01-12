@@ -19,6 +19,14 @@ export default function Home() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedWeek, setSelectedWeek] = useState(new Date());
   const [teamMembers, setTeamMembers] = useState([]);
+  const [showAddEventModal, setShowAddEventModal] = useState(false);
+  const [newEvent, setNewEvent] = useState({
+    title: '',
+    date: '',
+    time: '',
+    artist: '',
+    tasks: []
+  });
 
   const years = [2021, 2022, 2023, 2024, 2025, 2026];
   
@@ -214,13 +222,13 @@ export default function Home() {
     oneDay.setDate(oneDay.getDate() - 1);
     
     return [
-      { id: `t1-${Date.now()}-${Math.random()}`, title: 'Turun tapahtumakalenteri', channel: 'turku-calendar', dueDate: formatDate(fourWeeks), dueTime: '10:00', completed: false, content: '' },
-      { id: `t2-${Date.now()}-${Math.random()}`, title: 'TS Menovinkit', channel: 'ts-meno', dueDate: formatDate(fourWeeks), dueTime: '11:00', completed: false, content: '' },
-      { id: `t3-${Date.now()}-${Math.random()}`, title: 'Instagram-postaus', channel: 'instagram', dueDate: formatDate(oneWeek), dueTime: '10:00', completed: false, content: '' },
-      { id: `t4-${Date.now()}-${Math.random()}`, title: 'Facebook-tapahtuma', channel: 'facebook', dueDate: formatDate(oneWeek), dueTime: '11:00', completed: false, content: '' },
-      { id: `t5-${Date.now()}-${Math.random()}`, title: 'TikTok-video', channel: 'instagram', dueDate: formatDate(fiveDays), dueTime: '14:00', completed: false, content: '' },
-      { id: `t6-${Date.now()}-${Math.random()}`, title: 'Facebook-postaus', channel: 'facebook', dueDate: formatDate(threeDays), dueTime: '12:00', completed: false, content: '' },
-      { id: `t7-${Date.now()}-${Math.random()}`, title: 'Instagram Story', channel: 'instagram', dueDate: formatDate(oneDay), dueTime: '18:00', completed: false, content: '' }
+      { id: `t1-${Date.now()}-${Math.random()}`, title: 'Turun tapahtumakalenteri', channel: 'turku-calendar', dueDate: formatDate(fourWeeks), dueTime: '10:00', completed: false, content: '', assignee: '' },
+      { id: `t2-${Date.now()}-${Math.random()}`, title: 'TS Menovinkit', channel: 'ts-meno', dueDate: formatDate(fourWeeks), dueTime: '11:00', completed: false, content: '', assignee: '' },
+      { id: `t3-${Date.now()}-${Math.random()}`, title: 'Instagram-postaus', channel: 'instagram', dueDate: formatDate(oneWeek), dueTime: '10:00', completed: false, content: '', assignee: '' },
+      { id: `t4-${Date.now()}-${Math.random()}`, title: 'Facebook-tapahtuma', channel: 'facebook', dueDate: formatDate(oneWeek), dueTime: '11:00', completed: false, content: '', assignee: '' },
+      { id: `t5-${Date.now()}-${Math.random()}`, title: 'TikTok-video', channel: 'tiktok', dueDate: formatDate(fiveDays), dueTime: '14:00', completed: false, content: '', assignee: '' },
+      { id: `t6-${Date.now()}-${Math.random()}`, title: 'Facebook-postaus', channel: 'facebook', dueDate: formatDate(threeDays), dueTime: '12:00', completed: false, content: '', assignee: '' },
+      { id: `t7-${Date.now()}-${Math.random()}`, title: 'Instagram Story', channel: 'instagram', dueDate: formatDate(oneDay), dueTime: '18:00', completed: false, content: '', assignee: '' }
     ];
   };
 
@@ -342,6 +350,157 @@ export default function Home() {
     }
     const currentPosts = posts[selectedYear] || [];
     savePosts(selectedYear, currentPosts.filter(p => p.id !== id));
+  };
+
+  const addTaskToNewEvent = () => {
+    const newTask = {
+      id: `temp-${Date.now()}`,
+      title: '',
+      channel: 'instagram',
+      dueDate: '',
+      dueTime: '',
+      assignee: '',
+      content: '',
+      completed: false
+    };
+    setNewEvent({
+      ...newEvent,
+      tasks: [...newEvent.tasks, newTask]
+    });
+  };
+
+  const removeTaskFromNewEvent = (taskId) => {
+    setNewEvent({
+      ...newEvent,
+      tasks: newEvent.tasks.filter(t => t.id !== taskId)
+    });
+  };
+
+  const updateTaskInNewEvent = (taskId, field, value) => {
+    setNewEvent({
+      ...newEvent,
+      tasks: newEvent.tasks.map(t =>
+        t.id === taskId ? { ...t, [field]: value } : t
+      )
+    });
+  };
+
+  const saveNewEvent = async () => {
+    // Validointi
+    if (!newEvent.title.trim()) {
+      alert('Anna tapahtumalle nimi');
+      return;
+    }
+    if (!newEvent.date) {
+      alert('Valitse tapahtuman päivämäärä');
+      return;
+    }
+
+    // Tarkista että kaikilla tehtävillä on nimi ja deadline
+    for (const task of newEvent.tasks) {
+      if (!task.title.trim()) {
+        alert('Kaikilla tehtävillä täytyy olla nimi');
+        return;
+      }
+      if (!task.dueDate) {
+        alert('Kaikilla tehtävillä täytyy olla deadline');
+        return;
+      }
+    }
+
+    const eventYear = new Date(newEvent.date).getFullYear();
+    const currentPosts = posts[eventYear] || [];
+
+    if (supabase) {
+      // Tallenna Supabaseen
+      try {
+        const { data: savedEvent, error: eventError } = await supabase
+          .from('events')
+          .insert({
+            title: newEvent.title,
+            date: newEvent.date,
+            time: newEvent.time || null,
+            artist: newEvent.artist || null,
+            year: eventYear,
+            images: {}
+          })
+          .select()
+          .single();
+
+        if (eventError) throw eventError;
+
+        // Tallenna tehtävät
+        if (newEvent.tasks.length > 0) {
+          const tasksToInsert = newEvent.tasks.map(task => ({
+            event_id: savedEvent.id,
+            title: task.title,
+            channel: task.channel,
+            due_date: task.dueDate,
+            due_time: task.dueTime || null,
+            completed: false,
+            content: task.content || null,
+            assignee: task.assignee || null
+          }));
+
+          const { error: tasksError } = await supabase
+            .from('tasks')
+            .insert(tasksToInsert);
+
+          if (tasksError) throw tasksError;
+        }
+
+        // Päivitä UI
+        const { data: events, error } = await supabase
+          .from('events')
+          .select(`*, tasks (*)`)
+          .eq('year', eventYear)
+          .order('date', { ascending: true });
+
+        if (!error) {
+          const formattedEvents = events.map(event => ({
+            id: event.id,
+            title: event.title,
+            date: event.date,
+            time: event.time,
+            artist: event.artist,
+            images: event.images || {},
+            tasks: event.tasks || []
+          }));
+          setPosts(prev => ({ ...prev, [eventYear]: formattedEvents }));
+        }
+
+      } catch (error) {
+        console.error('Virhe tallennettaessa:', error);
+        alert('Virhe tallennettaessa tapahtumaa: ' + error.message);
+        return;
+      }
+    } else {
+      // LocalStorage fallback
+      const newPost = {
+        id: Date.now(),
+        ...newEvent,
+        images: {},
+        tasks: newEvent.tasks.map(t => ({ ...t, id: Date.now() + Math.random() }))
+      };
+      savePosts(eventYear, [...currentPosts, newPost].sort((a, b) =>
+        new Date(a.date) - new Date(b.date)
+      ));
+    }
+
+    // Tyhjennä lomake ja sulje modaali
+    setNewEvent({
+      title: '',
+      date: '',
+      time: '',
+      artist: '',
+      tasks: []
+    });
+    setShowAddEventModal(false);
+
+    // Vaihda oikeaan vuoteen jos tarpeen
+    if (eventYear !== selectedYear) {
+      setSelectedYear(eventYear);
+    }
   };
 
   const toggleImage = (formatId) => {
@@ -476,12 +635,20 @@ export default function Home() {
                   📆 Viikko
                 </button>
               </div>
-              <button
-                onClick={() => setShowImportModal(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-              >
-                ➕ Tuo taulukosta
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowAddEventModal(true)}
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                >
+                  ➕ Lisää tapahtuma
+                </button>
+                <button
+                  onClick={() => setShowImportModal(true)}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                >
+                  📥 Tuo taulukosta
+                </button>
+              </div>
             </div>
           </div>
 
@@ -810,6 +977,175 @@ export default function Home() {
                     setImportText('');
                   }}
                   className="flex-1 bg-gray-200 py-2 rounded-lg"
+                >
+                  Peruuta
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showAddEventModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto">
+              <h3 className="text-2xl font-bold mb-6">➕ Lisää uusi tapahtuma</h3>
+
+              {/* Tapahtuman tiedot */}
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Tapahtuman nimi *</label>
+                  <input
+                    type="text"
+                    value={newEvent.title}
+                    onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
+                    className="w-full p-2 border rounded-lg"
+                    placeholder="Esim. Kesäkonsertti"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Päivämäärä *</label>
+                    <input
+                      type="date"
+                      value={newEvent.date}
+                      onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
+                      className="w-full p-2 border rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Aika</label>
+                    <input
+                      type="time"
+                      value={newEvent.time}
+                      onChange={(e) => setNewEvent({ ...newEvent, time: e.target.value })}
+                      className="w-full p-2 border rounded-lg"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Artisti / Esiintyjä</label>
+                  <input
+                    type="text"
+                    value={newEvent.artist}
+                    onChange={(e) => setNewEvent({ ...newEvent, artist: e.target.value })}
+                    className="w-full p-2 border rounded-lg"
+                    placeholder="Esim. Band XYZ"
+                  />
+                </div>
+              </div>
+
+              {/* Markkinointitehtävät */}
+              <div className="border-t pt-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h4 className="text-lg font-semibold">Markkinointitehtävät</h4>
+                  <button
+                    onClick={addTaskToNewEvent}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm"
+                  >
+                    + Lisää tehtävä
+                  </button>
+                </div>
+
+                {newEvent.tasks.length === 0 ? (
+                  <p className="text-gray-500 text-sm mb-4">Ei tehtäviä. Klikkaa "Lisää tehtävä" lisätäksesi markkinointitehtäviä.</p>
+                ) : (
+                  <div className="space-y-4 mb-4">
+                    {newEvent.tasks.map((task, index) => (
+                      <div key={task.id} className="border rounded-lg p-4 bg-gray-50">
+                        <div className="flex justify-between items-start mb-3">
+                          <span className="font-medium text-sm text-gray-700">Tehtävä {index + 1}</span>
+                          <button
+                            onClick={() => removeTaskFromNewEvent(task.id)}
+                            className="text-red-600 hover:text-red-800 text-sm"
+                          >
+                            ✕ Poista
+                          </button>
+                        </div>
+
+                        <div className="space-y-3">
+                          <input
+                            type="text"
+                            value={task.title}
+                            onChange={(e) => updateTaskInNewEvent(task.id, 'title', e.target.value)}
+                            className="w-full p-2 border rounded-lg text-sm"
+                            placeholder="Tehtävän nimi *"
+                          />
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <select
+                              value={task.channel}
+                              onChange={(e) => updateTaskInNewEvent(task.id, 'channel', e.target.value)}
+                              className="w-full p-2 border rounded-lg text-sm"
+                            >
+                              {channels.map(ch => (
+                                <option key={ch.id} value={ch.id}>{ch.name}</option>
+                              ))}
+                            </select>
+
+                            <select
+                              value={task.assignee}
+                              onChange={(e) => updateTaskInNewEvent(task.id, 'assignee', e.target.value)}
+                              className="w-full p-2 border rounded-lg text-sm"
+                            >
+                              <option value="">Ei vastuuhenkilöä</option>
+                              {teamMembers.map(member => (
+                                <option key={member.id} value={member.name}>{member.name}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <input
+                              type="date"
+                              value={task.dueDate}
+                              onChange={(e) => updateTaskInNewEvent(task.id, 'dueDate', e.target.value)}
+                              className="w-full p-2 border rounded-lg text-sm"
+                              placeholder="Deadline *"
+                            />
+                            <input
+                              type="time"
+                              value={task.dueTime}
+                              onChange={(e) => updateTaskInNewEvent(task.id, 'dueTime', e.target.value)}
+                              className="w-full p-2 border rounded-lg text-sm"
+                            />
+                          </div>
+
+                          <textarea
+                            value={task.content}
+                            onChange={(e) => updateTaskInNewEvent(task.id, 'content', e.target.value)}
+                            className="w-full p-2 border rounded-lg text-sm"
+                            placeholder="Sisältö / Muistiinpanot"
+                            rows="2"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Napit */}
+              <div className="flex gap-3 mt-6 border-t pt-4">
+                <button
+                  onClick={saveNewEvent}
+                  className="flex-1 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 font-semibold"
+                >
+                  💾 Tallenna tapahtuma
+                </button>
+                <button
+                  onClick={() => {
+                    setShowAddEventModal(false);
+                    setNewEvent({
+                      title: '',
+                      date: '',
+                      time: '',
+                      artist: '',
+                      tasks: []
+                    });
+                  }}
+                  className="flex-1 bg-gray-200 py-3 rounded-lg hover:bg-gray-300"
                 >
                   Peruuta
                 </button>

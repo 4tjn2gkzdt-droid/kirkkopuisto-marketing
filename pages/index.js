@@ -25,6 +25,7 @@ export default function Home() {
   const channels = [
     { id: 'instagram', name: 'Instagram', color: 'bg-pink-500' },
     { id: 'facebook', name: 'Facebook', color: 'bg-blue-500' },
+    { id: 'tiktok', name: 'TikTok', color: 'bg-black' },
     { id: 'newsletter', name: 'Uutiskirje', color: 'bg-green-500' },
     { id: 'print', name: 'Printit', color: 'bg-purple-500' },
     { id: 'ts-meno', name: 'TS Menovinkit', color: 'bg-orange-500' },

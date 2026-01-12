@@ -117,12 +117,13 @@ export default function Home() {
     loadTeamMembers();
   }, []);
 
-  // Aseta kuukausinäkymä ensimmäiseen tapahtumaan
+  // Aseta kuukausi- ja viikkonäkymä ensimmäiseen tapahtumaan
   useEffect(() => {
     const currentPosts = posts[selectedYear] || [];
     if (currentPosts.length > 0) {
       const firstEventDate = new Date(currentPosts[0].date);
       setSelectedMonth(firstEventDate.getMonth());
+      setSelectedWeek(firstEventDate);
     }
   }, [posts, selectedYear]);
 

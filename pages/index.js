@@ -281,16 +281,38 @@ export default function Home() {
     return events;
   };
 
-  const handleImport = () => {
+  const handleImport = async () => {
     const parsed = parseImportedData(importText);
     if (parsed.length === 0) {
       alert('Ei voitu lukea tapahtumia');
       return;
     }
-    
+
     const currentPosts = posts[selectedYear] || [];
-    savePosts(selectedYear, [...currentPosts, ...parsed]);
-    
+    await savePosts(selectedYear, [...currentPosts, ...parsed]);
+
+    // Lataa data uudelleen Supabasesta varmistaaksesi että kaikki on tallennettu
+    if (supabase) {
+      const { data: events, error } = await supabase
+        .from('events')
+        .select(`*, tasks (*)`)
+        .eq('year', selectedYear)
+        .order('date', { ascending: true });
+
+      if (!error && events) {
+        const formattedEvents = events.map(event => ({
+          id: event.id,
+          title: event.title,
+          date: event.date,
+          time: event.time,
+          artist: event.artist,
+          images: event.images || {},
+          tasks: event.tasks || []
+        }));
+        setPosts(prev => ({ ...prev, [selectedYear]: formattedEvents }));
+      }
+    }
+
     setShowImportModal(false);
     setImportText('');
     alert(`Lisätty ${parsed.length} tapahtumaa!`);

@@ -636,7 +636,7 @@ export default function Home() {
               <h1 className="text-3xl font-bold text-green-800">Kirkkopuiston Terassi</h1>
               <p className="text-gray-600">Markkinoinnin työkalut</p>
             </div>
-            <div className="flex gap-3 items-center">
+            <div className="flex gap-3 items-center flex-wrap">
               <Link href="/tehtavat">
                 <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
                   📋 Kaikki tehtävät
@@ -645,6 +645,11 @@ export default function Home() {
               <Link href="/ideoi">
                 <button className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
                   💡 Ideoi sisältöä
+                </button>
+              </Link>
+              <Link href="/poista-duplikaatit">
+                <button className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 text-sm">
+                  🗑️ Poista duplikaatit
                 </button>
               </Link>
               <select

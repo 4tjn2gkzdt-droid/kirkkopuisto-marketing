@@ -27,6 +27,7 @@ export default function Home() {
     artist: '',
     tasks: []
   });
+  const [showDeadlineModal, setShowDeadlineModal] = useState(false);
 
   const years = [2021, 2022, 2023, 2024, 2025, 2026];
   
@@ -78,7 +79,16 @@ export default function Home() {
             time: event.time,
             artist: event.artist,
             images: event.images || {},
-            tasks: event.tasks || []
+            tasks: (event.tasks || []).map(task => ({
+              id: task.id,
+              title: task.title,
+              channel: task.channel,
+              dueDate: task.due_date,
+              dueTime: task.due_time,
+              completed: task.completed,
+              content: task.content,
+              assignee: task.assignee
+            }))
           }));
           setPosts(prev => ({ ...prev, [selectedYear]: formattedEvents }));
         }
@@ -107,6 +117,16 @@ export default function Home() {
     };
     loadTeamMembers();
   }, []);
+
+  // Aseta kuukausi- ja viikkonäkymä ensimmäiseen tapahtumaan
+  useEffect(() => {
+    const currentPosts = posts[selectedYear] || [];
+    if (currentPosts.length > 0) {
+      const firstEventDate = new Date(currentPosts[0].date);
+      setSelectedMonth(firstEventDate.getMonth());
+      setSelectedWeek(firstEventDate);
+    }
+  }, [posts, selectedYear]);
 
   // Tallenna tapahtumat
   const savePosts = async (year, updatedPosts) => {
@@ -281,16 +301,47 @@ export default function Home() {
     return events;
   };
 
-  const handleImport = () => {
+  const handleImport = async () => {
     const parsed = parseImportedData(importText);
     if (parsed.length === 0) {
       alert('Ei voitu lukea tapahtumia');
       return;
     }
-    
+
     const currentPosts = posts[selectedYear] || [];
-    savePosts(selectedYear, [...currentPosts, ...parsed]);
-    
+    await savePosts(selectedYear, [...currentPosts, ...parsed]);
+
+    // Lataa data uudelleen Supabasesta varmistaaksesi että kaikki on tallennettu
+    if (supabase) {
+      const { data: events, error } = await supabase
+        .from('events')
+        .select(`*, tasks (*)`)
+        .eq('year', selectedYear)
+        .order('date', { ascending: true });
+
+      if (!error && events) {
+        const formattedEvents = events.map(event => ({
+          id: event.id,
+          title: event.title,
+          date: event.date,
+          time: event.time,
+          artist: event.artist,
+          images: event.images || {},
+          tasks: (event.tasks || []).map(task => ({
+            id: task.id,
+            title: task.title,
+            channel: task.channel,
+            dueDate: task.due_date,
+            dueTime: task.due_time,
+            completed: task.completed,
+            content: task.content,
+            assignee: task.assignee
+          }))
+        }));
+        setPosts(prev => ({ ...prev, [selectedYear]: formattedEvents }));
+      }
+    }
+
     setShowImportModal(false);
     setImportText('');
     alert(`Lisätty ${parsed.length} tapahtumaa!`);
@@ -524,6 +575,47 @@ export default function Home() {
     setCurrentEventForImages(updatedPosts.find(p => p.id === currentEventForImages.id));
   };
 
+  // Laskee lähestyvät ja myöhässä olevat deadlinet
+  const getUpcomingDeadlines = () => {
+    const allPosts = posts[selectedYear] || [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const deadlines = [];
+
+    allPosts.forEach(post => {
+      (post.tasks || []).forEach(task => {
+        if (!task.completed && task.dueDate) {
+          const dueDate = new Date(task.dueDate);
+          dueDate.setHours(0, 0, 0, 0);
+
+          const diffTime = dueDate - today;
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+          let urgency = 'normal';
+          if (diffDays < 0) {
+            urgency = 'overdue'; // Myöhässä
+          } else if (diffDays <= 3) {
+            urgency = 'urgent'; // Alle 3 päivää
+          } else if (diffDays <= 7) {
+            urgency = 'soon'; // Alle viikko
+          }
+
+          deadlines.push({
+            task,
+            event: post,
+            dueDate: task.dueDate,
+            dueTime: task.dueTime,
+            diffDays,
+            urgency
+          });
+        }
+      });
+    });
+
+    return deadlines.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+  };
+
   const filterPosts = () => {
     const currentPosts = posts[selectedYear] || [];
     if (!searchQuery) return currentPosts;
@@ -587,7 +679,12 @@ export default function Home() {
               <h1 className="text-3xl font-bold text-green-800">Kirkkopuiston Terassi</h1>
               <p className="text-gray-600">Markkinoinnin työkalut</p>
             </div>
-            <div className="flex gap-3 items-center">
+            <div className="flex gap-3 items-center flex-wrap">
+              <Link href="/materiaalit">
+                <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
+                  📁 Materiaalit
+                </button>
+              </Link>
               <Link href="/tehtavat">
                 <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
                   📋 Kaikki tehtävät
@@ -596,6 +693,11 @@ export default function Home() {
               <Link href="/ideoi">
                 <button className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
                   💡 Ideoi sisältöä
+                </button>
+              </Link>
+              <Link href="/poista-duplikaatit">
+                <button className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 text-sm">
+                  🗑️ Poista duplikaatit
                 </button>
               </Link>
               <select
@@ -610,6 +712,53 @@ export default function Home() {
             </div>
           </div>
         </div>
+
+        {/* Deadline-muistutukset */}
+        {(() => {
+          const upcomingDeadlines = getUpcomingDeadlines();
+          const overdue = upcomingDeadlines.filter(d => d.urgency === 'overdue');
+          const urgent = upcomingDeadlines.filter(d => d.urgency === 'urgent');
+          const soon = upcomingDeadlines.filter(d => d.urgency === 'soon');
+          const totalCount = overdue.length + urgent.length + soon.length;
+
+          if (totalCount === 0) return null;
+
+          return (
+            <div
+              onClick={() => setShowDeadlineModal(true)}
+              className="bg-white rounded-lg shadow-lg p-4 mb-6 cursor-pointer hover:shadow-xl transition-shadow border-l-4 border-yellow-500"
+            >
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">🔔</span>
+                  <div>
+                    <h3 className="font-bold text-gray-800">Lähestyvät deadlinet</h3>
+                    <div className="flex gap-4 text-sm mt-1">
+                      {overdue.length > 0 && (
+                        <span className="text-red-600 font-semibold">
+                          ❌ {overdue.length} myöhässä
+                        </span>
+                      )}
+                      {urgent.length > 0 && (
+                        <span className="text-orange-600 font-semibold">
+                          ⚠️ {urgent.length} kiireellinen
+                        </span>
+                      )}
+                      {soon.length > 0 && (
+                        <span className="text-blue-600">
+                          📅 {soon.length} tällä viikolla
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <button className="text-sm text-gray-600 hover:text-gray-800">
+                  Näytä kaikki →
+                </button>
+              </div>
+            </div>
+          );
+        })()}
 
         <div className="bg-white rounded-lg shadow-lg p-6">
           <div className="flex justify-between items-center mb-6 flex-wrap gap-3">
@@ -791,25 +940,26 @@ export default function Home() {
               <div className="flex justify-between items-center mb-4">
                 <button
                   onClick={() => setSelectedMonth(m => m === 0 ? 11 : m - 1)}
-                  className="px-4 py-2 bg-gray-100 rounded hover:bg-gray-200"
+                  className="px-2 md:px-4 py-2 bg-gray-100 rounded hover:bg-gray-200 text-sm md:text-base"
                 >
-                  ← Edellinen
+                  ← <span className="hidden sm:inline">Edellinen</span>
                 </button>
-                <h3 className="text-xl font-bold">
+                <h3 className="text-base md:text-xl font-bold">
                   {new Date(selectedYear, selectedMonth).toLocaleDateString('fi-FI', { month: 'long', year: 'numeric' })}
                 </h3>
                 <button
                   onClick={() => setSelectedMonth(m => m === 11 ? 0 : m + 1)}
-                  className="px-4 py-2 bg-gray-100 rounded hover:bg-gray-200"
+                  className="px-2 md:px-4 py-2 bg-gray-100 rounded hover:bg-gray-200 text-sm md:text-base"
                 >
-                  Seuraava →
+                  <span className="hidden sm:inline">Seuraava</span> →
                 </button>
               </div>
 
-              <div className="grid grid-cols-7 gap-2">
-                {['Ma', 'Ti', 'Ke', 'To', 'Pe', 'La', 'Su'].map(day => (
-                  <div key={day} className="text-center font-bold text-gray-600 py-2">
-                    {day}
+              <div className="grid grid-cols-7 gap-1 md:gap-2">
+                {['Ma', 'Ti', 'Ke', 'To', 'Pe', 'La', 'Su'].map((day, idx) => (
+                  <div key={day} className="text-center font-bold text-gray-600 py-1 md:py-2 text-xs md:text-base">
+                    <span className="hidden sm:inline">{day}</span>
+                    <span className="sm:hidden">{['M', 'T', 'K', 'T', 'P', 'L', 'S'][idx]}</span>
                   </div>
                 ))}
                 {getDaysInMonth(selectedYear, selectedMonth).map((date, idx) => {
@@ -819,16 +969,16 @@ export default function Home() {
                   return (
                     <div
                       key={idx}
-                      className={`min-h-[100px] border rounded p-2 ${
+                      className={`min-h-[60px] md:min-h-[100px] border rounded p-1 md:p-2 ${
                         !date ? 'bg-gray-50' : isToday ? 'bg-blue-50 border-blue-300' : 'bg-white hover:bg-gray-50'
                       }`}
                     >
                       {date && (
                         <>
-                          <div className="text-right text-sm font-semibold mb-1">
+                          <div className="text-right text-xs md:text-sm font-semibold mb-1">
                             {date.getDate()}
                           </div>
-                          <div className="space-y-1">
+                          <div className="space-y-0.5 md:space-y-1">
                             {dayEvents.map(event => {
                               const completed = event.tasks.filter(t => t.completed).length;
                               const total = event.tasks.length;
@@ -836,7 +986,7 @@ export default function Home() {
                               return (
                                 <div
                                   key={event.id}
-                                  className="text-xs bg-green-100 border border-green-300 rounded p-1 cursor-pointer hover:bg-green-200"
+                                  className="text-[9px] md:text-xs bg-green-100 border border-green-300 rounded p-0.5 md:p-1 cursor-pointer hover:bg-green-200"
                                   onClick={() => {
                                     setExpandedEvents(prev => ({ ...prev, [event.id]: true }));
                                     setViewMode('list');
@@ -845,16 +995,16 @@ export default function Home() {
                                 >
                                   <div className="font-semibold truncate">{event.title}</div>
                                   {event.time && (
-                                    <div className="text-gray-600">{event.time}</div>
+                                    <div className="text-gray-600 hidden md:block">{event.time}</div>
                                   )}
-                                  <div className="flex items-center gap-1 mt-1">
-                                    <div className="flex-1 bg-gray-200 rounded-full h-1">
+                                  <div className="flex items-center gap-1 mt-0.5 md:mt-1">
+                                    <div className="flex-1 bg-gray-200 rounded-full h-0.5 md:h-1">
                                       <div
-                                        className="bg-green-600 h-1 rounded-full"
+                                        className="bg-green-600 h-0.5 md:h-1 rounded-full"
                                         style={{ width: `${(completed / total) * 100}%` }}
                                       ></div>
                                     </div>
-                                    <span className="text-[10px]">{completed}/{total}</span>
+                                    <span className="text-[8px] md:text-[10px]">{completed}/{total}</span>
                                   </div>
                                 </div>
                               );
@@ -953,6 +1103,156 @@ export default function Home() {
             </div>
           )}
         </div>
+
+        {/* Deadline-modaali */}
+        {showDeadlineModal && (() => {
+          const upcomingDeadlines = getUpcomingDeadlines();
+          const overdue = upcomingDeadlines.filter(d => d.urgency === 'overdue');
+          const urgent = upcomingDeadlines.filter(d => d.urgency === 'urgent');
+          const soon = upcomingDeadlines.filter(d => d.urgency === 'soon');
+
+          return (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-lg max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-2xl font-bold">🔔 Lähestyvät deadlinet</h3>
+                  <button
+                    onClick={() => setShowDeadlineModal(false)}
+                    className="text-gray-500 hover:text-gray-700 text-2xl"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                {/* Myöhässä */}
+                {overdue.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="text-lg font-bold text-red-600 mb-3 flex items-center gap-2">
+                      ❌ Myöhässä ({overdue.length})
+                    </h4>
+                    <div className="space-y-3">
+                      {overdue.map((d, idx) => (
+                        <div key={idx} className="border border-red-300 bg-red-50 rounded-lg p-4">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h5 className="font-semibold text-gray-800">{d.task.title}</h5>
+                              <p className="text-sm text-gray-600">{d.event.title} - {d.event.artist}</p>
+                              <div className="flex gap-4 mt-2 text-sm">
+                                <span className="text-red-600 font-semibold">
+                                  {Math.abs(d.diffDays)} päivää myöhässä
+                                </span>
+                                <span className="text-gray-600">
+                                  {d.dueDate} {d.dueTime && `klo ${d.dueTime}`}
+                                </span>
+                                {d.task.assignee && (
+                                  <span className="text-gray-600">👤 {d.task.assignee}</span>
+                                )}
+                              </div>
+                              <span className={`inline-block px-2 py-1 rounded text-xs mt-2 ${
+                                channels.find(c => c.id === d.task.channel)?.color || 'bg-gray-500'
+                              } text-white`}>
+                                {channels.find(c => c.id === d.task.channel)?.name || d.task.channel}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Kiireelliset (alle 3 päivää) */}
+                {urgent.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="text-lg font-bold text-orange-600 mb-3 flex items-center gap-2">
+                      ⚠️ Kiireelliset ({urgent.length})
+                    </h4>
+                    <div className="space-y-3">
+                      {urgent.map((d, idx) => (
+                        <div key={idx} className="border border-orange-300 bg-orange-50 rounded-lg p-4">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h5 className="font-semibold text-gray-800">{d.task.title}</h5>
+                              <p className="text-sm text-gray-600">{d.event.title} - {d.event.artist}</p>
+                              <div className="flex gap-4 mt-2 text-sm">
+                                <span className="text-orange-600 font-semibold">
+                                  {d.diffDays === 0 ? 'Tänään' : d.diffDays === 1 ? 'Huomenna' : `${d.diffDays} päivän päästä`}
+                                </span>
+                                <span className="text-gray-600">
+                                  {d.dueDate} {d.dueTime && `klo ${d.dueTime}`}
+                                </span>
+                                {d.task.assignee && (
+                                  <span className="text-gray-600">👤 {d.task.assignee}</span>
+                                )}
+                              </div>
+                              <span className={`inline-block px-2 py-1 rounded text-xs mt-2 ${
+                                channels.find(c => c.id === d.task.channel)?.color || 'bg-gray-500'
+                              } text-white`}>
+                                {channels.find(c => c.id === d.task.channel)?.name || d.task.channel}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tällä viikolla (4-7 päivää) */}
+                {soon.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="text-lg font-bold text-blue-600 mb-3 flex items-center gap-2">
+                      📅 Tällä viikolla ({soon.length})
+                    </h4>
+                    <div className="space-y-3">
+                      {soon.map((d, idx) => (
+                        <div key={idx} className="border border-blue-300 bg-blue-50 rounded-lg p-4">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h5 className="font-semibold text-gray-800">{d.task.title}</h5>
+                              <p className="text-sm text-gray-600">{d.event.title} - {d.event.artist}</p>
+                              <div className="flex gap-4 mt-2 text-sm">
+                                <span className="text-blue-600 font-semibold">
+                                  {d.diffDays} päivän päästä
+                                </span>
+                                <span className="text-gray-600">
+                                  {d.dueDate} {d.dueTime && `klo ${d.dueTime}`}
+                                </span>
+                                {d.task.assignee && (
+                                  <span className="text-gray-600">👤 {d.task.assignee}</span>
+                                )}
+                              </div>
+                              <span className={`inline-block px-2 py-1 rounded text-xs mt-2 ${
+                                channels.find(c => c.id === d.task.channel)?.color || 'bg-gray-500'
+                              } text-white`}>
+                                {channels.find(c => c.id === d.task.channel)?.name || d.task.channel}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {upcomingDeadlines.length === 0 && (
+                  <p className="text-center text-gray-500 py-8">
+                    🎉 Ei lähestyviä deadlineja!
+                  </p>
+                )}
+
+                <div className="mt-6 flex justify-end">
+                  <button
+                    onClick={() => setShowDeadlineModal(false)}
+                    className="bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-700"
+                  >
+                    Sulje
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {showImportModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">

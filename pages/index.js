@@ -487,9 +487,15 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
         body: JSON.stringify({ message: prompt })
       });
 
-      if (!response.ok) throw new Error('AI-pyyntö epäonnistui');
-
       const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || data.details || 'AI-pyyntö epäonnistui');
+      }
+
+      if (!data.response) {
+        throw new Error('Ei vastausta API:lta');
+      }
 
       // Päivitä taskin content
       if (supabase && typeof task.id === 'number') {
@@ -518,7 +524,13 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
     } catch (error) {
       console.error('Virhe sisällön generoinnissa:', error);
-      alert('❌ Virhe: ' + error.message);
+      let errorMessage = 'Virhe sisällön generoinnissa: ' + error.message;
+
+      if (error.message.includes('API-avain')) {
+        errorMessage += '\n\nVarmista että ANTHROPIC_API_KEY on asetettu Vercel ympäristömuuttujiin.';
+      }
+
+      alert('❌ ' + errorMessage);
     } finally {
       setGeneratingTaskId(null);
     }

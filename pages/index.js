@@ -27,6 +27,7 @@ export default function Home() {
     artist: '',
     tasks: []
   });
+  const [showDeadlineModal, setShowDeadlineModal] = useState(false);
 
   const years = [2021, 2022, 2023, 2024, 2025, 2026];
   
@@ -574,6 +575,47 @@ export default function Home() {
     setCurrentEventForImages(updatedPosts.find(p => p.id === currentEventForImages.id));
   };
 
+  // Laskee lähestyvät ja myöhässä olevat deadlinet
+  const getUpcomingDeadlines = () => {
+    const allPosts = posts[selectedYear] || [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const deadlines = [];
+
+    allPosts.forEach(post => {
+      (post.tasks || []).forEach(task => {
+        if (!task.completed && task.dueDate) {
+          const dueDate = new Date(task.dueDate);
+          dueDate.setHours(0, 0, 0, 0);
+
+          const diffTime = dueDate - today;
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+          let urgency = 'normal';
+          if (diffDays < 0) {
+            urgency = 'overdue'; // Myöhässä
+          } else if (diffDays <= 3) {
+            urgency = 'urgent'; // Alle 3 päivää
+          } else if (diffDays <= 7) {
+            urgency = 'soon'; // Alle viikko
+          }
+
+          deadlines.push({
+            task,
+            event: post,
+            dueDate: task.dueDate,
+            dueTime: task.dueTime,
+            diffDays,
+            urgency
+          });
+        }
+      });
+    });
+
+    return deadlines.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+  };
+
   const filterPosts = () => {
     const currentPosts = posts[selectedYear] || [];
     if (!searchQuery) return currentPosts;
@@ -670,6 +712,53 @@ export default function Home() {
             </div>
           </div>
         </div>
+
+        {/* Deadline-muistutukset */}
+        {(() => {
+          const upcomingDeadlines = getUpcomingDeadlines();
+          const overdue = upcomingDeadlines.filter(d => d.urgency === 'overdue');
+          const urgent = upcomingDeadlines.filter(d => d.urgency === 'urgent');
+          const soon = upcomingDeadlines.filter(d => d.urgency === 'soon');
+          const totalCount = overdue.length + urgent.length + soon.length;
+
+          if (totalCount === 0) return null;
+
+          return (
+            <div
+              onClick={() => setShowDeadlineModal(true)}
+              className="bg-white rounded-lg shadow-lg p-4 mb-6 cursor-pointer hover:shadow-xl transition-shadow border-l-4 border-yellow-500"
+            >
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">🔔</span>
+                  <div>
+                    <h3 className="font-bold text-gray-800">Lähestyvät deadlinet</h3>
+                    <div className="flex gap-4 text-sm mt-1">
+                      {overdue.length > 0 && (
+                        <span className="text-red-600 font-semibold">
+                          ❌ {overdue.length} myöhässä
+                        </span>
+                      )}
+                      {urgent.length > 0 && (
+                        <span className="text-orange-600 font-semibold">
+                          ⚠️ {urgent.length} kiireellinen
+                        </span>
+                      )}
+                      {soon.length > 0 && (
+                        <span className="text-blue-600">
+                          📅 {soon.length} tällä viikolla
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <button className="text-sm text-gray-600 hover:text-gray-800">
+                  Näytä kaikki →
+                </button>
+              </div>
+            </div>
+          );
+        })()}
 
         <div className="bg-white rounded-lg shadow-lg p-6">
           <div className="flex justify-between items-center mb-6 flex-wrap gap-3">
@@ -1014,6 +1103,156 @@ export default function Home() {
             </div>
           )}
         </div>
+
+        {/* Deadline-modaali */}
+        {showDeadlineModal && (() => {
+          const upcomingDeadlines = getUpcomingDeadlines();
+          const overdue = upcomingDeadlines.filter(d => d.urgency === 'overdue');
+          const urgent = upcomingDeadlines.filter(d => d.urgency === 'urgent');
+          const soon = upcomingDeadlines.filter(d => d.urgency === 'soon');
+
+          return (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-lg max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-2xl font-bold">🔔 Lähestyvät deadlinet</h3>
+                  <button
+                    onClick={() => setShowDeadlineModal(false)}
+                    className="text-gray-500 hover:text-gray-700 text-2xl"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                {/* Myöhässä */}
+                {overdue.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="text-lg font-bold text-red-600 mb-3 flex items-center gap-2">
+                      ❌ Myöhässä ({overdue.length})
+                    </h4>
+                    <div className="space-y-3">
+                      {overdue.map((d, idx) => (
+                        <div key={idx} className="border border-red-300 bg-red-50 rounded-lg p-4">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h5 className="font-semibold text-gray-800">{d.task.title}</h5>
+                              <p className="text-sm text-gray-600">{d.event.title} - {d.event.artist}</p>
+                              <div className="flex gap-4 mt-2 text-sm">
+                                <span className="text-red-600 font-semibold">
+                                  {Math.abs(d.diffDays)} päivää myöhässä
+                                </span>
+                                <span className="text-gray-600">
+                                  {d.dueDate} {d.dueTime && `klo ${d.dueTime}`}
+                                </span>
+                                {d.task.assignee && (
+                                  <span className="text-gray-600">👤 {d.task.assignee}</span>
+                                )}
+                              </div>
+                              <span className={`inline-block px-2 py-1 rounded text-xs mt-2 ${
+                                channels.find(c => c.id === d.task.channel)?.color || 'bg-gray-500'
+                              } text-white`}>
+                                {channels.find(c => c.id === d.task.channel)?.name || d.task.channel}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Kiireelliset (alle 3 päivää) */}
+                {urgent.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="text-lg font-bold text-orange-600 mb-3 flex items-center gap-2">
+                      ⚠️ Kiireelliset ({urgent.length})
+                    </h4>
+                    <div className="space-y-3">
+                      {urgent.map((d, idx) => (
+                        <div key={idx} className="border border-orange-300 bg-orange-50 rounded-lg p-4">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h5 className="font-semibold text-gray-800">{d.task.title}</h5>
+                              <p className="text-sm text-gray-600">{d.event.title} - {d.event.artist}</p>
+                              <div className="flex gap-4 mt-2 text-sm">
+                                <span className="text-orange-600 font-semibold">
+                                  {d.diffDays === 0 ? 'Tänään' : d.diffDays === 1 ? 'Huomenna' : `${d.diffDays} päivän päästä`}
+                                </span>
+                                <span className="text-gray-600">
+                                  {d.dueDate} {d.dueTime && `klo ${d.dueTime}`}
+                                </span>
+                                {d.task.assignee && (
+                                  <span className="text-gray-600">👤 {d.task.assignee}</span>
+                                )}
+                              </div>
+                              <span className={`inline-block px-2 py-1 rounded text-xs mt-2 ${
+                                channels.find(c => c.id === d.task.channel)?.color || 'bg-gray-500'
+                              } text-white`}>
+                                {channels.find(c => c.id === d.task.channel)?.name || d.task.channel}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tällä viikolla (4-7 päivää) */}
+                {soon.length > 0 && (
+                  <div className="mb-6">
+                    <h4 className="text-lg font-bold text-blue-600 mb-3 flex items-center gap-2">
+                      📅 Tällä viikolla ({soon.length})
+                    </h4>
+                    <div className="space-y-3">
+                      {soon.map((d, idx) => (
+                        <div key={idx} className="border border-blue-300 bg-blue-50 rounded-lg p-4">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h5 className="font-semibold text-gray-800">{d.task.title}</h5>
+                              <p className="text-sm text-gray-600">{d.event.title} - {d.event.artist}</p>
+                              <div className="flex gap-4 mt-2 text-sm">
+                                <span className="text-blue-600 font-semibold">
+                                  {d.diffDays} päivän päästä
+                                </span>
+                                <span className="text-gray-600">
+                                  {d.dueDate} {d.dueTime && `klo ${d.dueTime}`}
+                                </span>
+                                {d.task.assignee && (
+                                  <span className="text-gray-600">👤 {d.task.assignee}</span>
+                                )}
+                              </div>
+                              <span className={`inline-block px-2 py-1 rounded text-xs mt-2 ${
+                                channels.find(c => c.id === d.task.channel)?.color || 'bg-gray-500'
+                              } text-white`}>
+                                {channels.find(c => c.id === d.task.channel)?.name || d.task.channel}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {upcomingDeadlines.length === 0 && (
+                  <p className="text-center text-gray-500 py-8">
+                    🎉 Ei lähestyviä deadlineja!
+                  </p>
+                )}
+
+                <div className="mt-6 flex justify-end">
+                  <button
+                    onClick={() => setShowDeadlineModal(false)}
+                    className="bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-700"
+                  >
+                    Sulje
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {showImportModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">

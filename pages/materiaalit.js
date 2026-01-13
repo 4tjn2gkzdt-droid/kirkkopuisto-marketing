@@ -15,7 +15,7 @@ export default function Materiaalit() {
     // Tässä voidaan myöhemmin ladata Supabasesta
     // Nyt käytämme kovakoodattuja arvoja jotka voit päivittää
     setLinks([
-      { id: 1, title: 'Google Drive Kuvapankki', url: '', icon: '📸', category: 'Materiaalit' },
+      { id: 1, title: 'Google Drive Kuvapankki', url: 'https://drive.google.com/drive/folders/1aOQFykFOi8GTinKxHV9uPhmrwSvcA6An', icon: '📸', category: 'Materiaalit' },
       { id: 2, title: 'Brändikirja', url: '', icon: '📘', category: 'Brändi' },
       { id: 3, title: 'Viestintästrategia', url: '', icon: '📊', category: 'Strategia' },
       { id: 4, title: 'Viime vuoden raportti', url: '', icon: '📈', category: 'Raportit' },
@@ -26,9 +26,12 @@ export default function Materiaalit() {
     ]);
 
     setBrandColors([
-      { name: 'Pääväri', hex: '#2E7D32', usage: 'Logot, otsikot' },
-      { name: 'Toissijainen', hex: '#FDD835', usage: 'Korostukset' },
-      { name: 'Tumma', hex: '#1B5E20', usage: 'Tekstit' },
+      { name: 'Vihreä', hex: '#d2dbc1', usage: 'Pääväri - logot, taustat' },
+      { name: 'Kerma', hex: '#f7f1d1', usage: 'Toissijainen - taustat, korostukset' },
+      { name: 'Oranssi', hex: '#f89d79', usage: 'Aksentti - painikkeet, korostukset' },
+      { name: 'Sininen', hex: '#88b3c0', usage: 'Lisäväri - linkit, korostukset' },
+      { name: 'Musta', hex: '#2d2d2d', usage: 'Tekstit, otsikot' },
+      { name: 'Valkoinen', hex: '#ffffff', usage: 'Taustat, tekstit' },
     ]);
 
     setLoading(false);

@@ -27,7 +27,9 @@ export default function Home() {
     artist: '',
     tasks: []
   });
+  const [eventSize, setEventSize] = useState('medium');
   const [showDeadlineModal, setShowDeadlineModal] = useState(false);
+  const [generatingTaskId, setGeneratingTaskId] = useState(null);
 
   const years = [2021, 2022, 2023, 2024, 2025, 2026];
   
@@ -401,6 +403,125 @@ export default function Home() {
     }
     const currentPosts = posts[selectedYear] || [];
     savePosts(selectedYear, currentPosts.filter(p => p.id !== id));
+  };
+
+  const generateTasksForEventSize = (size, eventDate) => {
+    const baseDate = new Date(eventDate);
+    const formatDate = (daysOffset) => {
+      const date = new Date(baseDate);
+      date.setDate(date.getDate() + daysOffset);
+      return date.toISOString().split('T')[0];
+    };
+
+    const baseTasks = {
+      small: [
+        { title: 'Instagram Story', channel: 'instagram', daysOffset: -1, time: '12:00' },
+        { title: 'Facebook -postaus', channel: 'facebook', daysOffset: -2, time: '10:00' }
+      ],
+      medium: [
+        { title: 'Instagram Feed -postaus', channel: 'instagram', daysOffset: -3, time: '12:00' },
+        { title: 'Instagram Story', channel: 'instagram', daysOffset: -1, time: '14:00' },
+        { title: 'Facebook -postaus', channel: 'facebook', daysOffset: -3, time: '10:00' },
+        { title: 'TikTok -video', channel: 'tiktok', daysOffset: -2, time: '16:00' },
+        { title: 'Turun tapahtumakalenteri', channel: 'turku-calendar', daysOffset: -28, time: '10:00' }
+      ],
+      large: [
+        { title: 'Instagram Feed -julkaisu 1', channel: 'instagram', daysOffset: -7, time: '12:00' },
+        { title: 'Instagram Feed -julkaisu 2', channel: 'instagram', daysOffset: -3, time: '12:00' },
+        { title: 'Instagram Story -sarja', channel: 'instagram', daysOffset: -1, time: '14:00' },
+        { title: 'Facebook Event', channel: 'facebook', daysOffset: -14, time: '10:00' },
+        { title: 'Facebook -postaus', channel: 'facebook', daysOffset: -3, time: '10:00' },
+        { title: 'TikTok -video', channel: 'tiktok', daysOffset: -5, time: '16:00' },
+        { title: 'Uutiskirje', channel: 'newsletter', daysOffset: -7, time: '09:00' },
+        { title: 'Printit (julisteet)', channel: 'print', daysOffset: -21, time: '10:00' },
+        { title: 'TS Menovinkit', channel: 'ts-meno', daysOffset: -7, time: '10:00' },
+        { title: 'Turun tapahtumakalenteri', channel: 'turku-calendar', daysOffset: -28, time: '10:00' }
+      ]
+    };
+
+    const templateTasks = baseTasks[size] || baseTasks.medium;
+
+    return templateTasks.map((task, idx) => ({
+      id: `temp-${Date.now()}-${idx}`,
+      title: task.title,
+      channel: task.channel,
+      dueDate: formatDate(task.daysOffset),
+      dueTime: task.time,
+      assignee: '',
+      content: '',
+      completed: false
+    }));
+  };
+
+  const generateContentForTask = async (postId, task) => {
+    if (!postId || !task) return;
+
+    setGeneratingTaskId(task.id);
+
+    try {
+      const post = (posts[selectedYear] || []).find(p => p.id === postId);
+      if (!post) throw new Error('Tapahtumaa ei löytynyt');
+
+      const channel = channels.find(c => c.id === task.channel);
+
+      const prompt = `Luo markkinointisisältö seuraavalle tapahtumalle:
+
+Tapahtuma: ${post.title}
+Artisti: ${post.artist || 'Ei ilmoitettu'}
+Päivämäärä: ${new Date(post.date).toLocaleDateString('fi-FI')}
+Aika: ${post.time || 'Ei ilmoitettu'}
+Kanava: ${channel?.name || task.channel}
+Tehtävä: ${task.title}
+
+Luo sopiva postaus/sisältö tälle kanavalle. Sisällytä:
+- Houkutteleva otsikko tai aloitus
+- Tärkeimmät tiedot (artisti, aika, paikka)
+- Kutsu toimintaan (CTA)
+- Sopivat hashtagit (#kirkkopuistonterassi #turku)
+
+Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
+
+      const response = await fetch('/api/claude', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: prompt })
+      });
+
+      if (!response.ok) throw new Error('AI-pyyntö epäonnistui');
+
+      const data = await response.json();
+
+      // Päivitä taskin content
+      if (supabase && typeof task.id === 'number') {
+        await supabase
+          .from('tasks')
+          .update({ content: data.response })
+          .eq('id', task.id);
+      }
+
+      // Päivitä UI
+      const updatedPosts = (posts[selectedYear] || []).map(p => {
+        if (p.id === postId) {
+          return {
+            ...p,
+            tasks: p.tasks.map(t =>
+              t.id === task.id ? { ...t, content: data.response } : t
+            )
+          };
+        }
+        return p;
+      });
+
+      setPosts(prev => ({ ...prev, [selectedYear]: updatedPosts }));
+
+      alert('✨ Sisältö generoitu! Voit muokata sitä tehtävän muokkauksessa.');
+
+    } catch (error) {
+      console.error('Virhe sisällön generoinnissa:', error);
+      alert('❌ Virhe: ' + error.message);
+    } finally {
+      setGeneratingTaskId(null);
+    }
   };
 
   const addTaskToNewEvent = () => {
@@ -913,14 +1034,30 @@ export default function Home() {
                                   <p className="text-xs text-gray-500 mt-1">
                                     📅 {new Date(task.dueDate).toLocaleDateString('fi-FI')} {task.dueTime}
                                   </p>
+                                  {task.content && (
+                                    <p className="text-xs text-gray-600 mt-1 italic truncate">
+                                      {task.content.substring(0, 50)}...
+                                    </p>
+                                  )}
                                 </div>
-                                
-                                <button
-                                  onClick={() => openTaskEdit(post.id, task)}
-                                  className="p-2 bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
-                                >
-                                  ✏️
-                                </button>
+
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => generateContentForTask(post.id, task)}
+                                    disabled={generatingTaskId === task.id}
+                                    className="p-2 bg-purple-100 text-purple-700 rounded hover:bg-purple-200 disabled:opacity-50"
+                                    title="Luo sisältö AI:llä"
+                                  >
+                                    {generatingTaskId === task.id ? '⏳' : '✨'}
+                                  </button>
+                                  <button
+                                    onClick={() => openTaskEdit(post.id, task)}
+                                    className="p-2 bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
+                                    title="Muokkaa"
+                                  >
+                                    ✏️
+                                  </button>
+                                </div>
                               </div>
                             );
                           })}
@@ -1334,6 +1471,40 @@ export default function Home() {
                     placeholder="Esim. Band XYZ"
                   />
                 </div>
+
+                {/* Tapahtuman koko ja automaattiset tehtävät */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex flex-col md:flex-row gap-4 items-start md:items-end">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium mb-1">Tapahtuman koko</label>
+                      <select
+                        value={eventSize}
+                        onChange={(e) => setEventSize(e.target.value)}
+                        className="w-full p-2 border rounded-lg"
+                      >
+                        <option value="small">Pieni (Instagram Story + Facebook)</option>
+                        <option value="medium">Keskisuuri (+ TikTok + Turun kalenteri)</option>
+                        <option value="large">Iso (Kaikki kanavat + uutiskirje + printit)</option>
+                      </select>
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (!newEvent.date) {
+                          alert('Valitse ensin tapahtuman päivämäärä');
+                          return;
+                        }
+                        const generatedTasks = generateTasksForEventSize(eventSize, newEvent.date);
+                        setNewEvent({ ...newEvent, tasks: generatedTasks });
+                      }}
+                      className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 whitespace-nowrap"
+                    >
+                      ✨ Luo automaattiset tehtävät
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-2">
+                    💡 Valitse tapahtuman koko ja luo automaattisesti sopivat markkinointitehtävät oikeilla deadlineilla
+                  </p>
+                </div>
               </div>
 
               {/* Markkinointitehtävät */}
@@ -1344,7 +1515,7 @@ export default function Home() {
                     onClick={addTaskToNewEvent}
                     className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm"
                   >
-                    + Lisää tehtävä
+                    + Lisää tehtävä manuaalisesti
                   </button>
                 </div>
 

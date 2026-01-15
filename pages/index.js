@@ -490,7 +490,14 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || data.details || 'AI-pyyntö epäonnistui');
+        // Luo error-objekti jossa on kaikki debug-tiedot
+        const error = new Error(data.error || data.details || 'AI-pyyntö epäonnistui');
+        error.debugInfo = data.debugInfo;
+        error.help = data.help;
+        error.details = data.details;
+        error.envKeysFound = data.envKeysFound;
+        error.statusCode = response.status;
+        throw error;
       }
 
       if (!data.response) {
@@ -524,13 +531,37 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
     } catch (error) {
       console.error('Virhe sisällön generoinnissa:', error);
-      let errorMessage = 'Virhe sisällön generoinnissa: ' + error.message;
 
-      if (error.message.includes('API-avain')) {
-        errorMessage += '\n\nVarmista että ANTHROPIC_API_KEY on asetettu Vercel ympäristömuuttujiin.';
+      // Näytä kaikki mahdolliset virhetiedot
+      let errorMessage = '❌ Virhe sisällön generoinnissa\n\n';
+      errorMessage += 'Virhe: ' + error.message + '\n\n';
+
+      // Jos virhe tuli API:lta, näytä lisätietoja
+      if (error.debugInfo) {
+        errorMessage += 'Debug info:\n';
+        errorMessage += JSON.stringify(error.debugInfo, null, 2) + '\n\n';
       }
 
-      alert('❌ ' + errorMessage);
+      if (error.help) {
+        errorMessage += '💡 Ohje: ' + error.help + '\n\n';
+      }
+
+      if (error.details) {
+        errorMessage += 'Lisätietoja: ' + error.details + '\n\n';
+      }
+
+      if (error.message.includes('API-avain') || error.message.includes('ANTHROPIC')) {
+        errorMessage += '\n📝 Tarkista Vercel:\n';
+        errorMessage += '1. Mene: vercel.com/dashboard\n';
+        errorMessage += '2. Settings → Environment Variables\n';
+        errorMessage += '3. Varmista että ANTHROPIC_API_KEY on asetettu\n';
+        errorMessage += '4. Redeploy sovellus\n';
+      }
+
+      alert(errorMessage);
+
+      // Logataan myös konsoliin kaikki tiedot
+      console.log('Full error details:', error);
     } finally {
       setGeneratingTaskId(null);
     }

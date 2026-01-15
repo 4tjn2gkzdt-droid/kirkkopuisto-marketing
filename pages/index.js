@@ -30,6 +30,8 @@ export default function Home() {
   const [eventSize, setEventSize] = useState('medium');
   const [showDeadlineModal, setShowDeadlineModal] = useState(false);
   const [generatingTaskId, setGeneratingTaskId] = useState(null);
+  const [autoGenerateContent, setAutoGenerateContent] = useState(true);
+  const [generatingProgress, setGeneratingProgress] = useState({ current: 0, total: 0, isGenerating: false });
 
   const years = [2021, 2022, 2023, 2024, 2025, 2026];
   
@@ -341,6 +343,28 @@ export default function Home() {
           }))
         }));
         setPosts(prev => ({ ...prev, [selectedYear]: formattedEvents }));
+
+        // Generoi sisältö kaikille uusille tapahtumille jos automaattinen generointi on päällä
+        if (autoGenerateContent) {
+          // Löydä juuri tuodut tapahtumat
+          const importedEventIds = parsed.map(p => p.title); // Käytetään titlea koska ID muuttuu
+          const importedEvents = formattedEvents.filter(e =>
+            importedEventIds.includes(e.title)
+          );
+
+          if (importedEvents.length > 0) {
+            setShowImportModal(false);
+            setImportText('');
+
+            // Generoi sisältö kaikille tuoduille tapahtumille
+            for (const event of importedEvents) {
+              await generateContentForAllTasks(event);
+            }
+
+            alert(`✨ Lisätty ${parsed.length} tapahtumaa ja generoitu sisältö tehtäville!`);
+            return;
+          }
+        }
       }
     }
 
@@ -567,6 +591,82 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
     }
   };
 
+  const generateContentForAllTasks = async (event) => {
+    const tasksToGenerate = event.tasks.filter(t => !t.content || t.content.trim() === '');
+
+    if (tasksToGenerate.length === 0) {
+      return;
+    }
+
+    setGeneratingProgress({ current: 0, total: tasksToGenerate.length, isGenerating: true });
+
+    for (let i = 0; i < tasksToGenerate.length; i++) {
+      const task = tasksToGenerate[i];
+      setGeneratingProgress({ current: i + 1, total: tasksToGenerate.length, isGenerating: true });
+
+      try {
+        const channel = channels.find(c => c.id === task.channel);
+        const prompt = `Luo markkinointisisältö seuraavalle tapahtumalle:
+
+Tapahtuma: ${event.title}
+Artisti: ${event.artist || 'Ei ilmoitettu'}
+Päivämäärä: ${new Date(event.date).toLocaleDateString('fi-FI')}
+Aika: ${event.time || 'Ei ilmoitettu'}
+Kanava: ${channel?.name || task.channel}
+Tehtävä: ${task.title}
+
+Luo sopiva postaus/sisältö tälle kanavalle. Sisällytä:
+- Houkutteleva otsikko tai aloitus
+- Tärkeimmät tiedot (artisti, aika, paikka)
+- Kutsu toimintaan (CTA)
+- Sopivat hashtagit (#kirkkopuistonterassi #turku)
+
+Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
+
+        const response = await fetch('/api/claude', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: prompt })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.response) {
+          // Päivitä Supabaseen
+          if (supabase && typeof task.id === 'number') {
+            await supabase
+              .from('tasks')
+              .update({ content: data.response })
+              .eq('id', task.id);
+          }
+
+          // Päivitä UI
+          setPosts(prev => {
+            const yearPosts = prev[selectedYear] || [];
+            const updatedPosts = yearPosts.map(p => {
+              if (p.id === event.id) {
+                return {
+                  ...p,
+                  tasks: p.tasks.map(t =>
+                    t.id === task.id ? { ...t, content: data.response } : t
+                  )
+                };
+              }
+              return p;
+            });
+            return { ...prev, [selectedYear]: updatedPosts };
+          });
+        }
+      } catch (error) {
+        console.error(`Virhe generoitaessa sisältöä tehtävälle ${task.title}:`, error);
+        // Jatka seuraavaan tehtävään virheen sattuessa
+      }
+    }
+
+    setGeneratingProgress({ current: 0, total: 0, isGenerating: false });
+    alert(`✨ Sisältö generoitu ${tasksToGenerate.length} tehtävälle!`);
+  };
+
   const addTaskToNewEvent = () => {
     const newTask = {
       id: `temp-${Date.now()}`,
@@ -679,9 +779,26 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             time: event.time,
             artist: event.artist,
             images: event.images || {},
-            tasks: event.tasks || []
+            tasks: (event.tasks || []).map(task => ({
+              id: task.id,
+              title: task.title,
+              channel: task.channel,
+              dueDate: task.due_date,
+              dueTime: task.due_time,
+              completed: task.completed,
+              content: task.content,
+              assignee: task.assignee
+            }))
           }));
           setPosts(prev => ({ ...prev, [eventYear]: formattedEvents }));
+
+          // Generoi sisältö automaattisesti jos valittu
+          if (autoGenerateContent && newEvent.tasks.length > 0) {
+            const createdEvent = formattedEvents.find(e => e.id === savedEvent.id);
+            if (createdEvent) {
+              await generateContentForAllTasks(createdEvent);
+            }
+          }
         }
 
       } catch (error) {
@@ -1444,6 +1561,18 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                 className="w-full p-3 border rounded-lg h-48 font-mono text-sm"
                 placeholder="Liitä taulukko..."
               />
+              <div className="mt-3 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <input
+                  type="checkbox"
+                  id="autoGenerateContentImport"
+                  checked={autoGenerateContent}
+                  onChange={(e) => setAutoGenerateContent(e.target.checked)}
+                  className="w-4 h-4 text-purple-600 rounded border-gray-300"
+                />
+                <label htmlFor="autoGenerateContentImport" className="text-sm text-gray-700 cursor-pointer">
+                  ✨ Luo sisältö automaattisesti AI:llä kaikille tehtäville (säästää aikaa!)
+                </label>
+              </div>
               <div className="flex gap-3 mt-4">
                 <button
                   onClick={handleImport}
@@ -1469,6 +1598,27 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto">
               <h3 className="text-2xl font-bold mb-6">➕ Lisää uusi tapahtuma</h3>
+
+              {/* Progress-ilmoitus sisällön generoinnille */}
+              {generatingProgress.isGenerating && (
+                <div className="mb-6 bg-purple-50 border border-purple-200 rounded-lg p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="animate-spin text-2xl">⏳</div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-purple-900">Luodaan sisältöä AI:llä...</h4>
+                      <p className="text-sm text-purple-700">
+                        Tehtävä {generatingProgress.current} / {generatingProgress.total}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 w-full bg-purple-200 rounded-full h-2">
+                    <div
+                      className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${(generatingProgress.current / generatingProgress.total) * 100}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
 
               {/* Tapahtuman tiedot */}
               <div className="space-y-4 mb-6">
@@ -1547,6 +1697,18 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   <p className="text-xs text-gray-600 mt-2">
                     💡 Valitse tapahtuman koko ja luo automaattisesti sopivat markkinointitehtävät oikeilla deadlineilla
                   </p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="autoGenerateContent"
+                      checked={autoGenerateContent}
+                      onChange={(e) => setAutoGenerateContent(e.target.checked)}
+                      className="w-4 h-4 text-purple-600 rounded border-gray-300"
+                    />
+                    <label htmlFor="autoGenerateContent" className="text-sm text-gray-700 cursor-pointer">
+                      ✨ Luo sisältö automaattisesti AI:llä kaikille tehtäville (säästää aikaa!)
+                    </label>
+                  </div>
                 </div>
               </div>
 

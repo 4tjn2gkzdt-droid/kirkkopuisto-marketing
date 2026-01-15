@@ -15,7 +15,7 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [taskAiContent, setTaskAiContent] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [viewMode, setViewMode] = useState('list'); // 'list', 'month', 'week'
+  const [viewMode, setViewMode] = useState('dashboard'); // 'dashboard', 'list', 'month', 'week'
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedWeek, setSelectedWeek] = useState(new Date());
   const [teamMembers, setTeamMembers] = useState([]);
@@ -1055,6 +1055,12 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             <div className="flex gap-3 items-center">
               <div className="bg-gray-100 rounded-lg p-1 flex gap-1">
                 <button
+                  onClick={() => setViewMode('dashboard')}
+                  className={`px-4 py-2 rounded ${viewMode === 'dashboard' ? 'bg-green-600 text-white' : 'text-gray-700 hover:bg-gray-200'}`}
+                >
+                  📊 Viikkonäkymä
+                </button>
+                <button
                   onClick={() => setViewMode('list')}
                   className={`px-4 py-2 rounded ${viewMode === 'list' ? 'bg-green-600 text-white' : 'text-gray-700 hover:bg-gray-200'}`}
                 >
@@ -1070,7 +1076,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   onClick={() => setViewMode('week')}
                   className={`px-4 py-2 rounded ${viewMode === 'week' ? 'bg-green-600 text-white' : 'text-gray-700 hover:bg-gray-200'}`}
                 >
-                  📆 Viikko
+                  📆 Kalenteri
                 </button>
               </div>
               <div className="flex gap-3">
@@ -1099,6 +1105,299 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
               className="w-full px-4 py-2 border rounded-lg"
             />
           </div>
+
+          {/* Viikkonäkymä - Dashboard */}
+          {viewMode === 'dashboard' && (() => {
+            const today = new Date();
+            const currentDayOfWeek = today.getDay();
+            const daysToMonday = (currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1);
+            const monday = new Date(today);
+            monday.setDate(today.getDate() - daysToMonday);
+            monday.setHours(0, 0, 0, 0);
+
+            const sunday = new Date(monday);
+            sunday.setDate(monday.getDate() + 6);
+            sunday.setHours(23, 59, 59, 999);
+
+            // Hae kaikki tehtävät tältä viikolta
+            const allPosts = posts[selectedYear] || [];
+            const thisWeekTasks = [];
+
+            allPosts.forEach(post => {
+              (post.tasks || []).forEach(task => {
+                if (!task.completed && task.dueDate) {
+                  const dueDate = new Date(task.dueDate);
+                  if (dueDate >= monday && dueDate <= sunday) {
+                    const dueDateOnly = new Date(dueDate);
+                    dueDateOnly.setHours(0, 0, 0, 0);
+                    const diffTime = dueDateOnly - new Date().setHours(0, 0, 0, 0);
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                    let urgency = 'normal';
+                    if (diffDays < 0) {
+                      urgency = 'overdue';
+                    } else if (diffDays <= 1) {
+                      urgency = 'urgent';
+                    } else if (diffDays <= 3) {
+                      urgency = 'soon';
+                    }
+
+                    thisWeekTasks.push({
+                      task,
+                      event: post,
+                      dueDate: task.dueDate,
+                      dueTime: task.dueTime,
+                      diffDays,
+                      urgency
+                    });
+                  }
+                }
+              });
+            });
+
+            // Ryhmittele tehtävät vastuuhenkilöittäin
+            const tasksByAssignee = {};
+            const unassignedTasks = [];
+
+            thisWeekTasks.forEach(item => {
+              if (item.task.assignee && item.task.assignee.trim()) {
+                if (!tasksByAssignee[item.task.assignee]) {
+                  tasksByAssignee[item.task.assignee] = [];
+                }
+                tasksByAssignee[item.task.assignee].push(item);
+              } else {
+                unassignedTasks.push(item);
+              }
+            });
+
+            // Järjestä tehtävät deadlinen mukaan
+            Object.keys(tasksByAssignee).forEach(assignee => {
+              tasksByAssignee[assignee].sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+            });
+            unassignedTasks.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+
+            const getUrgencyColor = (urgency) => {
+              switch (urgency) {
+                case 'overdue': return 'bg-red-100 border-red-300';
+                case 'urgent': return 'bg-orange-100 border-orange-300';
+                case 'soon': return 'bg-yellow-100 border-yellow-300';
+                default: return 'bg-blue-50 border-blue-200';
+              }
+            };
+
+            const getUrgencyBadge = (urgency) => {
+              switch (urgency) {
+                case 'overdue': return 'bg-red-600 text-white';
+                case 'urgent': return 'bg-orange-600 text-white';
+                case 'soon': return 'bg-yellow-600 text-white';
+                default: return 'bg-blue-600 text-white';
+              }
+            };
+
+            const getUrgencyText = (diffDays) => {
+              if (diffDays < 0) return `${Math.abs(diffDays)} pv myöhässä`;
+              if (diffDays === 0) return 'Tänään';
+              if (diffDays === 1) return 'Huomenna';
+              return `${diffDays} päivän päästä`;
+            };
+
+            return (
+              <div>
+                {/* Viikon otsikko */}
+                <div className="mb-6 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-4 border-l-4 border-green-600">
+                  <h3 className="text-xl font-bold text-gray-800 mb-2">
+                    📊 Tämän viikon tehtävät
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    {monday.toLocaleDateString('fi-FI', { day: 'numeric', month: 'long' })} - {sunday.toLocaleDateString('fi-FI', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </p>
+                  <div className="flex gap-4 mt-3 text-sm">
+                    <span className="text-gray-700">
+                      <strong>{thisWeekTasks.length}</strong> tehtävää
+                    </span>
+                    <span className="text-red-600">
+                      <strong>{thisWeekTasks.filter(t => t.urgency === 'overdue').length}</strong> myöhässä
+                    </span>
+                    <span className="text-orange-600">
+                      <strong>{thisWeekTasks.filter(t => t.urgency === 'urgent').length}</strong> kiireellinen
+                    </span>
+                    <span className="text-yellow-600">
+                      <strong>{thisWeekTasks.filter(t => t.urgency === 'soon').length}</strong> pian
+                    </span>
+                  </div>
+                </div>
+
+                {thisWeekTasks.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <p className="text-4xl mb-4">🎉</p>
+                    <p className="text-lg font-medium">Ei tehtäviä tällä viikolla!</p>
+                    <p className="text-sm mt-2">Kaikki on valmiina tai deadlinet ovat myöhemmin.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Tehtävät vastuuhenkilöittäin */}
+                    {Object.entries(tasksByAssignee).map(([assignee, tasks]) => (
+                      <div key={assignee} className="bg-white border-2 border-gray-200 rounded-lg p-5">
+                        <div className="flex items-center justify-between mb-4 pb-3 border-b-2">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                              {assignee.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <h4 className="text-lg font-bold text-gray-800">{assignee}</h4>
+                              <p className="text-sm text-gray-600">{tasks.length} tehtävää</p>
+                            </div>
+                          </div>
+                          {tasks.some(t => t.urgency === 'overdue' || t.urgency === 'urgent') && (
+                            <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-semibold">
+                              ⚠️ Kiireellisiä tehtäviä
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="space-y-3">
+                          {tasks.map((item, idx) => {
+                            const channel = channels.find(c => c.id === item.task.channel);
+                            const completedFormats = imageFormats.filter(f => item.event.images[f.id]).length;
+                            const totalFormats = imageFormats.length;
+                            const imageProgress = Math.round((completedFormats / totalFormats) * 100);
+
+                            return (
+                              <div
+                                key={idx}
+                                className={`border-2 rounded-lg p-4 ${getUrgencyColor(item.urgency)} hover:shadow-md transition-shadow`}
+                              >
+                                <div className="flex items-start justify-between gap-3 mb-3">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <span className={`px-2 py-1 rounded text-xs font-bold ${getUrgencyBadge(item.urgency)}`}>
+                                        {getUrgencyText(item.diffDays)}
+                                      </span>
+                                      <span className={`${channel?.color || 'bg-gray-500'} text-white px-2 py-1 rounded text-xs font-medium`}>
+                                        {channel?.name || item.task.channel}
+                                      </span>
+                                    </div>
+                                    <h5 className="font-semibold text-gray-900 mb-1">{item.task.title}</h5>
+                                    <p className="text-sm text-gray-700">
+                                      📅 {item.event.title}
+                                      {item.event.artist && ` - ${item.event.artist}`}
+                                    </p>
+                                    <p className="text-xs text-gray-600 mt-1">
+                                      Deadline: {new Date(item.dueDate).toLocaleDateString('fi-FI')}
+                                      {item.dueTime && ` klo ${item.dueTime}`}
+                                    </p>
+                                  </div>
+
+                                  <button
+                                    onClick={() => {
+                                      setExpandedEvents(prev => ({ ...prev, [item.event.id]: true }));
+                                      setViewMode('list');
+                                    }}
+                                    className="text-blue-600 hover:text-blue-800 text-sm font-medium whitespace-nowrap"
+                                  >
+                                    Avaa →
+                                  </button>
+                                </div>
+
+                                {/* Kuvien edistyminen */}
+                                <div className="bg-white bg-opacity-50 rounded p-2 mt-2">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className="text-xs font-medium text-gray-700">Kuvat:</span>
+                                    <span className="text-xs font-bold text-gray-800">
+                                      {completedFormats}/{totalFormats} ({imageProgress}%)
+                                    </span>
+                                  </div>
+                                  <div className="w-full bg-gray-200 rounded-full h-2">
+                                    <div
+                                      className={`h-2 rounded-full transition-all ${
+                                        imageProgress === 100 ? 'bg-green-600' :
+                                        imageProgress >= 50 ? 'bg-yellow-600' : 'bg-red-600'
+                                      }`}
+                                      style={{ width: `${imageProgress}%` }}
+                                    />
+                                  </div>
+                                  {imageProgress < 100 && (
+                                    <button
+                                      onClick={() => {
+                                        setCurrentEventForImages(item.event);
+                                        setShowImageModal(true);
+                                      }}
+                                      className="text-xs text-purple-600 hover:text-purple-800 mt-1 font-medium"
+                                    >
+                                      📸 Päivitä kuvia
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Tehtävät ilman vastuuhenkilöä */}
+                    {unassignedTasks.length > 0 && (
+                      <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-5">
+                        <div className="flex items-center gap-3 mb-4 pb-3 border-b">
+                          <div className="w-10 h-10 bg-gray-400 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                            ?
+                          </div>
+                          <div>
+                            <h4 className="text-lg font-bold text-gray-800">Ei vastuuhenkilöä</h4>
+                            <p className="text-sm text-gray-600">{unassignedTasks.length} tehtävää odottaa määritystä</p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          {unassignedTasks.map((item, idx) => {
+                            const channel = channels.find(c => c.id === item.task.channel);
+
+                            return (
+                              <div
+                                key={idx}
+                                className={`border-2 rounded-lg p-4 bg-white ${getUrgencyColor(item.urgency)} hover:shadow-md transition-shadow`}
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <span className={`px-2 py-1 rounded text-xs font-bold ${getUrgencyBadge(item.urgency)}`}>
+                                        {getUrgencyText(item.diffDays)}
+                                      </span>
+                                      <span className={`${channel?.color || 'bg-gray-500'} text-white px-2 py-1 rounded text-xs font-medium`}>
+                                        {channel?.name || item.task.channel}
+                                      </span>
+                                    </div>
+                                    <h5 className="font-semibold text-gray-900 mb-1">{item.task.title}</h5>
+                                    <p className="text-sm text-gray-700">
+                                      📅 {item.event.title}
+                                      {item.event.artist && ` - ${item.event.artist}`}
+                                    </p>
+                                    <p className="text-xs text-gray-600 mt-1">
+                                      Deadline: {new Date(item.dueDate).toLocaleDateString('fi-FI')}
+                                      {item.dueTime && ` klo ${item.dueTime}`}
+                                    </p>
+                                  </div>
+
+                                  <button
+                                    onClick={() => {
+                                      openTaskEdit(item.event.id, item.task);
+                                    }}
+                                    className="bg-purple-600 text-white px-3 py-1 rounded text-xs font-medium hover:bg-purple-700"
+                                  >
+                                    Määritä
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Lista-näkymä */}
           {viewMode === 'list' && (
@@ -1944,8 +2243,45 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
         {showImageModal && currentEventForImages && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
-              <h3 className="text-xl font-bold mb-4">{currentEventForImages.title}</h3>
-              
+              <div className="mb-6">
+                <h3 className="text-xl font-bold mb-3">📸 Kuvat: {currentEventForImages.title}</h3>
+
+                {/* Progress bar */}
+                {(() => {
+                  const completedFormats = imageFormats.filter(f => currentEventForImages.images[f.id]).length;
+                  const totalFormats = imageFormats.length;
+                  const percentage = (completedFormats / totalFormats) * 100;
+
+                  return (
+                    <div className="mb-4">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-medium text-gray-700">
+                          Edistyminen: {completedFormats} / {totalFormats} kuvaformaattia
+                        </span>
+                        <span className="text-sm font-bold text-green-600">
+                          {Math.round(percentage)}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-3">
+                        <div
+                          className="bg-green-600 h-3 rounded-full transition-all duration-300"
+                          style={{ width: `${percentage}%` }}
+                        ></div>
+                      </div>
+                      {completedFormats === totalFormats ? (
+                        <p className="text-sm text-green-600 mt-2 font-semibold">
+                          ✅ Kaikki kuvat valmiina!
+                        </p>
+                      ) : (
+                        <p className="text-sm text-orange-600 mt-2">
+                          ⚠️ Puuttuu vielä {totalFormats - completedFormats} kuvaformaattia
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 {imageFormats.map(format => (
                   <div key={format.id} className="border rounded-lg p-4">

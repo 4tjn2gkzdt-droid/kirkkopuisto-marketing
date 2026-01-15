@@ -343,6 +343,28 @@ export default function Home() {
           }))
         }));
         setPosts(prev => ({ ...prev, [selectedYear]: formattedEvents }));
+
+        // Generoi sisältö kaikille uusille tapahtumille jos automaattinen generointi on päällä
+        if (autoGenerateContent) {
+          // Löydä juuri tuodut tapahtumat
+          const importedEventIds = parsed.map(p => p.title); // Käytetään titlea koska ID muuttuu
+          const importedEvents = formattedEvents.filter(e =>
+            importedEventIds.includes(e.title)
+          );
+
+          if (importedEvents.length > 0) {
+            setShowImportModal(false);
+            setImportText('');
+
+            // Generoi sisältö kaikille tuoduille tapahtumille
+            for (const event of importedEvents) {
+              await generateContentForAllTasks(event);
+            }
+
+            alert(`✨ Lisätty ${parsed.length} tapahtumaa ja generoitu sisältö tehtäville!`);
+            return;
+          }
+        }
       }
     }
 
@@ -1539,6 +1561,18 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                 className="w-full p-3 border rounded-lg h-48 font-mono text-sm"
                 placeholder="Liitä taulukko..."
               />
+              <div className="mt-3 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <input
+                  type="checkbox"
+                  id="autoGenerateContentImport"
+                  checked={autoGenerateContent}
+                  onChange={(e) => setAutoGenerateContent(e.target.checked)}
+                  className="w-4 h-4 text-purple-600 rounded border-gray-300"
+                />
+                <label htmlFor="autoGenerateContentImport" className="text-sm text-gray-700 cursor-pointer">
+                  ✨ Luo sisältö automaattisesti AI:llä kaikille tehtäville (säästää aikaa!)
+                </label>
+              </div>
               <div className="flex gap-3 mt-4">
                 <button
                   onClick={handleImport}

@@ -17,6 +17,18 @@ export default function App({ Component, pageProps }) {
     if (!isAuth && router.pathname !== '/login') {
       router.push('/login')
     }
+
+    // Rekisteröi Service Worker PWA:ta varten
+    if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+      navigator.serviceWorker
+        .register('/sw.js')
+        .then((registration) => {
+          console.log('Service Worker rekisteröity:', registration)
+        })
+        .catch((error) => {
+          console.error('Service Worker rekisteröinti epäonnistui:', error)
+        })
+    }
   }, [router.pathname])
 
   // Näytä latausruutu kun tarkistetaan kirjautumista

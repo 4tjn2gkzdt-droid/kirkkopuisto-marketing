@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '../lib/supabase';
+import InstallPrompt from '../components/InstallPrompt';
 
 export default function Home() {
   const [selectedYear, setSelectedYear] = useState(2026);
@@ -195,7 +196,8 @@ export default function Home() {
               dueTime: task.due_time,
               completed: task.completed,
               content: task.content,
-              assignee: task.assignee
+              assignee: task.assignee,
+              notes: task.notes
             }))
           }));
           setPosts(prev => ({ ...prev, [selectedYear]: formattedEvents }));
@@ -270,7 +272,8 @@ export default function Home() {
                 due_time: task.dueTime || null,
                 completed: task.completed || false,
                 content: task.content || null,
-                assignee: task.assignee || null
+                assignee: task.assignee || null,
+                notes: task.notes || null
               }));
 
               const { error: tasksError } = await supabase
@@ -306,7 +309,8 @@ export default function Home() {
                 due_time: task.dueTime || null,
                 completed: task.completed || false,
                 content: task.content || null,
-                assignee: task.assignee || null
+                assignee: task.assignee || null,
+                notes: task.notes || null
               }));
 
               const { error: tasksError } = await supabase
@@ -500,22 +504,47 @@ export default function Home() {
     setShowTaskEditModal(true);
   };
 
-  const updateTask = () => {
+  const updateTask = async () => {
     if (!editingTask) return;
-    
+
+    // Tallenna Supabaseen jos käytössä ja ID on numero (ei temp-ID)
+    if (supabase && typeof editingTask.task.id === 'number' && editingTask.task.id < 1000000000000) {
+      try {
+        const { error } = await supabase
+          .from('tasks')
+          .update({
+            title: editingTask.task.title,
+            due_date: editingTask.task.dueDate,
+            due_time: editingTask.task.dueTime || null,
+            assignee: editingTask.task.assignee || null,
+            content: editingTask.task.content || null,
+            notes: editingTask.task.notes || null
+          })
+          .eq('id', editingTask.task.id);
+
+        if (error) throw error;
+      } catch (error) {
+        console.error('Virhe tallennettaessa tehtävää:', error);
+        alert('Virhe tallennettaessa tehtävää: ' + error.message);
+        return;
+      }
+    }
+
+    // Päivitä myös paikallinen tila
     const currentPosts = posts[selectedYear] || [];
     const updatedPosts = currentPosts.map(post => {
       if (post.id === editingTask.postId) {
         return {
           ...post,
-          tasks: post.tasks.map(task => 
+          tasks: post.tasks.map(task =>
             task.id === editingTask.task.id ? editingTask.task : task
           )
         };
       }
       return post;
     });
-    
+
+    setPosts(prev => ({ ...prev, [selectedYear]: updatedPosts }));
     savePosts(selectedYear, updatedPosts);
     setShowTaskEditModal(false);
     setEditingTask(null);
@@ -893,7 +922,8 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             due_time: task.dueTime || null,
             completed: false,
             content: task.content || null,
-            assignee: task.assignee || null
+            assignee: task.assignee || null,
+            notes: task.notes || null
           }));
 
           const { error: tasksError } = await supabase
@@ -927,7 +957,8 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
               dueTime: task.due_time,
               completed: task.completed,
               content: task.content,
-              assignee: task.assignee
+              assignee: task.assignee,
+              notes: task.notes
             }))
           }));
           setPosts(prev => ({ ...prev, [eventYear]: formattedEvents }));
@@ -1520,7 +1551,19 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                         {channel?.name || item.task.channel}
                                       </span>
                                     </div>
-                                    <h5 className="font-semibold text-gray-900 mb-1">{item.task.title}</h5>
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <h5 className="font-semibold text-gray-900">{item.task.title}</h5>
+                                      {item.task.notes && item.task.notes.trim() && (
+                                        <span className="text-xs" title={item.task.notes}>
+                                          📝
+                                        </span>
+                                      )}
+                                    </div>
+                                    {item.task.notes && item.task.notes.trim() && (
+                                      <p className="text-xs text-blue-600 mb-1 italic">
+                                        💭 {item.task.notes.length > 50 ? item.task.notes.substring(0, 50) + '...' : item.task.notes}
+                                      </p>
+                                    )}
                                     <p className="text-sm text-gray-700">
                                       📅 {item.event.title}
                                       {item.event.artist && ` - ${item.event.artist}`}
@@ -1610,7 +1653,19 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                         {channel?.name || item.task.channel}
                                       </span>
                                     </div>
-                                    <h5 className="font-semibold text-gray-900 mb-1">{item.task.title}</h5>
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <h5 className="font-semibold text-gray-900">{item.task.title}</h5>
+                                      {item.task.notes && item.task.notes.trim() && (
+                                        <span className="text-xs" title={item.task.notes}>
+                                          📝
+                                        </span>
+                                      )}
+                                    </div>
+                                    {item.task.notes && item.task.notes.trim() && (
+                                      <p className="text-xs text-blue-600 mb-1 italic">
+                                        💭 {item.task.notes.length > 50 ? item.task.notes.substring(0, 50) + '...' : item.task.notes}
+                                      </p>
+                                    )}
                                     <p className="text-sm text-gray-700">
                                       📅 {item.event.title}
                                       {item.event.artist && ` - ${item.event.artist}`}
@@ -1830,12 +1885,25 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                 </span>
                                 
                                 <div className="flex-1">
-                                  <h5 className={`text-sm font-medium ${task.completed ? 'line-through text-gray-500' : ''}`}>
-                                    {task.title}
-                                  </h5>
+                                  <div className="flex items-center gap-2">
+                                    <h5 className={`text-sm font-medium ${task.completed ? 'line-through text-gray-500' : ''}`}>
+                                      {task.title}
+                                    </h5>
+                                    {task.notes && task.notes.trim() && (
+                                      <span className="text-xs" title={task.notes}>
+                                        📝
+                                      </span>
+                                    )}
+                                  </div>
                                   <p className="text-xs text-gray-500 mt-1">
                                     📅 {new Date(task.dueDate).toLocaleDateString('fi-FI')} {task.dueTime}
+                                    {task.assignee && <span className="ml-2">👤 {task.assignee}</span>}
                                   </p>
+                                  {task.notes && task.notes.trim() && (
+                                    <p className="text-xs text-blue-600 mt-1 italic">
+                                      💭 {task.notes.length > 60 ? task.notes.substring(0, 60) + '...' : task.notes}
+                                    </p>
+                                  )}
                                   {task.content && (
                                     <p className="text-xs text-gray-600 mt-1 italic truncate">
                                       {task.content.substring(0, 50)}...
@@ -3078,6 +3146,24 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
                     💡 Vinkki: Klikkaa "Generoi uudelleen" jos et ole tyytyväinen tekstiin
                   </p>
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">📝 Muistiinpanot</label>
+                  <textarea
+                    value={editingTask.task.notes || ''}
+                    onChange={(e) => {
+                      setEditingTask({
+                        ...editingTask,
+                        task: { ...editingTask.task, notes: e.target.value }
+                      });
+                    }}
+                    className="w-full p-3 border rounded h-24 resize-none"
+                    placeholder="Lisää muistiinpanoja tai kommentteja tähän tehtävään... (vapaaehtoinen)"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    💡 Esim. "Muista lisätä linkki lippukauppaan" tai "Tarkista kuvat Maijalta"
+                  </p>
+                </div>
               </div>
 
               <div className="flex gap-3 mt-6">
@@ -3187,6 +3273,9 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
           </div>
         )}
       </div>
+
+      {/* PWA Asennusprompt */}
+      <InstallPrompt />
     </div>
   );
 }

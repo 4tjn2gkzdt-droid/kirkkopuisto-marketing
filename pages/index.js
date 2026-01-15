@@ -32,6 +32,8 @@ export default function Home() {
   const [selectedMarketingChannels, setSelectedMarketingChannels] = useState([]);
   const [defaultAssignee, setDefaultAssignee] = useState('');
   const [showPreview, setShowPreview] = useState(false);
+  const [showEditEventModal, setShowEditEventModal] = useState(false);
+  const [editingEvent, setEditingEvent] = useState(null);
   const [showDeadlineModal, setShowDeadlineModal] = useState(false);
   const [generatingTaskId, setGeneratingTaskId] = useState(null);
   const [autoGenerateContent, setAutoGenerateContent] = useState(true);
@@ -1593,13 +1595,26 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                             </button>
                           </div>
                         </div>
-                        
-                        <button
-                          onClick={() => deletePost(post.id)}
-                          className="p-2 bg-red-100 text-red-700 rounded"
-                        >
-                          🗑️
-                        </button>
+
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setEditingEvent(post);
+                              setShowEditEventModal(true);
+                            }}
+                            className="p-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                            title="Muokkaa tapahtumaa"
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => deletePost(post.id)}
+                            className="p-2 bg-red-100 text-red-700 rounded hover:bg-red-200"
+                            title="Poista tapahtuma"
+                          >
+                            🗑️
+                          </button>
+                        </div>
                       </div>
                     </div>
                     
@@ -2492,6 +2507,182 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   className="bg-gray-200 px-6 py-4 rounded-lg hover:bg-gray-300 font-semibold"
                 >
                   ← Takaisin muokkaukseen
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Muokkaa tapahtumaa -modaali */}
+        {showEditEventModal && editingEvent && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+            <div className="bg-white rounded-lg max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto">
+              <h3 className="text-2xl font-bold mb-6">✏️ Muokkaa tapahtumaa</h3>
+
+              <div className="space-y-5 mb-6">
+                {/* Perustiedot */}
+                <div>
+                  <label className="block text-sm font-bold mb-2 text-gray-800">Tapahtuman nimi *</label>
+                  <input
+                    type="text"
+                    value={editingEvent.title}
+                    onChange={(e) => setEditingEvent({ ...editingEvent, title: e.target.value })}
+                    className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none text-lg"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold mb-2 text-gray-800">Päivämäärä *</label>
+                    <input
+                      type="date"
+                      value={editingEvent.date}
+                      onChange={(e) => setEditingEvent({ ...editingEvent, date: e.target.value })}
+                      className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                    />
+                    <p className="text-xs text-orange-600 mt-1">⚠️ Päivämäärän muutos ei päivitä tehtävien deadlineja automaattisesti</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold mb-2 text-gray-800">Kellonaika</label>
+                    <input
+                      type="time"
+                      value={editingEvent.time || ''}
+                      onChange={(e) => setEditingEvent({ ...editingEvent, time: e.target.value })}
+                      className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold mb-2 text-gray-800">Tapahtuman tyyppi</label>
+                    <select
+                      value={editingEvent.eventType || 'artist'}
+                      onChange={(e) => setEditingEvent({ ...editingEvent, eventType: e.target.value })}
+                      className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                    >
+                      <option value="artist">🎤 Artisti / Bändi</option>
+                      <option value="dj">🎧 DJ</option>
+                      <option value="market">🛍️ Kirppis / Markkinat</option>
+                      <option value="other">✨ Muu tapahtuma</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold mb-2 text-gray-800">
+                    {editingEvent.eventType === 'artist' ? 'Esiintyjä / Artisti' :
+                     editingEvent.eventType === 'dj' ? 'DJ:n nimi' :
+                     editingEvent.eventType === 'market' ? 'Lisätiedot' : 'Tapahtuman kuvaus'}
+                  </label>
+                  <input
+                    type="text"
+                    value={editingEvent.artist || ''}
+                    onChange={(e) => setEditingEvent({ ...editingEvent, artist: e.target.value })}
+                    className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Tehtävien hallinta */}
+              <div className="border-t pt-6 mb-6">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <p className="text-sm font-semibold text-blue-900 mb-2">
+                    📋 Tehtävät ({editingEvent.tasks?.length || 0} kpl)
+                  </p>
+                  <p className="text-xs text-gray-700">
+                    Tehtäviä voi muokata yksitellen klikkaamalla niitä lista-näkymässä.
+                    Jos haluat lisätä uusia markkinointikanavia, luo uusi tapahtuma tai lisää tehtäviä manuaalisesti.
+                  </p>
+                </div>
+              </div>
+
+              {/* Napit */}
+              <div className="flex gap-3">
+                <button
+                  onClick={async () => {
+                    if (!editingEvent.title.trim()) {
+                      alert('Anna tapahtumalle nimi');
+                      return;
+                    }
+                    if (!editingEvent.date) {
+                      alert('Valitse tapahtuman päivämäärä');
+                      return;
+                    }
+
+                    const eventYear = new Date(editingEvent.date).getFullYear();
+                    const currentPosts = posts[eventYear] || [];
+
+                    if (supabase && typeof editingEvent.id === 'number') {
+                      try {
+                        const { error: updateError } = await supabase
+                          .from('events')
+                          .update({
+                            title: editingEvent.title,
+                            date: editingEvent.date,
+                            time: editingEvent.time || null,
+                            artist: editingEvent.artist || null,
+                            images: editingEvent.images || {}
+                          })
+                          .eq('id', editingEvent.id);
+
+                        if (updateError) throw updateError;
+
+                        // Päivitä UI
+                        const { data: events, error } = await supabase
+                          .from('events')
+                          .select(`*, tasks (*)`)
+                          .eq('year', eventYear)
+                          .order('date', { ascending: true });
+
+                        if (!error) {
+                          const formattedEvents = events.map(event => ({
+                            id: event.id,
+                            title: event.title,
+                            date: event.date,
+                            time: event.time,
+                            artist: event.artist,
+                            eventType: event.event_type || 'artist',
+                            images: event.images || {},
+                            tasks: (event.tasks || []).map(task => ({
+                              id: task.id,
+                              title: task.title,
+                              channel: task.channel,
+                              dueDate: task.due_date,
+                              dueTime: task.due_time,
+                              completed: task.completed,
+                              content: task.content,
+                              assignee: task.assignee
+                            }))
+                          }));
+                          setPosts(prev => ({ ...prev, [eventYear]: formattedEvents }));
+                        }
+                      } catch (error) {
+                        console.error('Virhe tallennettaessa:', error);
+                        alert('Virhe tallennettaessa tapahtumaa: ' + error.message);
+                        return;
+                      }
+                    } else {
+                      // LocalStorage fallback
+                      const updatedPosts = currentPosts.map(p =>
+                        p.id === editingEvent.id ? editingEvent : p
+                      );
+                      savePosts(eventYear, updatedPosts);
+                    }
+
+                    setShowEditEventModal(false);
+                    setEditingEvent(null);
+                    alert('✅ Tapahtuma päivitetty!');
+                  }}
+                  className="flex-1 bg-green-600 text-white py-4 rounded-lg hover:bg-green-700 font-bold text-lg shadow-lg hover:shadow-xl transition-all"
+                >
+                  💾 Tallenna muutokset
+                </button>
+                <button
+                  onClick={() => {
+                    setShowEditEventModal(false);
+                    setEditingEvent(null);
+                  }}
+                  className="bg-gray-200 px-6 py-4 rounded-lg hover:bg-gray-300 font-semibold"
+                >
+                  Peruuta
                 </button>
               </div>
             </div>

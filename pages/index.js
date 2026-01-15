@@ -26,6 +26,7 @@ export default function Home() {
     time: '',
     artist: '',
     eventType: 'artist', // 'artist', 'dj', 'other'
+    summary: '', // Tapahtuman yhteenveto 100-300 merkkiä
     tasks: []
   });
   const [eventSize, setEventSize] = useState('medium');
@@ -184,6 +185,7 @@ export default function Home() {
             date: event.date,
             time: event.time,
             artist: event.artist,
+            summary: event.summary,
             images: event.images || {},
             tasks: (event.tasks || []).map(task => ({
               id: task.id,
@@ -432,6 +434,7 @@ export default function Home() {
           date: event.date,
           time: event.time,
           artist: event.artist,
+          summary: event.summary,
           images: event.images || {},
           tasks: (event.tasks || []).map(task => ({
             id: task.id,
@@ -871,6 +874,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             date: newEvent.date,
             time: newEvent.time || null,
             artist: newEvent.artist || null,
+            summary: newEvent.summary || null,
             year: eventYear,
             images: {}
           })
@@ -913,6 +917,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             date: event.date,
             time: event.time,
             artist: event.artist,
+            summary: event.summary,
             images: event.images || {},
             tasks: (event.tasks || []).map(task => ({
               id: task.id,
@@ -1721,9 +1726,14 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                 {new Date(post.date).toLocaleDateString('fi-FI')}
                                 {post.time && ` klo ${post.time}`}
                               </p>
+                              {post.summary && (
+                                <p className="text-sm text-gray-600 mt-1 italic">
+                                  {post.summary}
+                                </p>
+                              )}
                             </div>
                           </div>
-                          
+
                           <div className="ml-8 flex items-center gap-4 flex-wrap">
                             <div className="flex items-center gap-2">
                               <span className="text-green-600">✓</span>
@@ -2322,6 +2332,35 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                     }
                   />
                 </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-bold text-gray-800">
+                      📝 Tapahtuman yhteenveto
+                    </label>
+                    <span className={`text-xs font-medium ${
+                      newEvent.summary.length < 100 ? 'text-gray-400' :
+                      newEvent.summary.length <= 300 ? 'text-green-600' :
+                      'text-red-600'
+                    }`}>
+                      {newEvent.summary.length}/300 merkkiä
+                    </span>
+                  </div>
+                  <textarea
+                    value={newEvent.summary}
+                    onChange={(e) => {
+                      if (e.target.value.length <= 300) {
+                        setNewEvent({ ...newEvent, summary: e.target.value });
+                      }
+                    }}
+                    className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none resize-none"
+                    rows="3"
+                    placeholder="Lyhyt informatiivinen yhteenveto tapahtumasta (100-300 merkkiä). Esim. 'Kesäkonsertti Kirkkopuiston Terassilla. Livemusiiikkia ja hyvää ruokaa auringonlaskussa.'"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    💡 Vinkki: Yhteenveto näkyy tapahtumalistassa ja auttaa hahmottamaan mitä tapahtumassa on kyse
+                  </p>
+                </div>
               </div>
 
               {/* Vaihe 2: Markkinointikanavat */}
@@ -2594,6 +2633,12 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                     </div>
                   )}
                 </div>
+                {newEvent.summary && (
+                  <div className="mt-4 pt-4 border-t border-green-200">
+                    <span className="text-gray-600 text-sm">📝 Yhteenveto:</span>
+                    <p className="mt-1 text-gray-900 italic">{newEvent.summary}</p>
+                  </div>
+                )}
               </div>
 
               {/* Tehtävät */}
@@ -2754,6 +2799,35 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                     className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
                   />
                 </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-bold text-gray-800">
+                      📝 Tapahtuman yhteenveto
+                    </label>
+                    <span className={`text-xs font-medium ${
+                      (editingEvent.summary || '').length < 100 ? 'text-gray-400' :
+                      (editingEvent.summary || '').length <= 300 ? 'text-green-600' :
+                      'text-red-600'
+                    }`}>
+                      {(editingEvent.summary || '').length}/300 merkkiä
+                    </span>
+                  </div>
+                  <textarea
+                    value={editingEvent.summary || ''}
+                    onChange={(e) => {
+                      if (e.target.value.length <= 300) {
+                        setEditingEvent({ ...editingEvent, summary: e.target.value });
+                      }
+                    }}
+                    className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none resize-none"
+                    rows="3"
+                    placeholder="Lyhyt informatiivinen yhteenveto tapahtumasta (100-300 merkkiä)"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    💡 Yhteenveto näkyy tapahtumalistassa
+                  </p>
+                </div>
               </div>
 
               {/* Tehtävien hallinta */}
@@ -2794,6 +2868,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                             date: editingEvent.date,
                             time: editingEvent.time || null,
                             artist: editingEvent.artist || null,
+                            summary: editingEvent.summary || null,
                             images: editingEvent.images || {}
                           })
                           .eq('id', editingEvent.id);
@@ -2814,6 +2889,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                             date: event.date,
                             time: event.time,
                             artist: event.artist,
+                            summary: event.summary,
                             eventType: event.event_type || 'artist',
                             images: event.images || {},
                             tasks: (event.tasks || []).map(task => ({

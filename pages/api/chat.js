@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     });
 
     const response = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-3-5-sonnet-latest',
       max_tokens: 4096,
       messages: messages,
       system: `Olet luova markkinointi-assistentti Kirkkopuiston Terassille.

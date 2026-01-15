@@ -116,7 +116,7 @@ export default function Ideoi() {
       console.error('Error:', error);
       const errorMessage = {
         role: 'assistant',
-        content: '❌ Virhe: En voinut hakea vastausta. Tarkista että ANTHROPIC_API_KEY on asetettu .env.local tiedostossa.'
+        content: '❌ Virhe: En voinut hakea vastausta. Tarkista että ANTHROPIC_API_KEY on asetettu Vercel ympäristömuuttujiin ja että sovellus on redeployatty.'
       };
       await saveMessage(errorMessage);
       setMessages([...newMessages, errorMessage]);

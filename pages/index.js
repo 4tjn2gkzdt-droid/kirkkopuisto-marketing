@@ -961,6 +961,14 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
               <p className="text-gray-600">Markkinoinnin työkalut</p>
             </div>
             <div className="flex gap-3 items-center flex-wrap">
+              <a
+                href="/api/calendar.ics"
+                target="_blank"
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-medium"
+                title="Avaa kalenteri - lisää omaan kalenteriisi (Apple, Google, Outlook)"
+              >
+                📅 Kalenteri
+              </a>
               <Link href="/materiaalit">
                 <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
                   📁 Materiaalit

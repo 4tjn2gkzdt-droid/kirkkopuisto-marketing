@@ -25,9 +25,11 @@ export default function Home() {
     date: '',
     time: '',
     artist: '',
+    eventType: 'artist', // 'artist', 'dj', 'other'
     tasks: []
   });
   const [eventSize, setEventSize] = useState('medium');
+  const [selectedMarketingChannels, setSelectedMarketingChannels] = useState([]);
   const [showDeadlineModal, setShowDeadlineModal] = useState(false);
   const [generatingTaskId, setGeneratingTaskId] = useState(null);
   const [autoGenerateContent, setAutoGenerateContent] = useState(true);
@@ -43,6 +45,100 @@ export default function Home() {
     { id: 'print', name: 'Printit', color: 'bg-purple-500' },
     { id: 'ts-meno', name: 'TS Menovinkit', color: 'bg-orange-500' },
     { id: 'turku-calendar', name: 'Turun kalenteri', color: 'bg-blue-700' }
+  ];
+
+  // Markkinointitoimenpiteet joista voidaan valita
+  const marketingOperations = [
+    {
+      id: 'ig-feed',
+      name: 'Instagram Feed -postaus',
+      channel: 'instagram',
+      icon: '📸',
+      daysBeforeEvent: 7,
+      defaultTime: '12:00',
+      description: '1:1 kuva + caption'
+    },
+    {
+      id: 'ig-reel',
+      name: 'Instagram Reels',
+      channel: 'instagram',
+      icon: '🎬',
+      daysBeforeEvent: 5,
+      defaultTime: '14:00',
+      description: 'Lyhyt video 15-30s'
+    },
+    {
+      id: 'ig-story',
+      name: 'Instagram Story',
+      channel: 'instagram',
+      icon: '📱',
+      daysBeforeEvent: 1,
+      defaultTime: '18:00',
+      description: '9:16 stoory-päivitys'
+    },
+    {
+      id: 'fb-post',
+      name: 'Facebook -postaus',
+      channel: 'facebook',
+      icon: '📘',
+      daysBeforeEvent: 5,
+      defaultTime: '10:00',
+      description: 'Orgaaninen postaus'
+    },
+    {
+      id: 'fb-event',
+      name: 'Facebook Event',
+      channel: 'facebook',
+      icon: '🎫',
+      daysBeforeEvent: 14,
+      defaultTime: '11:00',
+      description: 'Tapahtuman luonti FB:ssä'
+    },
+    {
+      id: 'tiktok',
+      name: 'TikTok -video',
+      channel: 'tiktok',
+      icon: '🎵',
+      daysBeforeEvent: 4,
+      defaultTime: '16:00',
+      description: 'Lyhyt mukaansatempaava video'
+    },
+    {
+      id: 'newsletter',
+      name: 'Uutiskirje',
+      channel: 'newsletter',
+      icon: '📧',
+      daysBeforeEvent: 7,
+      defaultTime: '09:00',
+      description: 'Sähköpostiviesti tilaajille'
+    },
+    {
+      id: 'print',
+      name: 'Printit (julisteet)',
+      channel: 'print',
+      icon: '🖨️',
+      daysBeforeEvent: 21,
+      defaultTime: '10:00',
+      description: 'Fyysiset julisteet ja mainosmateriaalit'
+    },
+    {
+      id: 'ts-meno',
+      name: 'TS Menovinkit',
+      channel: 'ts-meno',
+      icon: '📰',
+      daysBeforeEvent: 10,
+      defaultTime: '10:00',
+      description: 'Turun Sanomien menolista'
+    },
+    {
+      id: 'turku-calendar',
+      name: 'Turun tapahtumakalenteri',
+      channel: 'turku-calendar',
+      icon: '📅',
+      daysBeforeEvent: 28,
+      defaultTime: '10:00',
+      description: 'Kaupungin virallinen kalenteri'
+    }
   ];
 
   const imageFormats = [
@@ -825,8 +921,10 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
       date: '',
       time: '',
       artist: '',
+      eventType: 'artist',
       tasks: []
     });
+    setSelectedMarketingChannels([]);
     setShowAddEventModal(false);
 
     // Vaihda oikeaan vuoteen jos tarpeen
@@ -1903,7 +2001,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
         {showAddEventModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-lg max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
               <h3 className="text-2xl font-bold mb-6">➕ Lisää uusi tapahtuma</h3>
 
               {/* Progress-ilmoitus sisällön generoinnille */}
@@ -1927,195 +2025,226 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                 </div>
               )}
 
-              {/* Tapahtuman tiedot */}
-              <div className="space-y-4 mb-6">
+              {/* Vaihe 1: Tapahtuman perustiedot */}
+              <div className="space-y-5 mb-6">
+                <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-4 border-l-4 border-green-600">
+                  <h4 className="font-bold text-gray-800 mb-1">📝 Vaihe 1: Tapahtuman tiedot</h4>
+                  <p className="text-sm text-gray-600">Anna tapahtumalle nimi, päivämäärä ja tyyppi</p>
+                </div>
+
                 <div>
-                  <label className="block text-sm font-medium mb-1">Tapahtuman nimi *</label>
+                  <label className="block text-sm font-bold mb-2 text-gray-800">Tapahtuman nimi *</label>
                   <input
                     type="text"
                     value={newEvent.title}
                     onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
-                    className="w-full p-2 border rounded-lg"
-                    placeholder="Esim. Kesäkonsertti"
+                    className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none text-lg"
+                    placeholder="Esim. Kesäkonsertti, Avajaiset, Kirppispäivä..."
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-1">Päivämäärä *</label>
+                    <label className="block text-sm font-bold mb-2 text-gray-800">Päivämäärä *</label>
                     <input
                       type="date"
                       value={newEvent.date}
                       onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
-                      className="w-full p-2 border rounded-lg"
+                      className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Aika</label>
+                    <label className="block text-sm font-bold mb-2 text-gray-800">Kellonaika</label>
                     <input
                       type="time"
                       value={newEvent.time}
                       onChange={(e) => setNewEvent({ ...newEvent, time: e.target.value })}
-                      className="w-full p-2 border rounded-lg"
+                      className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
                     />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold mb-2 text-gray-800">Tapahtuman tyyppi *</label>
+                    <select
+                      value={newEvent.eventType}
+                      onChange={(e) => setNewEvent({ ...newEvent, eventType: e.target.value })}
+                      className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                    >
+                      <option value="artist">🎤 Artisti / Bändi</option>
+                      <option value="dj">🎧 DJ</option>
+                      <option value="market">🛍️ Kirppis / Markkinat</option>
+                      <option value="other">✨ Muu tapahtuma</option>
+                    </select>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Artisti / Esiintyjä</label>
+                  <label className="block text-sm font-bold mb-2 text-gray-800">
+                    {newEvent.eventType === 'artist' ? 'Esiintyjä / Artisti' :
+                     newEvent.eventType === 'dj' ? 'DJ:n nimi' :
+                     newEvent.eventType === 'market' ? 'Lisätiedot' : 'Tapahtuman kuvaus'}
+                  </label>
                   <input
                     type="text"
                     value={newEvent.artist}
                     onChange={(e) => setNewEvent({ ...newEvent, artist: e.target.value })}
-                    className="w-full p-2 border rounded-lg"
-                    placeholder="Esim. Band XYZ"
+                    className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                    placeholder={
+                      newEvent.eventType === 'artist' ? 'Esim. The Beatles' :
+                      newEvent.eventType === 'dj' ? 'Esim. DJ Spotlight' :
+                      newEvent.eventType === 'market' ? 'Esim. Kesäkirppis' : 'Lyhyt kuvaus tapahtumasta'
+                    }
                   />
-                </div>
-
-                {/* Tapahtuman koko ja automaattiset tehtävät */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <div className="flex flex-col md:flex-row gap-4 items-start md:items-end">
-                    <div className="flex-1">
-                      <label className="block text-sm font-medium mb-1">Tapahtuman koko</label>
-                      <select
-                        value={eventSize}
-                        onChange={(e) => setEventSize(e.target.value)}
-                        className="w-full p-2 border rounded-lg"
-                      >
-                        <option value="small">Pieni (Instagram Story + Facebook)</option>
-                        <option value="medium">Keskisuuri (+ TikTok + Turun kalenteri)</option>
-                        <option value="large">Iso (Kaikki kanavat + uutiskirje + printit)</option>
-                      </select>
-                    </div>
-                    <button
-                      onClick={() => {
-                        if (!newEvent.date) {
-                          alert('Valitse ensin tapahtuman päivämäärä');
-                          return;
-                        }
-                        const generatedTasks = generateTasksForEventSize(eventSize, newEvent.date);
-                        setNewEvent({ ...newEvent, tasks: generatedTasks });
-                      }}
-                      className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 whitespace-nowrap"
-                    >
-                      ✨ Luo automaattiset tehtävät
-                    </button>
-                  </div>
-                  <p className="text-xs text-gray-600 mt-2">
-                    💡 Valitse tapahtuman koko ja luo automaattisesti sopivat markkinointitehtävät oikeilla deadlineilla
-                  </p>
-                  <div className="mt-3 flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="autoGenerateContent"
-                      checked={autoGenerateContent}
-                      onChange={(e) => setAutoGenerateContent(e.target.checked)}
-                      className="w-4 h-4 text-purple-600 rounded border-gray-300"
-                    />
-                    <label htmlFor="autoGenerateContent" className="text-sm text-gray-700 cursor-pointer">
-                      ✨ Luo sisältö automaattisesti AI:llä kaikille tehtäville (säästää aikaa!)
-                    </label>
-                  </div>
                 </div>
               </div>
 
-              {/* Markkinointitehtävät */}
-              <div className="border-t pt-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h4 className="text-lg font-semibold">Markkinointitehtävät</h4>
-                  <button
-                    onClick={addTaskToNewEvent}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm"
-                  >
-                    + Lisää tehtävä manuaalisesti
-                  </button>
+              {/* Vaihe 2: Markkinointikanavat */}
+              <div className="space-y-5 mb-6 border-t pt-6">
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4 border-l-4 border-purple-600">
+                  <h4 className="font-bold text-gray-800 mb-1">📢 Vaihe 2: Valitse markkinointikanavat</h4>
+                  <p className="text-sm text-gray-600">Klikkaa laatikkoa valitaksesi kanavat. Deadlinet lasketaan automaattisesti.</p>
                 </div>
 
-                {newEvent.tasks.length === 0 ? (
-                  <p className="text-gray-500 text-sm mb-4">Ei tehtäviä. Klikkaa "Lisää tehtävä" lisätäksesi markkinointitehtäviä.</p>
-                ) : (
-                  <div className="space-y-4 mb-4">
-                    {newEvent.tasks.map((task, index) => (
-                      <div key={task.id} className="border rounded-lg p-4 bg-gray-50">
-                        <div className="flex justify-between items-start mb-3">
-                          <span className="font-medium text-sm text-gray-700">Tehtävä {index + 1}</span>
-                          <button
-                            onClick={() => removeTaskFromNewEvent(task.id)}
-                            className="text-red-600 hover:text-red-800 text-sm"
-                          >
-                            ✕ Poista
-                          </button>
-                        </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {marketingOperations.map(op => {
+                    const isSelected = selectedMarketingChannels.includes(op.id);
+                    const channel = channels.find(c => c.id === op.channel);
 
-                        <div className="space-y-3">
-                          <input
-                            type="text"
-                            value={task.title}
-                            onChange={(e) => updateTaskInNewEvent(task.id, 'title', e.target.value)}
-                            className="w-full p-2 border rounded-lg text-sm"
-                            placeholder="Tehtävän nimi *"
-                          />
+                    // Laske deadline jos tapahtuman päivämäärä on valittu
+                    let deadlineText = '';
+                    if (newEvent.date) {
+                      const eventDate = new Date(newEvent.date);
+                      const deadline = new Date(eventDate);
+                      deadline.setDate(eventDate.getDate() - op.daysBeforeEvent);
+                      deadlineText = `📅 ${deadline.toLocaleDateString('fi-FI', { day: 'numeric', month: 'short' })}`;
+                    }
 
-                          <div className="grid grid-cols-2 gap-3">
-                            <select
-                              value={task.channel}
-                              onChange={(e) => updateTaskInNewEvent(task.id, 'channel', e.target.value)}
-                              className="w-full p-2 border rounded-lg text-sm"
-                            >
-                              {channels.map(ch => (
-                                <option key={ch.id} value={ch.id}>{ch.name}</option>
-                              ))}
-                            </select>
-
-                            <select
-                              value={task.assignee}
-                              onChange={(e) => updateTaskInNewEvent(task.id, 'assignee', e.target.value)}
-                              className="w-full p-2 border rounded-lg text-sm"
-                            >
-                              <option value="">Ei vastuuhenkilöä</option>
-                              {teamMembers.map(member => (
-                                <option key={member.id} value={member.name}>{member.name}</option>
-                              ))}
-                            </select>
+                    return (
+                      <button
+                        key={op.id}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setSelectedMarketingChannels(prev => prev.filter(id => id !== op.id));
+                          } else {
+                            setSelectedMarketingChannels(prev => [...prev, op.id]);
+                          }
+                        }}
+                        className={`p-4 rounded-lg border-2 text-left transition-all ${
+                          isSelected
+                            ? 'border-green-500 bg-green-50 shadow-md'
+                            : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <span className="text-2xl">{op.icon}</span>
+                          <div className={`w-6 h-6 rounded border-2 flex items-center justify-center ${
+                            isSelected ? 'bg-green-500 border-green-500' : 'border-gray-300'
+                          }`}>
+                            {isSelected && <span className="text-white text-sm">✓</span>}
                           </div>
-
-                          <div className="grid grid-cols-2 gap-3">
-                            <input
-                              type="date"
-                              value={task.dueDate}
-                              onChange={(e) => updateTaskInNewEvent(task.id, 'dueDate', e.target.value)}
-                              className="w-full p-2 border rounded-lg text-sm"
-                              placeholder="Deadline *"
-                            />
-                            <input
-                              type="time"
-                              value={task.dueTime}
-                              onChange={(e) => updateTaskInNewEvent(task.id, 'dueTime', e.target.value)}
-                              className="w-full p-2 border rounded-lg text-sm"
-                            />
-                          </div>
-
-                          <textarea
-                            value={task.content}
-                            onChange={(e) => updateTaskInNewEvent(task.id, 'content', e.target.value)}
-                            className="w-full p-2 border rounded-lg text-sm"
-                            placeholder="Sisältö / Muistiinpanot"
-                            rows="2"
-                          />
                         </div>
-                      </div>
-                    ))}
+                        <h5 className="font-bold text-sm text-gray-900 mb-1">{op.name}</h5>
+                        <p className="text-xs text-gray-600 mb-2">{op.description}</p>
+                        <div className="flex items-center gap-2">
+                          <span className={`${channel?.color || 'bg-gray-500'} text-white px-2 py-0.5 rounded text-[10px] font-medium`}>
+                            {channel?.name}
+                          </span>
+                          {deadlineText && (
+                            <span className="text-[10px] text-gray-700 font-semibold">
+                              {deadlineText}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {selectedMarketingChannels.length > 0 && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <p className="text-sm font-semibold text-blue-900">
+                      ✅ Valittu {selectedMarketingChannels.length} markkinointitoimenpidettä
+                    </p>
                   </div>
                 )}
               </div>
 
+              {/* Vaihe 3: AI-sisällön generointi */}
+              <div className="space-y-4 mb-6 border-t pt-6">
+                <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-4 border-l-4 border-yellow-600">
+                  <h4 className="font-bold text-gray-800 mb-1">✨ Vaihe 3: AI-sisältö</h4>
+                  <p className="text-sm text-gray-600">Haluatko että Claude luo automaattisesti tekstiehdotukset?</p>
+                </div>
+
+                <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-5">
+                  <div className="flex items-start gap-4">
+                    <input
+                      type="checkbox"
+                      id="autoGenerateContentNew"
+                      checked={autoGenerateContent}
+                      onChange={(e) => setAutoGenerateContent(e.target.checked)}
+                      className="w-5 h-5 text-purple-600 rounded border-gray-300 mt-1"
+                    />
+                    <div className="flex-1">
+                      <label htmlFor="autoGenerateContentNew" className="text-base font-bold text-gray-900 cursor-pointer block mb-2">
+                        ✨ Luo automaattiset tekstiehdotukset AI:llä
+                      </label>
+                      <p className="text-sm text-gray-700 mb-2">
+                        Claude luo valmiit tekstiehdotukset kaikille valituille markkinointikanavilles. Voit muokata niitä myöhemmin.
+                      </p>
+                      <ul className="text-xs text-gray-600 space-y-1 ml-4">
+                        <li>• Houkuttelevat otsikot ja tekstit</li>
+                        <li>• Sopivat hashtagit (#kirkkopuistonterassi #turku)</li>
+                        <li>• Call-to-action -kehotukset</li>
+                        <li>• Räätälöity jokaiselle kanavalle erikseen</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Napit */}
-              <div className="flex gap-3 mt-6 border-t pt-4">
+              <div className="flex gap-3 mt-6 border-t pt-6">
                 <button
-                  onClick={saveNewEvent}
-                  className="flex-1 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 font-semibold"
+                  onClick={() => {
+                    if (!newEvent.title.trim()) {
+                      alert('Anna tapahtumalle nimi');
+                      return;
+                    }
+                    if (!newEvent.date) {
+                      alert('Valitse tapahtuman päivämäärä');
+                      return;
+                    }
+                    if (selectedMarketingChannels.length === 0) {
+                      alert('Valitse vähintään yksi markkinointikanava');
+                      return;
+                    }
+
+                    // Luo tehtävät valittujen kanavien perusteella
+                    const eventDate = new Date(newEvent.date);
+                    const tasks = selectedMarketingChannels.map(opId => {
+                      const op = marketingOperations.find(o => o.id === opId);
+                      const deadline = new Date(eventDate);
+                      deadline.setDate(eventDate.getDate() - op.daysBeforeEvent);
+
+                      return {
+                        id: `temp-${Date.now()}-${Math.random()}`,
+                        title: op.name,
+                        channel: op.channel,
+                        dueDate: deadline.toISOString().split('T')[0],
+                        dueTime: op.defaultTime,
+                        assignee: '',
+                        content: '',
+                        completed: false
+                      };
+                    });
+
+                    setNewEvent({ ...newEvent, tasks });
+                    saveNewEvent();
+                  }}
+                  className="flex-1 bg-green-600 text-white py-4 rounded-lg hover:bg-green-700 font-bold text-lg shadow-lg hover:shadow-xl transition-all"
                 >
-                  💾 Tallenna tapahtuma
+                  💾 Luo tapahtuma ja tehtävät
                 </button>
                 <button
                   onClick={() => {
@@ -2125,10 +2254,12 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                       date: '',
                       time: '',
                       artist: '',
+                      eventType: 'artist',
                       tasks: []
                     });
+                    setSelectedMarketingChannels([]);
                   }}
-                  className="flex-1 bg-gray-200 py-3 rounded-lg hover:bg-gray-300"
+                  className="bg-gray-200 px-6 py-4 rounded-lg hover:bg-gray-300 font-semibold"
                 >
                   Peruuta
                 </button>

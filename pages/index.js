@@ -30,6 +30,8 @@ export default function Home() {
   });
   const [eventSize, setEventSize] = useState('medium');
   const [selectedMarketingChannels, setSelectedMarketingChannels] = useState([]);
+  const [defaultAssignee, setDefaultAssignee] = useState('');
+  const [showPreview, setShowPreview] = useState(false);
   const [showDeadlineModal, setShowDeadlineModal] = useState(false);
   const [generatingTaskId, setGeneratingTaskId] = useState(null);
   const [autoGenerateContent, setAutoGenerateContent] = useState(true);
@@ -514,15 +516,48 @@ export default function Home() {
   };
 
   const deletePost = async (id) => {
+    const eventToDelete = (posts[selectedYear] || []).find(p => p.id === id);
+    if (!eventToDelete) return;
+
+    const confirmMessage = `Haluatko varmasti poistaa tapahtuman "${eventToDelete.title}"?\n\n` +
+      `Tapahtumaan liittyy ${eventToDelete.tasks?.length || 0} tehtävää, jotka myös poistetaan.\n\n` +
+      `Tätä toimintoa ei voi peruuttaa.`;
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
     if (supabase && typeof id === 'number' && id < 1000000000000) {
       // Poista Supabasesta (CASCADE poistaa automaattisesti tehtävät)
       const { error } = await supabase.from('events').delete().eq('id', id);
       if (error) {
         console.error('Virhe poistettaessa Supabasesta:', error);
+        alert('Virhe poistettaessa tapahtumaa. Yritä uudelleen.');
+        return;
       }
     }
     const currentPosts = posts[selectedYear] || [];
     savePosts(selectedYear, currentPosts.filter(p => p.id !== id));
+  };
+
+  // Pikavalinnat markkinointikanavien valintaan
+  const applyQuickSelection = (type) => {
+    switch(type) {
+      case 'small':
+        // Pieni ilta: vain sosiaalinen media
+        setSelectedMarketingChannels(['ig-story', 'fb-post']);
+        break;
+      case 'normal':
+        // Normaali konsertti: sosiaalinen media + paikalliset
+        setSelectedMarketingChannels(['ig-feed', 'ig-story', 'fb-post', 'ts-meno', 'turku-calendar']);
+        break;
+      case 'large':
+        // Iso tapahtuma: kaikki kanavat
+        setSelectedMarketingChannels(['ig-feed', 'ig-reel', 'ig-story', 'fb-post', 'fb-event', 'tiktok', 'newsletter', 'print', 'ts-meno', 'turku-calendar']);
+        break;
+      default:
+        break;
+    }
   };
 
   const generateTasksForEventSize = (size, eventDate) => {
@@ -925,6 +960,8 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
       tasks: []
     });
     setSelectedMarketingChannels([]);
+    setDefaultAssignee('');
+    setShowPreview(false);
     setShowAddEventModal(false);
 
     // Vaihda oikeaan vuoteen jos tarpeen
@@ -2104,6 +2141,44 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   <p className="text-sm text-gray-600">Klikkaa laatikkoa valitaksesi kanavat. Deadlinet lasketaan automaattisesti.</p>
                 </div>
 
+                {/* Pikavalinnat */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm font-semibold text-gray-800 mb-3">⚡ Pikavalinnat:</p>
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => applyQuickSelection('small')}
+                      className="bg-white border-2 border-blue-300 text-blue-900 px-4 py-2 rounded-lg hover:bg-blue-50 font-medium text-sm transition-all hover:shadow"
+                    >
+                      ⚡ Pieni ilta
+                      <span className="block text-xs text-gray-600 mt-0.5">IG Story + FB postaus</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyQuickSelection('normal')}
+                      className="bg-white border-2 border-green-300 text-green-900 px-4 py-2 rounded-lg hover:bg-green-50 font-medium text-sm transition-all hover:shadow"
+                    >
+                      🎤 Normaali konsertti
+                      <span className="block text-xs text-gray-600 mt-0.5">5 kanavaa (Some + Paikalliset)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyQuickSelection('large')}
+                      className="bg-white border-2 border-purple-300 text-purple-900 px-4 py-2 rounded-lg hover:bg-purple-50 font-medium text-sm transition-all hover:shadow"
+                    >
+                      🔥 Iso tapahtuma
+                      <span className="block text-xs text-gray-600 mt-0.5">Kaikki kanavat (10 kpl)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedMarketingChannels([])}
+                      className="bg-white border-2 border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 font-medium text-sm transition-all"
+                    >
+                      🗑️ Tyhjennä
+                    </button>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {marketingOperations.map(op => {
                     const isSelected = selectedMarketingChannels.includes(op.id);
@@ -2169,13 +2244,34 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                 )}
               </div>
 
-              {/* Vaihe 3: AI-sisällön generointi */}
+              {/* Vaihe 3: AI-sisältö ja vastuuhenkilö */}
               <div className="space-y-4 mb-6 border-t pt-6">
                 <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-4 border-l-4 border-yellow-600">
-                  <h4 className="font-bold text-gray-800 mb-1">✨ Vaihe 3: AI-sisältö</h4>
-                  <p className="text-sm text-gray-600">Haluatko että Claude luo automaattisesti tekstiehdotukset?</p>
+                  <h4 className="font-bold text-gray-800 mb-1">✨ Vaihe 3: AI-sisältö ja vastuuhenkilö</h4>
+                  <p className="text-sm text-gray-600">Viimeistele tapahtuman asetukset</p>
                 </div>
 
+                {/* Vastuuhenkilön valinta */}
+                <div className="bg-indigo-50 border-2 border-indigo-200 rounded-lg p-5">
+                  <label className="text-base font-bold text-gray-900 block mb-3">
+                    👤 Vastuuhenkilö (vapaaehtoinen)
+                  </label>
+                  <select
+                    value={defaultAssignee}
+                    onChange={(e) => setDefaultAssignee(e.target.value)}
+                    className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                  >
+                    <option value="">Ei oletusvastuuhenkilöä (voit määrittää myöhemmin)</option>
+                    {teamMembers.map(member => (
+                      <option key={member.id} value={member.name}>{member.name}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-600 mt-2">
+                    Jos valitset vastuuhenkilön, kaikki tehtävät määritetään hänelle automaattisesti.
+                  </p>
+                </div>
+
+                {/* AI-sisällön generointi */}
                 <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-5">
                   <div className="flex items-start gap-4">
                     <input
@@ -2233,18 +2329,18 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                         channel: op.channel,
                         dueDate: deadline.toISOString().split('T')[0],
                         dueTime: op.defaultTime,
-                        assignee: '',
+                        assignee: defaultAssignee,
                         content: '',
                         completed: false
                       };
                     });
 
                     setNewEvent({ ...newEvent, tasks });
-                    saveNewEvent();
+                    setShowPreview(true);
                   }}
-                  className="flex-1 bg-green-600 text-white py-4 rounded-lg hover:bg-green-700 font-bold text-lg shadow-lg hover:shadow-xl transition-all"
+                  className="flex-1 bg-blue-600 text-white py-4 rounded-lg hover:bg-blue-700 font-bold text-lg shadow-lg hover:shadow-xl transition-all"
                 >
-                  💾 Luo tapahtuma ja tehtävät
+                  👀 Esikatselu
                 </button>
                 <button
                   onClick={() => {
@@ -2258,10 +2354,144 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                       tasks: []
                     });
                     setSelectedMarketingChannels([]);
+                    setDefaultAssignee('');
+                    setShowPreview(false);
                   }}
                   className="bg-gray-200 px-6 py-4 rounded-lg hover:bg-gray-300 font-semibold"
                 >
                   Peruuta
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Preview-modaali */}
+        {showPreview && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+            <div className="bg-white rounded-lg max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto">
+              <h3 className="text-2xl font-bold mb-6">👀 Esikatselu - Varmista tiedot</h3>
+
+              {/* Tapahtuman tiedot */}
+              <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-5 mb-6 border-2 border-green-200">
+                <h4 className="text-xl font-bold text-gray-900 mb-3">{newEvent.title}</h4>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-gray-600">📅 Päivämäärä:</span>
+                    <p className="font-semibold">{new Date(newEvent.date).toLocaleDateString('fi-FI', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                  </div>
+                  {newEvent.time && (
+                    <div>
+                      <span className="text-gray-600">🕐 Kellonaika:</span>
+                      <p className="font-semibold">{newEvent.time}</p>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-gray-600">🎭 Tyyppi:</span>
+                    <p className="font-semibold">
+                      {newEvent.eventType === 'artist' ? '🎤 Artisti / Bändi' :
+                       newEvent.eventType === 'dj' ? '🎧 DJ' :
+                       newEvent.eventType === 'market' ? '🛍️ Kirppis / Markkinat' : '✨ Muu tapahtuma'}
+                    </p>
+                  </div>
+                  {newEvent.artist && (
+                    <div>
+                      <span className="text-gray-600">
+                        {newEvent.eventType === 'artist' ? '🎤 Esiintyjä:' :
+                         newEvent.eventType === 'dj' ? '🎧 DJ:' : '📝 Lisätiedot:'}
+                      </span>
+                      <p className="font-semibold">{newEvent.artist}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Tehtävät */}
+              <div className="mb-6">
+                <h4 className="text-lg font-bold mb-4 flex items-center gap-2">
+                  📋 Luotavat tehtävät
+                  <span className="text-sm font-normal text-gray-600">({newEvent.tasks?.length || 0} kpl)</span>
+                </h4>
+                <div className="space-y-3">
+                  {newEvent.tasks?.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate)).map((task, index) => {
+                    const channel = channels.find(c => c.id === task.channel);
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const dueDate = new Date(task.dueDate);
+                    dueDate.setHours(0, 0, 0, 0);
+                    const diffDays = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+
+                    let urgencyColor = 'bg-blue-50 border-blue-200';
+                    let urgencyBadge = 'bg-blue-600';
+                    if (diffDays < 0) {
+                      urgencyColor = 'bg-red-50 border-red-200';
+                      urgencyBadge = 'bg-red-600';
+                    } else if (diffDays <= 3) {
+                      urgencyColor = 'bg-orange-50 border-orange-200';
+                      urgencyBadge = 'bg-orange-600';
+                    } else if (diffDays <= 7) {
+                      urgencyColor = 'bg-yellow-50 border-yellow-200';
+                      urgencyBadge = 'bg-yellow-600';
+                    }
+
+                    return (
+                      <div key={index} className={`border-2 rounded-lg p-4 ${urgencyColor}`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className={`${urgencyBadge} text-white px-2 py-1 rounded text-xs font-bold`}>
+                                {diffDays < 0 ? `${Math.abs(diffDays)} pv myöhässä` :
+                                 diffDays === 0 ? 'Tänään' :
+                                 diffDays === 1 ? 'Huomenna' :
+                                 `${diffDays} päivän päästä`}
+                              </span>
+                              <span className={`${channel?.color || 'bg-gray-500'} text-white px-2 py-1 rounded text-xs font-medium`}>
+                                {channel?.name}
+                              </span>
+                            </div>
+                            <h5 className="font-bold text-gray-900 mb-1">{task.title}</h5>
+                            <div className="text-sm text-gray-700">
+                              <p>📅 Deadline: <strong>{new Date(task.dueDate).toLocaleDateString('fi-FI')} klo {task.dueTime}</strong></p>
+                              {task.assignee && (
+                                <p>👤 Vastuuhenkilö: <strong>{task.assignee}</strong></p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* AI-generointi info */}
+              {autoGenerateContent && (
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
+                  <p className="text-sm font-semibold text-purple-900 mb-1">
+                    ✨ AI luo automaattisesti tekstiehdotukset
+                  </p>
+                  <p className="text-xs text-purple-700">
+                    Claude generoi markkinointitekstin kaikille {newEvent.tasks?.length || 0} tehtävälle tapahtuman tallennuksen jälkeen.
+                  </p>
+                </div>
+              )}
+
+              {/* Napit */}
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowPreview(false);
+                    saveNewEvent();
+                  }}
+                  className="flex-1 bg-green-600 text-white py-4 rounded-lg hover:bg-green-700 font-bold text-lg shadow-lg hover:shadow-xl transition-all"
+                >
+                  ✅ Vahvista ja tallenna
+                </button>
+                <button
+                  onClick={() => setShowPreview(false)}
+                  className="bg-gray-200 px-6 py-4 rounded-lg hover:bg-gray-300 font-semibold"
+                >
+                  ← Takaisin muokkaukseen
                 </button>
               </div>
             </div>

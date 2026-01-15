@@ -35,6 +35,8 @@ export default function Home() {
   const [showEditEventModal, setShowEditEventModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [showDeadlineModal, setShowDeadlineModal] = useState(false);
+  const [taskFilter, setTaskFilter] = useState('all'); // 'all', 'my-tasks', 'urgent', 'incomplete'
+  const [assigneeFilter, setAssigneeFilter] = useState('all');
   const [generatingTaskId, setGeneratingTaskId] = useState(null);
   const [autoGenerateContent, setAutoGenerateContent] = useState(true);
   const [generatingProgress, setGeneratingProgress] = useState({ current: 0, total: 0, isGenerating: false });
@@ -1243,6 +1245,85 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             />
           </div>
 
+          {/* Suodattimet */}
+          {(viewMode === 'dashboard' || viewMode === 'list') && (
+            <div className="mb-6 bg-gray-50 border border-gray-200 rounded-lg p-4">
+              <div className="flex flex-wrap gap-3 items-center">
+                <span className="text-sm font-semibold text-gray-700">🔍 Suodata:</span>
+
+                {/* Vastuuhenkilön suodatin */}
+                <select
+                  value={assigneeFilter}
+                  onChange={(e) => setAssigneeFilter(e.target.value)}
+                  className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white hover:border-gray-400 focus:border-blue-500 focus:outline-none"
+                >
+                  <option value="all">👥 Kaikki henkilöt</option>
+                  {teamMembers.map(member => (
+                    <option key={member.id} value={member.name}>👤 {member.name}</option>
+                  ))}
+                  <option value="unassigned">❓ Ei vastuuhenkilöä</option>
+                </select>
+
+                {/* Pikasuodattimet */}
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    onClick={() => setTaskFilter('all')}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      taskFilter === 'all'
+                        ? 'bg-blue-600 text-white shadow'
+                        : 'bg-white border border-gray-300 text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    📋 Kaikki
+                  </button>
+                  <button
+                    onClick={() => setTaskFilter('urgent')}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      taskFilter === 'urgent'
+                        ? 'bg-red-600 text-white shadow'
+                        : 'bg-white border border-gray-300 text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    🔥 Kiireelliset
+                  </button>
+                  <button
+                    onClick={() => setTaskFilter('incomplete')}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      taskFilter === 'incomplete'
+                        ? 'bg-orange-600 text-white shadow'
+                        : 'bg-white border border-gray-300 text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    ⏳ Ei valmiit
+                  </button>
+                  <button
+                    onClick={() => setTaskFilter('this-week')}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      taskFilter === 'this-week'
+                        ? 'bg-green-600 text-white shadow'
+                        : 'bg-white border border-gray-300 text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    📅 Tällä viikolla
+                  </button>
+                </div>
+
+                {/* Nollaa suodattimet */}
+                {(assigneeFilter !== 'all' || taskFilter !== 'all') && (
+                  <button
+                    onClick={() => {
+                      setAssigneeFilter('all');
+                      setTaskFilter('all');
+                    }}
+                    className="ml-auto px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300"
+                  >
+                    ✕ Tyhjennä suodattimet
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Viikkonäkymä - Dashboard */}
           {viewMode === 'dashboard' && (() => {
             const today = new Date();
@@ -1292,11 +1373,31 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
               });
             });
 
+            // Suodata tehtävät
+            let filteredTasks = [...thisWeekTasks];
+
+            // Vastuuhenkilön suodatus
+            if (assigneeFilter !== 'all') {
+              if (assigneeFilter === 'unassigned') {
+                filteredTasks = filteredTasks.filter(item => !item.task.assignee || !item.task.assignee.trim());
+              } else {
+                filteredTasks = filteredTasks.filter(item => item.task.assignee === assigneeFilter);
+              }
+            }
+
+            // Tehtävän tyypin suodatus
+            if (taskFilter === 'urgent') {
+              filteredTasks = filteredTasks.filter(item => item.urgency === 'overdue' || item.urgency === 'urgent');
+            } else if (taskFilter === 'incomplete') {
+              filteredTasks = filteredTasks.filter(item => !item.task.completed);
+            }
+            // 'this-week' ja 'all' näyttävät kaikki tehtävät
+
             // Ryhmittele tehtävät vastuuhenkilöittäin
             const tasksByAssignee = {};
             const unassignedTasks = [];
 
-            thisWeekTasks.forEach(item => {
+            filteredTasks.forEach(item => {
               if (item.task.assignee && item.task.assignee.trim()) {
                 if (!tasksByAssignee[item.task.assignee]) {
                   tasksByAssignee[item.task.assignee] = [];
@@ -1537,15 +1638,67 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
           })()}
 
           {/* Lista-näkymä */}
-          {viewMode === 'list' && (
-            currentYearPosts.length === 0 ? (
+          {viewMode === 'list' && (() => {
+            // Suodata tapahtumat
+            let filteredPosts = [...currentYearPosts];
+
+            // Suodata tapahtumia jotka sisältävät suodatettuja tehtäviä
+            if (assigneeFilter !== 'all' || taskFilter !== 'all') {
+              filteredPosts = filteredPosts.map(post => {
+                let filteredTasks = [...(post.tasks || [])];
+
+                // Vastuuhenkilön suodatus
+                if (assigneeFilter !== 'all') {
+                  if (assigneeFilter === 'unassigned') {
+                    filteredTasks = filteredTasks.filter(task => !task.assignee || !task.assignee.trim());
+                  } else {
+                    filteredTasks = filteredTasks.filter(task => task.assignee === assigneeFilter);
+                  }
+                }
+
+                // Tehtävän tyypin suodatus
+                if (taskFilter === 'urgent') {
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  filteredTasks = filteredTasks.filter(task => {
+                    if (task.completed) return false;
+                    const dueDate = new Date(task.dueDate);
+                    dueDate.setHours(0, 0, 0, 0);
+                    const diffDays = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+                    return diffDays < 0 || diffDays <= 1;
+                  });
+                } else if (taskFilter === 'incomplete') {
+                  filteredTasks = filteredTasks.filter(task => !task.completed);
+                } else if (taskFilter === 'this-week') {
+                  const today = new Date();
+                  const currentDayOfWeek = today.getDay();
+                  const daysToMonday = (currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1);
+                  const monday = new Date(today);
+                  monday.setDate(today.getDate() - daysToMonday);
+                  monday.setHours(0, 0, 0, 0);
+                  const sunday = new Date(monday);
+                  sunday.setDate(monday.getDate() + 6);
+                  sunday.setHours(23, 59, 59, 999);
+
+                  filteredTasks = filteredTasks.filter(task => {
+                    if (!task.dueDate || task.completed) return false;
+                    const dueDate = new Date(task.dueDate);
+                    return dueDate >= monday && dueDate <= sunday;
+                  });
+                }
+
+                return { ...post, tasks: filteredTasks };
+              }).filter(post => post.tasks.length > 0);
+            }
+
+            return filteredPosts.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
                 <p className="text-4xl mb-4">📅</p>
-                <p>Ei tapahtumia</p>
+                <p>Ei tapahtumia suodattimilla</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {currentYearPosts.sort((a, b) => new Date(a.date) - new Date(b.date)).map(post => {
+                {filteredPosts.sort((a, b) => new Date(a.date) - new Date(b.date)).map(post => {
                 const isExpanded = expandedEvents[post.id];
                 const completed = post.tasks.filter(t => t.completed).length;
                 const total = post.tasks.length;
@@ -1597,6 +1750,28 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                         </div>
 
                         <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              // Kopioi tapahtuma
+                              const copiedEvent = {
+                                ...post,
+                                id: `temp-${Date.now()}`,
+                                title: `${post.title} (kopio)`,
+                                tasks: post.tasks.map(task => ({
+                                  ...task,
+                                  id: `temp-${Date.now()}-${Math.random()}`,
+                                  completed: false,
+                                  content: task.content || ''
+                                }))
+                              };
+                              setNewEvent(copiedEvent);
+                              setShowAddEventModal(true);
+                            }}
+                            className="p-2 bg-green-100 text-green-700 rounded hover:bg-green-200"
+                            title="Kopioi tapahtuma"
+                          >
+                            📋
+                          </button>
                           <button
                             onClick={() => {
                               setEditingEvent(post);
@@ -1685,8 +1860,8 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                 );
                 })}
               </div>
-            )
-          )}
+            );
+          })()}
 
           {/* Kuukausi-näkymä */}
           {viewMode === 'month' && (
@@ -2754,7 +2929,63 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium mb-1">Sisältö</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium">Sisältö</label>
+                    <button
+                      onClick={async () => {
+                        if (!editingTask || isGenerating) return;
+
+                        setIsGenerating(true);
+                        const event = (posts[selectedYear] || []).find(p => p.id === editingTask.eventId);
+                        if (!event) {
+                          setIsGenerating(false);
+                          return;
+                        }
+
+                        const channel = channels.find(c => c.id === editingTask.task.channel);
+                        const prompt = `Luo markkinointiteksti ${channel?.name || editingTask.task.channel}-kanavalle tehtävälle "${editingTask.task.title}".
+
+Tapahtuma: ${event.title}
+${event.artist ? `Esiintyjä: ${event.artist}` : ''}
+Päivämäärä: ${new Date(event.date).toLocaleDateString('fi-FI')}
+${event.time ? `Aika: ${event.time}` : ''}
+
+Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingTask.task.channel}-kanavalle. Lisää sopivat hashtagit (#kirkkopuistonterassi #turku). Älä käytä emojeja.`;
+
+                        try {
+                          const response = await fetch('/api/claude', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ message: prompt })
+                          });
+
+                          const data = await response.json();
+                          if (response.ok && data.response) {
+                            setTaskAiContent(data.response);
+                            setEditingTask({
+                              ...editingTask,
+                              task: { ...editingTask.task, content: data.response }
+                            });
+                          } else {
+                            alert('Virhe generoitaessa sisältöä: ' + (data.error || 'Tuntematon virhe'));
+                          }
+                        } catch (error) {
+                          console.error('Virhe:', error);
+                          alert('Virhe generoitaessa sisältöä');
+                        } finally {
+                          setIsGenerating(false);
+                        }
+                      }}
+                      disabled={isGenerating}
+                      className={`px-3 py-1 rounded text-xs font-medium ${
+                        isGenerating
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-purple-600 text-white hover:bg-purple-700'
+                      }`}
+                    >
+                      {isGenerating ? '⏳ Generoidaan...' : '🔄 Generoi uudelleen'}
+                    </button>
+                  </div>
                   <textarea
                     value={taskAiContent}
                     onChange={(e) => {
@@ -2767,6 +2998,9 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                     className="w-full p-3 border rounded h-32"
                     placeholder="Sisältö..."
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    💡 Vinkki: Klikkaa "Generoi uudelleen" jos et ole tyytyväinen tekstiin
+                  </p>
                 </div>
               </div>
 

@@ -39,8 +39,12 @@ export default function Home() {
   const [showPreview, setShowPreview] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [printMode, setPrintMode] = useState('week'); // 'week' or 'month'
+  const [showExportModal, setShowExportModal] = useState(false); // Vienti/tulostusmodaali
+  const [exportStartDate, setExportStartDate] = useState('');
+  const [exportEndDate, setExportEndDate] = useState('');
+  const [exportIncludeTasks, setExportIncludeTasks] = useState(true);
   const [showPastEvents, setShowPastEvents] = useState(false); // Näytä menneet tapahtumat
-  const [showWeeklyTasksModal, setShowWeeklyTasksModal] = useState(false); // Viikon työtehtävät
+  const [showWeeklyTasksModal, setShowWeeklyTasksModal] = useState(false); // Tämän viikon työtehtävät
   const [showEditEventModal, setShowEditEventModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [showDeadlineModal, setShowDeadlineModal] = useState(false);
@@ -660,13 +664,28 @@ export default function Home() {
   };
 
   // Excel/CSV-vienti
-  const exportToExcel = () => {
-    const allPosts = posts[selectedYear] || [];
+  const exportToExcel = (startDate = null, endDate = null, includeTasks = true) => {
+    let allPosts = posts[selectedYear] || [];
+
+    // Suodata päivämäärän mukaan jos määritelty
+    if (startDate || endDate) {
+      allPosts = allPosts.filter(event => {
+        const eventDate = new Date(event.date);
+        if (startDate && endDate) {
+          return eventDate >= new Date(startDate) && eventDate <= new Date(endDate);
+        } else if (startDate) {
+          return eventDate >= new Date(startDate);
+        } else if (endDate) {
+          return eventDate <= new Date(endDate);
+        }
+        return true;
+      });
+    }
 
     // Luo data taulukkoon
     const data = [];
     allPosts.forEach(event => {
-      data.push({
+      const eventData = {
         'Tapahtuma': event.title,
         'Päivämäärä': new Date(event.date).toLocaleDateString('fi-FI'),
         'Aika': event.time || '',
@@ -674,10 +693,15 @@ export default function Home() {
                  event.eventType === 'dj' ? 'DJ' :
                  event.eventType === 'market' ? 'Kirppis' : 'Muu',
         'Esiintyjä/Lisätiedot': event.artist || '',
-        'Yhteenveto': event.summary || '',
-        'Tehtäviä yhteensä': event.tasks?.length || 0,
-        'Valmiit tehtävät': event.tasks?.filter(t => t.completed).length || 0
-      });
+        'Yhteenveto': event.summary || ''
+      };
+
+      if (includeTasks) {
+        eventData['Tehtäviä yhteensä'] = event.tasks?.length || 0;
+        eventData['Valmiit tehtävät'] = event.tasks?.filter(t => t.completed).length || 0;
+      }
+
+      data.push(eventData);
     });
 
     // Luo worksheet ja workbook
@@ -686,16 +710,34 @@ export default function Home() {
     XLSX.utils.book_append_sheet(wb, ws, 'Tapahtumat');
 
     // Lataa tiedosto
-    XLSX.writeFile(wb, `Kirkkopuisto_Tapahtumat_${selectedYear}.xlsx`);
+    const dateRange = startDate && endDate ?
+      `_${new Date(startDate).toLocaleDateString('fi-FI').replace(/\./g, '-')}_${new Date(endDate).toLocaleDateString('fi-FI').replace(/\./g, '-')}` :
+      `_${selectedYear}`;
+    XLSX.writeFile(wb, `Kirkkopuisto_Tapahtumat${dateRange}.xlsx`);
   };
 
-  const exportToCSV = () => {
-    const allPosts = posts[selectedYear] || [];
+  const exportToCSV = (startDate = null, endDate = null, includeTasks = true) => {
+    let allPosts = posts[selectedYear] || [];
+
+    // Suodata päivämäärän mukaan jos määritelty
+    if (startDate || endDate) {
+      allPosts = allPosts.filter(event => {
+        const eventDate = new Date(event.date);
+        if (startDate && endDate) {
+          return eventDate >= new Date(startDate) && eventDate <= new Date(endDate);
+        } else if (startDate) {
+          return eventDate >= new Date(startDate);
+        } else if (endDate) {
+          return eventDate <= new Date(endDate);
+        }
+        return true;
+      });
+    }
 
     // Luo CSV-data
     const data = [];
     allPosts.forEach(event => {
-      data.push({
+      const eventData = {
         'Tapahtuma': event.title,
         'Päivämäärä': new Date(event.date).toLocaleDateString('fi-FI'),
         'Aika': event.time || '',
@@ -703,10 +745,15 @@ export default function Home() {
                  event.eventType === 'dj' ? 'DJ' :
                  event.eventType === 'market' ? 'Kirppis' : 'Muu',
         'Esiintyjä/Lisätiedot': event.artist || '',
-        'Yhteenveto': event.summary || '',
-        'Tehtäviä yhteensä': event.tasks?.length || 0,
-        'Valmiit tehtävät': event.tasks?.filter(t => t.completed).length || 0
-      });
+        'Yhteenveto': event.summary || ''
+      };
+
+      if (includeTasks) {
+        eventData['Tehtäviä yhteensä'] = event.tasks?.length || 0;
+        eventData['Valmiit tehtävät'] = event.tasks?.filter(t => t.completed).length || 0;
+      }
+
+      data.push(eventData);
     });
 
     // Luo worksheet
@@ -717,11 +764,14 @@ export default function Home() {
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `Kirkkopuisto_Tapahtumat_${selectedYear}.csv`;
+    const dateRange = startDate && endDate ?
+      `_${new Date(startDate).toLocaleDateString('fi-FI').replace(/\./g, '-')}_${new Date(endDate).toLocaleDateString('fi-FI').replace(/\./g, '-')}` :
+      `_${selectedYear}`;
+    link.download = `Kirkkopuisto_Tapahtumat${dateRange}.csv`;
     link.click();
   };
 
-  // Viikon työtehtävät PDF
+  // Tämän viikon työtehtävät PDF
   const generateWeeklyTasksPDF = () => {
     const doc = new jsPDF();
     const today = new Date();
@@ -766,7 +816,7 @@ export default function Home() {
     doc.setFontSize(18);
     doc.text('Kirkkopuiston Terassi', 105, 15, { align: 'center' });
     doc.setFontSize(14);
-    doc.text('Viikon työtehtävät', 105, 25, { align: 'center' });
+    doc.text('Tämän viikon työtehtävät', 105, 25, { align: 'center' });
     doc.setFontSize(10);
     doc.text(
       `${monday.toLocaleDateString('fi-FI')} - ${sunday.toLocaleDateString('fi-FI')}`,
@@ -1523,9 +1573,9 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                 href="/api/calendar.ics"
                 target="_blank"
                 className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-medium"
-                title="Avaa kalenteri - lisää omaan kalenteriisi (Apple, Google, Outlook)"
+                title="Lataa kalenteri - lisää omaan kalenteriisi (Apple, Google, Outlook)"
               >
-                📅 Kalenteri
+                📅 Lataa kalenteri
               </a>
               <Link href="/materiaalit">
                 <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
@@ -1662,25 +1712,11 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   📥 <span className="hidden sm:inline">Tuo</span>
                 </button>
                 <button
-                  onClick={exportToExcel}
+                  onClick={() => setShowExportModal(true)}
                   className="bg-emerald-600 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg hover:bg-emerald-700 text-sm md:text-base whitespace-nowrap"
-                  title="Vie tapahtumat Excel-tiedostoon"
+                  title="Vie tai tulosta tapahtumat"
                 >
-                  📊 <span className="hidden sm:inline">Excel</span>
-                </button>
-                <button
-                  onClick={exportToCSV}
-                  className="bg-teal-600 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg hover:bg-teal-700 text-sm md:text-base whitespace-nowrap"
-                  title="Vie tapahtumat CSV-tiedostoon (Google Sheets)"
-                >
-                  📄 <span className="hidden sm:inline">CSV</span>
-                </button>
-                <button
-                  onClick={() => setShowPrintModal(true)}
-                  className="bg-purple-600 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg hover:bg-purple-700 text-sm md:text-base whitespace-nowrap"
-                  title="Tulosta tapahtumalista"
-                >
-                  🖨️ <span className="hidden sm:inline">Tulosta</span>
+                  📤 <span className="hidden sm:inline">Vie/Tulosta</span><span className="sm:hidden">Vie</span>
                 </button>
               </div>
             </div>
@@ -1696,13 +1732,13 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             />
           </div>
 
-          {/* Viikon työtehtävät -kortti */}
+          {/* Tämän viikon työtehtävät -kortti */}
           <div className="mb-6 bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-300 rounded-lg p-4 md:p-6 shadow-sm">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex-1">
                 <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-1 flex items-center gap-2">
                   <span className="text-2xl">📋</span>
-                  Viikon työtehtävät
+                  Tämän viikon työtehtävät
                 </h3>
                 <p className="text-sm text-gray-600">
                   Tulosta tai jaa PDF viikon kaikista työtehtävistä
@@ -4075,7 +4111,7 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
         </div>
       )}
 
-      {/* Viikon työtehtävät -modaali */}
+      {/* Tämän viikon työtehtävät -modaali */}
       {showWeeklyTasksModal && (() => {
         const today = new Date();
         const currentDayOfWeek = today.getDay();
@@ -4127,7 +4163,7 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg max-w-4xl w-full p-4 md:p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl md:text-2xl font-bold">📋 Viikon työtehtävät</h3>
+                <h3 className="text-xl md:text-2xl font-bold">📋 Tämän viikon työtehtävät</h3>
                 <button
                   onClick={() => setShowWeeklyTasksModal(false)}
                   className="text-gray-500 hover:text-gray-700 text-2xl"
@@ -4226,6 +4262,104 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
           </div>
         );
       })()}
+
+      {/* Vienti/tulostusmodaali */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-2xl w-full p-6">
+            <h3 className="text-2xl font-bold mb-6">📤 Vie tai tulosta tapahtumat</h3>
+
+            <div className="space-y-4 mb-6">
+              {/* Päivämääräväli */}
+              <div>
+                <label className="block text-sm font-semibold mb-2">Valitse aikaväli</label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Alkupäivä</label>
+                    <input
+                      type="date"
+                      value={exportStartDate}
+                      onChange={(e) => setExportStartDate(e.target.value)}
+                      className="w-full p-2 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Loppupäivä</label>
+                    <input
+                      type="date"
+                      value={exportEndDate}
+                      onChange={(e) => setExportEndDate(e.target.value)}
+                      className="w-full p-2 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Jätä tyhjäksi jos haluat viedä kaikki {selectedYear} vuoden tapahtumat
+                </p>
+              </div>
+
+              {/* Sisällytä tehtävät */}
+              <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg">
+                <input
+                  type="checkbox"
+                  id="exportIncludeTasks"
+                  checked={exportIncludeTasks}
+                  onChange={(e) => setExportIncludeTasks(e.target.checked)}
+                  className="w-5 h-5 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                />
+                <label htmlFor="exportIncludeTasks" className="text-sm font-medium text-gray-900 cursor-pointer">
+                  Sisällytä tehtävätiedot (tehtävien määrä, valmiit tehtävät)
+                </label>
+              </div>
+            </div>
+
+            {/* Toimintonapit */}
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                <button
+                  onClick={() => {
+                    exportToExcel(exportStartDate, exportEndDate, exportIncludeTasks);
+                    setShowExportModal(false);
+                  }}
+                  className="bg-emerald-600 text-white py-3 rounded-lg hover:bg-emerald-700 font-bold"
+                >
+                  📊 Excel
+                </button>
+                <button
+                  onClick={() => {
+                    exportToCSV(exportStartDate, exportEndDate, exportIncludeTasks);
+                    setShowExportModal(false);
+                  }}
+                  className="bg-teal-600 text-white py-3 rounded-lg hover:bg-teal-700 font-bold"
+                >
+                  📄 CSV
+                </button>
+                <button
+                  onClick={() => {
+                    setShowExportModal(false);
+                    setShowPrintModal(true);
+                  }}
+                  className="bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 font-bold"
+                >
+                  🖨️ Tulosta
+                </button>
+              </div>
+
+              <button
+                onClick={() => {
+                  setShowExportModal(false);
+                  setExportStartDate('');
+                  setExportEndDate('');
+                  setExportIncludeTasks(true);
+                }}
+                className="w-full px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-semibold"
+              >
+                Peruuta
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Somepostauksen lisäys/muokkausmodaali */}
       {showAddSocialPostModal && (

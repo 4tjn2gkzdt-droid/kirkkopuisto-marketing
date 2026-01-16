@@ -1506,14 +1506,35 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
   };
 
   const filterPosts = () => {
-    const currentPosts = posts[selectedYear] || [];
-    if (!searchQuery) return currentPosts;
+    let currentPosts = posts[selectedYear] || [];
 
-    const q = searchQuery.toLowerCase();
-    return currentPosts.filter(p =>
-      p.title.toLowerCase().includes(q) ||
-      (p.artist && p.artist.toLowerCase().includes(q))
-    );
+    // Suodata sisältötyypin mukaan
+    if (contentFilter === 'social') {
+      // Jos halutaan vain somepostaukset, palauta tyhjä (tapahtumat pois)
+      currentPosts = [];
+    }
+
+    // Piilota menneet tapahtumat jos showPastEvents = false
+    if (!showPastEvents) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      currentPosts = currentPosts.filter(post => {
+        const eventDate = new Date(post.date);
+        eventDate.setHours(0, 0, 0, 0);
+        return eventDate >= today;
+      });
+    }
+
+    // Hakusuodatus
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      currentPosts = currentPosts.filter(p =>
+        p.title.toLowerCase().includes(q) ||
+        (p.artist && p.artist.toLowerCase().includes(q))
+      );
+    }
+
+    return currentPosts;
   };
 
   // Apufunktiot kalenterinäkymiä varten
@@ -1555,6 +1576,40 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
     const dateStr = date.toISOString().split('T')[0];
     const allPosts = filterPosts();
     return allPosts.filter(post => post.date === dateStr);
+  };
+
+  const getSocialPostsForDate = (date) => {
+    if (!date) return [];
+    const dateStr = date.toISOString().split('T')[0];
+    let filteredSocialPosts = [...socialPosts];
+
+    // Suodata contentFilterin mukaan
+    if (contentFilter === 'events') {
+      // Jos halutaan vain tapahtumat, palauta tyhjä
+      return [];
+    }
+
+    // Piilota menneet jos showPastEvents = false
+    if (!showPastEvents) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      filteredSocialPosts = filteredSocialPosts.filter(post => {
+        const postDate = new Date(post.date);
+        postDate.setHours(0, 0, 0, 0);
+        return postDate >= today;
+      });
+    }
+
+    // Vastuuhenkilön suodatus
+    if (assigneeFilter !== 'all') {
+      if (assigneeFilter === 'unassigned') {
+        filteredSocialPosts = filteredSocialPosts.filter(post => !post.assignee || !post.assignee.trim());
+      } else {
+        filteredSocialPosts = filteredSocialPosts.filter(post => post.assignee === assigneeFilter);
+      }
+    }
+
+    return filteredSocialPosts.filter(post => post.date === dateStr);
   };
 
   const currentYearPosts = filterPosts();
@@ -1689,7 +1744,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   onClick={() => setViewMode('week')}
                   className={`px-4 py-2 rounded ${viewMode === 'week' ? 'bg-green-600 text-white' : 'text-gray-700 hover:bg-gray-200'}`}
                 >
-                  📆 Kalenteri
+                  📆 Viikko
                 </button>
               </div>
               <div className="flex gap-2 flex-wrap">
@@ -1754,8 +1809,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
           </div>
 
           {/* Suodattimet */}
-          {(viewMode === 'dashboard' || viewMode === 'list') && (
-            <div className="mb-6 bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <div className="mb-6 bg-gray-50 border border-gray-200 rounded-lg p-4">
               <div className="flex flex-wrap gap-3 items-center">
                 <span className="text-sm font-semibold text-gray-700">🔍 Suodata:</span>
 
@@ -1883,7 +1937,6 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                 </p>
               </div>
             </div>
-          )}
 
           {/* Viikkonäkymä - Dashboard */}
           {viewMode === 'dashboard' && (() => {
@@ -2647,6 +2700,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                 ))}
                 {getDaysInMonth(selectedYear, selectedMonth).map((date, idx) => {
                   const dayEvents = date ? getEventsForDate(date) : [];
+                  const daySocialPosts = date ? getSocialPostsForDate(date) : [];
                   const isToday = date && date.toDateString() === new Date().toDateString();
 
                   return (
@@ -2688,6 +2742,35 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                       ></div>
                                     </div>
                                     <span className="text-[8px] md:text-[10px]">{completed}/{total}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {daySocialPosts.map(post => {
+                              const postType = socialPostTypes.find(t => t.id === post.type) || { icon: '📝', name: 'Muu', color: 'bg-gray-500' };
+                              const statusEmoji = {
+                                'suunniteltu': '📋',
+                                'työn alla': '⏳',
+                                'valmis': '✅',
+                                'julkaistu': '🎉'
+                              }[post.status] || '📋';
+
+                              return (
+                                <div
+                                  key={`social-${post.id}`}
+                                  className="text-[9px] md:text-xs bg-blue-100 border border-blue-300 rounded p-0.5 md:p-1 cursor-pointer hover:bg-blue-200"
+                                  onClick={() => openEditSocialPostModal(post)}
+                                  title={post.title}
+                                >
+                                  <div className="font-semibold truncate flex items-center gap-1">
+                                    <span>{postType.icon}</span>
+                                    <span className="truncate">{post.title}</span>
+                                  </div>
+                                  {post.time && (
+                                    <div className="text-gray-600 hidden md:block">{post.time}</div>
+                                  )}
+                                  <div className="text-[8px] md:text-[10px] text-gray-600">
+                                    {statusEmoji} {post.status}
                                   </div>
                                 </div>
                               );
@@ -2734,6 +2817,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
               <div className="grid grid-cols-7 gap-2">
                 {getWeekDays(selectedWeek).map((date, idx) => {
                   const dayEvents = getEventsForDate(date);
+                  const daySocialPosts = getSocialPostsForDate(date);
                   const isToday = date.toDateString() === new Date().toDateString();
                   const dayName = ['Ma', 'Ti', 'Ke', 'To', 'Pe', 'La', 'Su'][idx];
 
@@ -2774,6 +2858,34 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                   ></div>
                                 </div>
                                 <span className="text-[10px]">{completed}/{total}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {daySocialPosts.map(post => {
+                          const postType = socialPostTypes.find(t => t.id === post.type) || { icon: '📝', name: 'Muu', color: 'bg-gray-500' };
+                          const statusEmoji = {
+                            'suunniteltu': '📋',
+                            'työn alla': '⏳',
+                            'valmis': '✅',
+                            'julkaistu': '🎉'
+                          }[post.status] || '📋';
+
+                          return (
+                            <div
+                              key={`social-${post.id}`}
+                              className="text-xs bg-blue-100 border border-blue-300 rounded p-2 cursor-pointer hover:bg-blue-200"
+                              onClick={() => openEditSocialPostModal(post)}
+                            >
+                              <div className="font-semibold mb-1 flex items-center gap-1">
+                                <span>{postType.icon}</span>
+                                <span className="truncate">{post.title}</span>
+                              </div>
+                              {post.time && (
+                                <div className="text-gray-600 mb-1">🕐 {post.time}</div>
+                              )}
+                              <div className="text-[10px] text-gray-600">
+                                {statusEmoji} {post.status}
                               </div>
                             </div>
                           );

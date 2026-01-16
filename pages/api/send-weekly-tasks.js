@@ -1,9 +1,15 @@
 import { supabase } from '../../lib/supabase'
+import { Resend } from 'resend'
+
+const resend = new Resend(process.env.RESEND_API_KEY)
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
+
+  // Tarkista onko kyseessä esikatselu vai oikea lähetys
+  const { sendEmails = false } = req.body
 
   try {
     // Laske viikon alku ja loppu
@@ -124,9 +130,44 @@ export default async function handler(req, res) {
 </html>
     `
 
-    // Palauta HTML ja tiimin jäsenet
+    // Jos pyydetään lähettämään sähköpostit
+    if (sendEmails) {
+      if (!teamMembers || teamMembers.length === 0) {
+        return res.status(400).json({
+          error: 'Ei vastaanottajia. Lisää tiimin jäsenille sähköpostiosoitteet.'
+        })
+      }
+
+      // Lähetä sähköposti jokaiselle tiimin jäsenelle
+      const emailPromises = teamMembers.map(member =>
+        resend.emails.send({
+          from: 'Kirkkopuiston Terassi <onboarding@resend.dev>', // Vaihda tämä omaan domainiin kun se on varmennettu
+          to: member.email,
+          subject: `Viikon työtehtävät (${monday.toLocaleDateString('fi-FI')} - ${sunday.toLocaleDateString('fi-FI')})`,
+          html: html
+        })
+      )
+
+      const results = await Promise.allSettled(emailPromises)
+      const successful = results.filter(r => r.status === 'fulfilled').length
+      const failed = results.filter(r => r.status === 'rejected').length
+
+      return res.status(200).json({
+        success: true,
+        sent: true,
+        emailsSent: successful,
+        emailsFailed: failed,
+        recipients: teamMembers,
+        taskCount: thisWeekTasks.length,
+        weekStart: monday.toLocaleDateString('fi-FI'),
+        weekEnd: sunday.toLocaleDateString('fi-FI')
+      })
+    }
+
+    // Muutoin palauta vain esikatselu
     res.status(200).json({
       success: true,
+      sent: false,
       html,
       recipients: teamMembers,
       taskCount: thisWeekTasks.length,

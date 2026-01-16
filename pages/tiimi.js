@@ -101,12 +101,39 @@ export default function Tiimi() {
     try {
       const response = await fetch('/api/send-weekly-tasks', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sendEmails: false })
       })
 
       const data = await response.json()
       if (response.ok) {
         setEmailPreview(data)
+      } else {
+        alert('Virhe: ' + data.error)
+      }
+    } catch (error) {
+      alert('Virhe: ' + error.message)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const sendWeeklyEmails = async () => {
+    if (!confirm('Haluatko varmasti lähettää viikkoraportin kaikille tiimin jäsenille jotka ovat antaneet sähköpostiosoitteensa?')) {
+      return
+    }
+
+    setSending(true)
+    try {
+      const response = await fetch('/api/send-weekly-tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sendEmails: true })
+      })
+
+      const data = await response.json()
+      if (response.ok) {
+        alert(`✅ Sähköpostit lähetetty!\n\nLähetetty: ${data.emailsSent}\nEpäonnistui: ${data.emailsFailed}`)
       } else {
         alert('Virhe: ' + data.error)
       }
@@ -150,7 +177,15 @@ export default function Tiimi() {
               disabled={sending || teamMembers.filter(m => m.email).length === 0}
               className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {sending ? '⏳ Ladataan...' : '📧 Esikatsele viikkoraportti'}
+              {sending ? '⏳ Ladataan...' : '👁️ Esikatsele viikkoraportti'}
+            </button>
+
+            <button
+              onClick={sendWeeklyEmails}
+              disabled={sending || teamMembers.filter(m => m.email).length === 0}
+              className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {sending ? '⏳ Lähetetään...' : '✉️ Lähetä viikkoraportti'}
             </button>
           </div>
 
@@ -309,13 +344,13 @@ export default function Tiimi() {
                 />
               </div>
 
-              <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-4 mb-6">
-                <h4 className="font-bold text-orange-900 mb-2">⚠️ Huomaa</h4>
+              <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 mb-6">
+                <h4 className="font-bold text-blue-900 mb-2">ℹ️ Esikatselu</h4>
                 <p className="text-sm text-gray-700">
-                  Tämä on vain esikatselu. Automaattinen sähköpostien lähetys vaatii sähköpostipalvelun konfiguroinnin (esim. Resend, SendGrid, AWS SES).
+                  Tämä on sähköpostin esikatselu. Voit lähettää viestin kaikille tiimin jäsenille painamalla "✉️ Lähetä viikkoraportti" -nappia pääsivulla.
                 </p>
                 <p className="text-sm text-gray-700 mt-2">
-                  Voit kopioida HTML-sisällön ja lähettää sen manuaalisesti sähköpostiohjelmastasi, tai konfiguroida sähköpostipalvelun myöhemmin.
+                  Voit myös kopioida HTML-sisällön ja lähettää sen manuaalisesti omasta sähköpostiohjelmastasi.
                 </p>
               </div>
 

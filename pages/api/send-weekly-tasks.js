@@ -141,7 +141,7 @@ export default async function handler(req, res) {
       // Lähetä sähköposti jokaiselle tiimin jäsenelle
       const emailPromises = teamMembers.map(member =>
         resend.emails.send({
-          from: 'Kirkkopuiston Terassi <onboarding@resend.dev>', // Vaihda tämä omaan domainiin kun se on varmennettu
+          from: 'Kirkkopuiston Terassi <noreply@foodandwineturku.com>',
           to: member.email,
           subject: `Viikon työtehtävät (${monday.toLocaleDateString('fi-FI')} - ${sunday.toLocaleDateString('fi-FI')})`,
           html: html

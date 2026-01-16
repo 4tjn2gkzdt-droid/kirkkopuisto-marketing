@@ -69,7 +69,9 @@ export default function Home() {
     status: 'suunniteltu',
     caption: '',
     notes: '',
-    mediaLinks: []
+    mediaLinks: [],
+    recurrence: 'none',
+    recurrenceEndDate: ''
   });
   const [contentFilter, setContentFilter] = useState('all'); // 'all', 'events', 'social'
 
@@ -1312,6 +1314,12 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
       return;
     }
 
+    // Validoi toisto
+    if ((newSocialPost.recurrence === 'weekly' || newSocialPost.recurrence === 'monthly') && !newSocialPost.recurrenceEndDate) {
+      alert('Valitse mihin päivään asti toistoa jatketaan');
+      return;
+    }
+
     const postYear = new Date(newSocialPost.date).getFullYear();
 
     if (supabase) {
@@ -1328,6 +1336,8 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
           caption: newSocialPost.caption || null,
           notes: newSocialPost.notes || null,
           media_links: newSocialPost.mediaLinks || [],
+          recurrence: newSocialPost.recurrence || 'none',
+          recurrence_end_date: newSocialPost.recurrenceEndDate || null,
           year: postYear
         };
 
@@ -1340,12 +1350,58 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
           if (error) throw error;
         } else {
-          // Lisää uusi
-          const { error } = await supabase
-            .from('social_media_posts')
-            .insert(dataToSave);
+          // Lisää uusi (tai useita jos toisto)
+          if (newSocialPost.recurrence !== 'none' && newSocialPost.recurrenceEndDate) {
+            // Luo toistuvat postaukset
+            const postsToCreate = [];
+            const startDate = new Date(newSocialPost.date);
+            const endDate = new Date(newSocialPost.recurrenceEndDate);
+            let currentDate = new Date(startDate);
 
-          if (error) throw error;
+            while (currentDate <= endDate) {
+              postsToCreate.push({
+                ...dataToSave,
+                date: currentDate.toISOString().split('T')[0],
+                year: currentDate.getFullYear(),
+                parent_post_id: null // Ensimmäinen on parent
+              });
+
+              // Lisää päivämäärään
+              if (newSocialPost.recurrence === 'weekly') {
+                currentDate.setDate(currentDate.getDate() + 7);
+              } else if (newSocialPost.recurrence === 'monthly') {
+                currentDate.setMonth(currentDate.getMonth() + 1);
+              }
+            }
+
+            // Tallenna kaikki postaukset
+            const { data: savedPosts, error } = await supabase
+              .from('social_media_posts')
+              .insert(postsToCreate)
+              .select();
+
+            if (error) throw error;
+
+            // Päivitä parent_post_id kaikkiin paitsi ensimmäiseen
+            if (savedPosts && savedPosts.length > 1) {
+              const parentId = savedPosts[0].id;
+              const childIds = savedPosts.slice(1).map(p => p.id);
+
+              await supabase
+                .from('social_media_posts')
+                .update({ parent_post_id: parentId })
+                .in('id', childIds);
+            }
+
+            alert(`✅ Luotiin ${postsToCreate.length} somepostausta!`);
+          } else {
+            // Tavallinen yksittäinen postaus
+            const { error } = await supabase
+              .from('social_media_posts')
+              .insert(dataToSave);
+
+            if (error) throw error;
+          }
         }
 
         // Lataa päivitetyt somepostaukset
@@ -4609,6 +4665,38 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
                   <option value="valmis">✅ Valmis</option>
                   <option value="julkaistu">🎉 Julkaistu</option>
                 </select>
+              </div>
+
+              {/* Toisto */}
+              <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-4">
+                <label className="block text-sm font-semibold mb-3 text-purple-900">🔁 Toisto</label>
+                <div className="space-y-3">
+                  <select
+                    value={newSocialPost.recurrence}
+                    onChange={(e) => setNewSocialPost({ ...newSocialPost, recurrence: e.target.value })}
+                    className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                  >
+                    <option value="none">Ei toistoa</option>
+                    <option value="weekly">📅 Viikoittain</option>
+                    <option value="monthly">📆 Kuukausittain</option>
+                  </select>
+
+                  {(newSocialPost.recurrence === 'weekly' || newSocialPost.recurrence === 'monthly') && (
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Toista mihin päivään asti?</label>
+                      <input
+                        type="date"
+                        value={newSocialPost.recurrenceEndDate}
+                        onChange={(e) => setNewSocialPost({ ...newSocialPost, recurrenceEndDate: e.target.value })}
+                        className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                      />
+                      <p className="text-xs text-gray-600 mt-1">
+                        {newSocialPost.recurrence === 'weekly' && 'Luo automaattisesti sama postaus joka viikko samana viikonpäivänä.'}
+                        {newSocialPost.recurrence === 'monthly' && 'Luo automaattisesti sama postaus joka kuukausi samana päivänä.'}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Caption/Teksti */}

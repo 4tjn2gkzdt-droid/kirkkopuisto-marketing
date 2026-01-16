@@ -50,6 +50,25 @@ export default function Home() {
   const [autoGenerateContent, setAutoGenerateContent] = useState(true);
   const [generatingProgress, setGeneratingProgress] = useState({ current: 0, total: 0, isGenerating: false });
 
+  // Somepostausten hallinta
+  const [socialPosts, setSocialPosts] = useState([]);
+  const [showAddSocialPostModal, setShowAddSocialPostModal] = useState(false);
+  const [editingSocialPost, setEditingSocialPost] = useState(null);
+  const [newSocialPost, setNewSocialPost] = useState({
+    title: '',
+    date: '',
+    time: '',
+    type: 'viikko-ohjelma',
+    channels: [],
+    assignee: '',
+    linkedEventId: null,
+    status: 'suunniteltu',
+    caption: '',
+    notes: '',
+    mediaLinks: []
+  });
+  const [contentFilter, setContentFilter] = useState('all'); // 'all', 'events', 'social'
+
   const years = [2021, 2022, 2023, 2024, 2025, 2026];
   
   const channels = [
@@ -60,6 +79,27 @@ export default function Home() {
     { id: 'print', name: 'Printit', color: 'bg-purple-500' },
     { id: 'ts-meno', name: 'TS Menovinkit', color: 'bg-orange-500' },
     { id: 'turku-calendar', name: 'Turun kalenteri', color: 'bg-blue-700' }
+  ];
+
+  // Somepostausten tyypit
+  const socialPostTypes = [
+    { id: 'viikko-ohjelma', name: 'Viikko-ohjelma', icon: '📅', color: 'bg-blue-500' },
+    { id: 'kuukausiohjelma', name: 'Kuukausiohjelma', icon: '📆', color: 'bg-purple-500' },
+    { id: 'artisti-animaatio', name: 'Artisti-animaatio', icon: '🎬', color: 'bg-pink-500' },
+    { id: 'artisti-karuselli', name: 'Artisti-karuselli', icon: '📸', color: 'bg-orange-500' },
+    { id: 'fiilistelypostaus', name: 'Fiilistelypostaus', icon: '✨', color: 'bg-yellow-500' },
+    { id: 'reels', name: 'Reels', icon: '🎥', color: 'bg-red-500' },
+    { id: 'tapahtuma-mainospostaus', name: 'Tapahtuma-mainospostaus', icon: '🎉', color: 'bg-green-500' },
+    { id: 'muu', name: 'Muu', icon: '📝', color: 'bg-gray-500' }
+  ];
+
+  // Somekanavat (laajempi kuin markkinointikanavat)
+  const socialChannels = [
+    { id: 'FB', name: 'Facebook', icon: '📘' },
+    { id: 'IG', name: 'Instagram Feed', icon: '📸' },
+    { id: 'IG-Story', name: 'Instagram Story', icon: '📱' },
+    { id: 'IG-Reels', name: 'Instagram Reels', icon: '🎬' },
+    { id: 'TikTok', name: 'TikTok', icon: '🎵' }
   ];
 
   // Markkinointitoimenpiteet joista voidaan valita
@@ -216,6 +256,42 @@ export default function Home() {
       }
     };
     loadYear();
+  }, [selectedYear]);
+
+  // Lataa somepostaukset vuodelle
+  useEffect(() => {
+    const loadSocialPosts = async () => {
+      if (supabase) {
+        const { data, error } = await supabase
+          .from('social_media_posts')
+          .select('*')
+          .eq('year', selectedYear)
+          .order('date', { ascending: true });
+
+        if (error) {
+          console.error('Virhe ladattaessa somepostauksia:', error);
+          setSocialPosts([]);
+        } else {
+          // Muunna Supabase-data sovelluksen formaattiin
+          const formattedPosts = data.map(post => ({
+            id: post.id,
+            title: post.title,
+            date: post.date,
+            time: post.time,
+            type: post.type,
+            channels: post.channels || [],
+            assignee: post.assignee,
+            linkedEventId: post.linked_event_id,
+            status: post.status,
+            caption: post.caption,
+            notes: post.notes,
+            mediaLinks: post.media_links || []
+          }));
+          setSocialPosts(formattedPosts);
+        }
+      }
+    };
+    loadSocialPosts();
   }, [selectedYear]);
 
   // Lataa vastuuhenkilöt
@@ -1173,6 +1249,150 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
     }
   };
 
+  // === SOMEPOSTAUSTEN HALLINTA ===
+
+  const saveSocialPost = async () => {
+    // Validointi
+    if (!newSocialPost.title.trim()) {
+      alert('Anna postaukselle otsikko');
+      return;
+    }
+    if (!newSocialPost.date) {
+      alert('Valitse postauksen päivämäärä');
+      return;
+    }
+
+    const postYear = new Date(newSocialPost.date).getFullYear();
+
+    if (supabase) {
+      try {
+        const dataToSave = {
+          title: newSocialPost.title,
+          date: newSocialPost.date,
+          time: newSocialPost.time || null,
+          type: newSocialPost.type,
+          channels: newSocialPost.channels,
+          assignee: newSocialPost.assignee || null,
+          linked_event_id: newSocialPost.linkedEventId || null,
+          status: newSocialPost.status,
+          caption: newSocialPost.caption || null,
+          notes: newSocialPost.notes || null,
+          media_links: newSocialPost.mediaLinks || [],
+          year: postYear
+        };
+
+        if (editingSocialPost) {
+          // Päivitä olemassa oleva
+          const { error } = await supabase
+            .from('social_media_posts')
+            .update(dataToSave)
+            .eq('id', editingSocialPost.id);
+
+          if (error) throw error;
+        } else {
+          // Lisää uusi
+          const { error } = await supabase
+            .from('social_media_posts')
+            .insert(dataToSave);
+
+          if (error) throw error;
+        }
+
+        // Lataa päivitetyt somepostaukset
+        const { data, error: loadError } = await supabase
+          .from('social_media_posts')
+          .select('*')
+          .eq('year', selectedYear)
+          .order('date', { ascending: true });
+
+        if (!loadError) {
+          const formattedPosts = data.map(post => ({
+            id: post.id,
+            title: post.title,
+            date: post.date,
+            time: post.time,
+            type: post.type,
+            channels: post.channels || [],
+            assignee: post.assignee,
+            linkedEventId: post.linked_event_id,
+            status: post.status,
+            caption: post.caption,
+            notes: post.notes,
+            mediaLinks: post.media_links || []
+          }));
+          setSocialPosts(formattedPosts);
+        }
+
+      } catch (error) {
+        console.error('Virhe tallennettaessa somepostausta:', error);
+        alert('Virhe tallennettaessa: ' + error.message);
+        return;
+      }
+    }
+
+    // Tyhjennä lomake ja sulje modaali
+    setNewSocialPost({
+      title: '',
+      date: '',
+      time: '',
+      type: 'viikko-ohjelma',
+      channels: [],
+      assignee: '',
+      linkedEventId: null,
+      status: 'suunniteltu',
+      caption: '',
+      notes: '',
+      mediaLinks: []
+    });
+    setEditingSocialPost(null);
+    setShowAddSocialPostModal(false);
+
+    // Vaihda oikeaan vuoteen jos tarpeen
+    if (postYear !== selectedYear) {
+      setSelectedYear(postYear);
+    }
+  };
+
+  const deleteSocialPost = async (id) => {
+    if (!confirm('Haluatko varmasti poistaa tämän somepostauksen?')) {
+      return;
+    }
+
+    if (supabase) {
+      const { error } = await supabase
+        .from('social_media_posts')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Virhe poistettaessa:', error);
+        alert('Virhe poistettaessa somepostausta');
+        return;
+      }
+    }
+
+    // Päivitä UI
+    setSocialPosts(socialPosts.filter(post => post.id !== id));
+  };
+
+  const openEditSocialPostModal = (post) => {
+    setEditingSocialPost(post);
+    setNewSocialPost({
+      title: post.title,
+      date: post.date,
+      time: post.time,
+      type: post.type,
+      channels: post.channels,
+      assignee: post.assignee,
+      linkedEventId: post.linkedEventId,
+      status: post.status,
+      caption: post.caption,
+      notes: post.notes,
+      mediaLinks: post.mediaLinks
+    });
+    setShowAddSocialPostModal(true);
+  };
+
   const toggleImage = (formatId) => {
     if (!currentEventForImages) return;
     
@@ -1430,6 +1650,12 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   ➕ <span className="hidden sm:inline">Lisää tapahtuma</span><span className="sm:hidden">Lisää</span>
                 </button>
                 <button
+                  onClick={() => setShowAddSocialPostModal(true)}
+                  className="bg-indigo-600 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg hover:bg-indigo-700 text-sm md:text-base whitespace-nowrap"
+                >
+                  📱 <span className="hidden sm:inline">Lisää somepostaus</span><span className="sm:hidden">Some</span>
+                </button>
+                <button
                   onClick={() => setShowImportModal(true)}
                   className="bg-blue-600 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg hover:bg-blue-700 text-sm md:text-base whitespace-nowrap"
                 >
@@ -1496,6 +1722,40 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             <div className="mb-6 bg-gray-50 border border-gray-200 rounded-lg p-4">
               <div className="flex flex-wrap gap-3 items-center">
                 <span className="text-sm font-semibold text-gray-700">🔍 Suodata:</span>
+
+                {/* Sisältötyyppi-suodatin */}
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    onClick={() => setContentFilter('all')}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      contentFilter === 'all'
+                        ? 'bg-indigo-600 text-white shadow'
+                        : 'bg-white border border-gray-300 text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    📊 Kaikki
+                  </button>
+                  <button
+                    onClick={() => setContentFilter('events')}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      contentFilter === 'events'
+                        ? 'bg-green-600 text-white shadow'
+                        : 'bg-white border border-gray-300 text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    🎉 Vain tapahtumat
+                  </button>
+                  <button
+                    onClick={() => setContentFilter('social')}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      contentFilter === 'social'
+                        ? 'bg-blue-600 text-white shadow'
+                        : 'bg-white border border-gray-300 text-gray-700 hover:border-gray-400'
+                    }`}
+                  >
+                    📱 Vain somepostaukset
+                  </button>
+                </div>
 
                 {/* Vastuuhenkilön suodatin */}
                 <select
@@ -1927,7 +2187,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
           })()}
 
           {/* Lista-näkymä */}
-          {viewMode === 'list' && (() => {
+          {viewMode === 'list' && (contentFilter === 'all' || contentFilter === 'events') && (() => {
             // Suodata tapahtumat
             let filteredPosts = [...currentYearPosts];
 
@@ -2177,6 +2437,146 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   </div>
                 );
                 })}
+              </div>
+            );
+          })()}
+
+          {/* Somepostaukset lista-näkymässä */}
+          {viewMode === 'list' && (contentFilter === 'all' || contentFilter === 'social') && (() => {
+            // Suodata somepostaukset
+            let filteredSocialPosts = [...socialPosts];
+
+            // Piilota menneet jos showPastEvents = false
+            if (!showPastEvents) {
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              filteredSocialPosts = filteredSocialPosts.filter(post => {
+                const postDate = new Date(post.date);
+                postDate.setHours(0, 0, 0, 0);
+                return postDate >= today;
+              });
+            }
+
+            // Vastuuhenkilön suodatus
+            if (assigneeFilter !== 'all') {
+              if (assigneeFilter === 'unassigned') {
+                filteredSocialPosts = filteredSocialPosts.filter(post => !post.assignee || !post.assignee.trim());
+              } else {
+                filteredSocialPosts = filteredSocialPosts.filter(post => post.assignee === assigneeFilter);
+              }
+            }
+
+            if (filteredSocialPosts.length === 0 && contentFilter === 'social') {
+              return (
+                <div className="text-center py-12 text-gray-500">
+                  <p className="text-4xl mb-4">📱</p>
+                  <p>Ei somepostauksia suodattimilla</p>
+                </div>
+              );
+            }
+
+            if (filteredSocialPosts.length === 0) return null;
+
+            const typeInfo = socialPostTypes.find(t => t.id === 'viikko-ohjelma') || {};
+
+            return (
+              <div className="mt-8">
+                <div className="flex items-center gap-2 mb-4">
+                  <h2 className="text-2xl font-bold text-gray-800">📱 Somepostaukset</h2>
+                  <span className="text-sm text-gray-500">({filteredSocialPosts.length} kpl)</span>
+                </div>
+                <div className="space-y-3">
+                  {filteredSocialPosts.sort((a, b) => new Date(a.date) - new Date(b.date)).map(post => {
+                    const postType = socialPostTypes.find(t => t.id === post.type) || { icon: '📝', name: 'Muu', color: 'bg-gray-500' };
+                    const statusEmoji = {
+                      'suunniteltu': '📋',
+                      'työn alla': '⏳',
+                      'valmis': '✅',
+                      'julkaistu': '🎉'
+                    }[post.status] || '📋';
+
+                    return (
+                      <div key={post.id} className={`border-2 rounded-lg p-4 ${postType.color} bg-opacity-10 border-opacity-30`}>
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <span className="text-2xl">{postType.icon}</span>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <h3 className="font-semibold text-lg">{post.title}</h3>
+                                  <span className="text-sm">{statusEmoji}</span>
+                                </div>
+                                <p className="text-sm text-gray-500">
+                                  {new Date(post.date).toLocaleDateString('fi-FI')}
+                                  {post.time && ` klo ${post.time}`}
+                                  {' • '}
+                                  <span className={`font-medium ${postType.color.replace('bg-', 'text-')}`}>
+                                    {postType.name}
+                                  </span>
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="ml-11">
+                              {/* Kanavat */}
+                              {post.channels && post.channels.length > 0 && (
+                                <div className="flex flex-wrap gap-2 mb-2">
+                                  {post.channels.map(channelId => {
+                                    const channel = socialChannels.find(c => c.id === channelId);
+                                    return channel ? (
+                                      <span key={channelId} className="text-xs bg-gray-100 px-2 py-1 rounded">
+                                        {channel.icon} {channel.name}
+                                      </span>
+                                    ) : null;
+                                  })}
+                                </div>
+                              )}
+
+                              {/* Vastuuhenkilö */}
+                              {post.assignee && (
+                                <p className="text-sm text-gray-600 mb-2">
+                                  👤 <span className="font-medium">{post.assignee}</span>
+                                </p>
+                              )}
+
+                              {/* Caption */}
+                              {post.caption && (
+                                <p className="text-sm text-gray-700 mt-2 italic">
+                                  "{post.caption.substring(0, 100)}{post.caption.length > 100 ? '...' : ''}"
+                                </p>
+                              )}
+
+                              {/* Muistiinpanot */}
+                              {post.notes && (
+                                <p className="text-xs text-gray-500 mt-2">
+                                  📝 {post.notes.substring(0, 80)}{post.notes.length > 80 ? '...' : ''}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Toimintonapit */}
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => openEditSocialPostModal(post)}
+                              className="p-2 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                              title="Muokkaa"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              onClick={() => deleteSocialPost(post.id)}
+                              className="p-2 bg-red-100 text-red-700 rounded hover:bg-red-200"
+                              title="Poista"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             );
           })()}
@@ -3826,6 +4226,204 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
           </div>
         );
       })()}
+
+      {/* Somepostauksen lisäys/muokkausmodaali */}
+      {showAddSocialPostModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-2xl font-bold mb-6">
+              {editingSocialPost ? '✏️ Muokkaa somepostausta' : '📱 Lisää somepostaus'}
+            </h3>
+
+            <div className="space-y-4">
+              {/* Otsikko */}
+              <div>
+                <label className="block text-sm font-semibold mb-2">Otsikko *</label>
+                <input
+                  type="text"
+                  value={newSocialPost.title}
+                  onChange={(e) => setNewSocialPost({ ...newSocialPost, title: e.target.value })}
+                  className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                  placeholder="Esim. Viikon ohjelma vko 24"
+                />
+              </div>
+
+              {/* Päivämäärä ja aika */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-2">Julkaisupäivä *</label>
+                  <input
+                    type="date"
+                    value={newSocialPost.date}
+                    onChange={(e) => setNewSocialPost({ ...newSocialPost, date: e.target.value })}
+                    className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-2">Julkaisuaika</label>
+                  <input
+                    type="time"
+                    value={newSocialPost.time}
+                    onChange={(e) => setNewSocialPost({ ...newSocialPost, time: e.target.value })}
+                    className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Tyyppi */}
+              <div>
+                <label className="block text-sm font-semibold mb-2">Postauksen tyyppi *</label>
+                <select
+                  value={newSocialPost.type}
+                  onChange={(e) => setNewSocialPost({ ...newSocialPost, type: e.target.value })}
+                  className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                >
+                  {socialPostTypes.map(type => (
+                    <option key={type.id} value={type.id}>
+                      {type.icon} {type.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Kanavat */}
+              <div>
+                <label className="block text-sm font-semibold mb-2">Somekanavat</label>
+                <div className="flex flex-wrap gap-2">
+                  {socialChannels.map(channel => (
+                    <button
+                      key={channel.id}
+                      type="button"
+                      onClick={() => {
+                        const isSelected = newSocialPost.channels.includes(channel.id);
+                        setNewSocialPost({
+                          ...newSocialPost,
+                          channels: isSelected
+                            ? newSocialPost.channels.filter(c => c !== channel.id)
+                            : [...newSocialPost.channels, channel.id]
+                        });
+                      }}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        newSocialPost.channels.includes(channel.id)
+                          ? 'bg-indigo-600 text-white shadow'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {channel.icon} {channel.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Vastuuhenkilö */}
+              <div>
+                <label className="block text-sm font-semibold mb-2">Vastuuhenkilö</label>
+                <select
+                  value={newSocialPost.assignee}
+                  onChange={(e) => setNewSocialPost({ ...newSocialPost, assignee: e.target.value })}
+                  className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                >
+                  <option value="">Valitse henkilö...</option>
+                  {teamMembers.map(member => (
+                    <option key={member.id} value={member.name}>{member.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Linkitys tapahtumaan */}
+              <div>
+                <label className="block text-sm font-semibold mb-2">Linkitä tapahtumaan (valinnainen)</label>
+                <select
+                  value={newSocialPost.linkedEventId || ''}
+                  onChange={(e) => setNewSocialPost({ ...newSocialPost, linkedEventId: e.target.value || null })}
+                  className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                >
+                  <option value="">Ei linkitetty tapahtumaan</option>
+                  {(posts[selectedYear] || []).map(event => (
+                    <option key={event.id} value={event.id}>
+                      {event.title} - {new Date(event.date).toLocaleDateString('fi-FI')}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Linkitä postaus tapahtumaan jos se liittyy johonkin tiettyyn tapahtumaan
+                </p>
+              </div>
+
+              {/* Status */}
+              <div>
+                <label className="block text-sm font-semibold mb-2">Status</label>
+                <select
+                  value={newSocialPost.status}
+                  onChange={(e) => setNewSocialPost({ ...newSocialPost, status: e.target.value })}
+                  className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                >
+                  <option value="suunniteltu">📋 Suunniteltu</option>
+                  <option value="työn alla">⏳ Työn alla</option>
+                  <option value="valmis">✅ Valmis</option>
+                  <option value="julkaistu">🎉 Julkaistu</option>
+                </select>
+              </div>
+
+              {/* Caption/Teksti */}
+              <div>
+                <label className="block text-sm font-semibold mb-2">Caption / Postauksen teksti</label>
+                <textarea
+                  value={newSocialPost.caption}
+                  onChange={(e) => setNewSocialPost({ ...newSocialPost, caption: e.target.value })}
+                  rows={4}
+                  className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                  placeholder="Kirjoita postauksen teksti..."
+                />
+              </div>
+
+              {/* Muistiinpanot */}
+              <div>
+                <label className="block text-sm font-semibold mb-2">Muistiinpanot</label>
+                <textarea
+                  value={newSocialPost.notes}
+                  onChange={(e) => setNewSocialPost({ ...newSocialPost, notes: e.target.value })}
+                  rows={3}
+                  className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                  placeholder="Sisäiset muistiinpanot..."
+                />
+              </div>
+            </div>
+
+            {/* Toimintonapit */}
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={saveSocialPost}
+                className="flex-1 bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 font-bold"
+              >
+                💾 Tallenna
+              </button>
+              <button
+                onClick={() => {
+                  setShowAddSocialPostModal(false);
+                  setEditingSocialPost(null);
+                  setNewSocialPost({
+                    title: '',
+                    date: '',
+                    time: '',
+                    type: 'viikko-ohjelma',
+                    channels: [],
+                    assignee: '',
+                    linkedEventId: null,
+                    status: 'suunniteltu',
+                    caption: '',
+                    notes: '',
+                    mediaLinks: []
+                  });
+                }}
+                className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-semibold"
+              >
+                Peruuta
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* PWA Asennusprompt */}
       <InstallPrompt />

@@ -19,3 +19,37 @@ body {
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
 }
+
+/* Print styles */
+@media print {
+  @page {
+    margin: 1cm;
+  }
+
+  /* Piilota kaikki paitsi tulostettava alue */
+  body * {
+    visibility: hidden;
+  }
+
+  #printable-area,
+  #printable-area * {
+    visibility: visible;
+  }
+
+  #printable-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+
+  /* Paremmat värit tulostukseen */
+  .border-gray-200 {
+    border-color: #000 !important;
+  }
+
+  /* Älä riko sivuja tapahtumien keskeltä */
+  .border-2 {
+    page-break-inside: avoid;
+  }
+}

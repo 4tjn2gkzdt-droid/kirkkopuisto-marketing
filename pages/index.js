@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { supabase } from '../lib/supabase';
 import InstallPrompt from '../components/InstallPrompt';
+import * as XLSX from 'xlsx';
 
 export default function Home() {
   const [selectedYear, setSelectedYear] = useState(2026);
@@ -34,6 +35,9 @@ export default function Home() {
   const [selectedMarketingChannels, setSelectedMarketingChannels] = useState([]);
   const [defaultAssignee, setDefaultAssignee] = useState('');
   const [showPreview, setShowPreview] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [printMode, setPrintMode] = useState('week'); // 'week' or 'month'
+  const [showPastEvents, setShowPastEvents] = useState(false); // Näytä menneet tapahtumat
   const [showEditEventModal, setShowEditEventModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [showDeadlineModal, setShowDeadlineModal] = useState(false);
@@ -574,6 +578,68 @@ export default function Home() {
     }
     const currentPosts = posts[selectedYear] || [];
     savePosts(selectedYear, currentPosts.filter(p => p.id !== id));
+  };
+
+  // Excel/CSV-vienti
+  const exportToExcel = () => {
+    const allPosts = posts[selectedYear] || [];
+
+    // Luo data taulukkoon
+    const data = [];
+    allPosts.forEach(event => {
+      data.push({
+        'Tapahtuma': event.title,
+        'Päivämäärä': new Date(event.date).toLocaleDateString('fi-FI'),
+        'Aika': event.time || '',
+        'Tyyppi': event.eventType === 'artist' ? 'Artisti' :
+                 event.eventType === 'dj' ? 'DJ' :
+                 event.eventType === 'market' ? 'Kirppis' : 'Muu',
+        'Esiintyjä/Lisätiedot': event.artist || '',
+        'Yhteenveto': event.summary || '',
+        'Tehtäviä yhteensä': event.tasks?.length || 0,
+        'Valmiit tehtävät': event.tasks?.filter(t => t.completed).length || 0
+      });
+    });
+
+    // Luo worksheet ja workbook
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Tapahtumat');
+
+    // Lataa tiedosto
+    XLSX.writeFile(wb, `Kirkkopuisto_Tapahtumat_${selectedYear}.xlsx`);
+  };
+
+  const exportToCSV = () => {
+    const allPosts = posts[selectedYear] || [];
+
+    // Luo CSV-data
+    const data = [];
+    allPosts.forEach(event => {
+      data.push({
+        'Tapahtuma': event.title,
+        'Päivämäärä': new Date(event.date).toLocaleDateString('fi-FI'),
+        'Aika': event.time || '',
+        'Tyyppi': event.eventType === 'artist' ? 'Artisti' :
+                 event.eventType === 'dj' ? 'DJ' :
+                 event.eventType === 'market' ? 'Kirppis' : 'Muu',
+        'Esiintyjä/Lisätiedot': event.artist || '',
+        'Yhteenveto': event.summary || '',
+        'Tehtäviä yhteensä': event.tasks?.length || 0,
+        'Valmiit tehtävät': event.tasks?.filter(t => t.completed).length || 0
+      });
+    });
+
+    // Luo worksheet
+    const ws = XLSX.utils.json_to_sheet(data);
+    const csv = XLSX.utils.sheet_to_csv(ws);
+
+    // Lataa CSV-tiedosto
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `Kirkkopuisto_Tapahtumat_${selectedYear}.csv`;
+    link.click();
   };
 
   // Pikavalinnat markkinointikanavien valintaan
@@ -1267,6 +1333,27 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                 >
                   📥 Tuo taulukosta
                 </button>
+                <button
+                  onClick={exportToExcel}
+                  className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700"
+                  title="Vie tapahtumat Excel-tiedostoon"
+                >
+                  📊 Vie Exceliin
+                </button>
+                <button
+                  onClick={exportToCSV}
+                  className="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700"
+                  title="Vie tapahtumat CSV-tiedostoon (Google Sheets)"
+                >
+                  📄 Vie CSV
+                </button>
+                <button
+                  onClick={() => setShowPrintModal(true)}
+                  className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
+                  title="Tulosta tapahtumalista"
+                >
+                  🖨️ Tulosta
+                </button>
               </div>
             </div>
           </div>
@@ -1356,6 +1443,25 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                     ✕ Tyhjennä suodattimet
                   </button>
                 )}
+              </div>
+
+              {/* Näytä/piilota menneet tapahtumat */}
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => setShowPastEvents(!showPastEvents)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    showPastEvents
+                      ? 'bg-green-100 text-green-700 border-2 border-green-300'
+                      : 'bg-gray-100 text-gray-600 border-2 border-gray-300'
+                  }`}
+                >
+                  {showPastEvents ? '👁️ Piilota menneet tapahtumat' : '📦 Näytä menneet tapahtumat'}
+                </button>
+                <p className="text-xs text-gray-500 mt-2">
+                  {showPastEvents
+                    ? 'Näytetään myös tapahtumat, jotka ovat jo menneet'
+                    : 'Piilotetaan tapahtumat, joiden päivämäärä on ohitettu'}
+                </p>
               </div>
             </div>
           )}
@@ -1701,6 +1807,17 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
           {viewMode === 'list' && (() => {
             // Suodata tapahtumat
             let filteredPosts = [...currentYearPosts];
+
+            // Piilota menneet tapahtumat jos showPastEvents = false
+            if (!showPastEvents) {
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              filteredPosts = filteredPosts.filter(post => {
+                const eventDate = new Date(post.date);
+                eventDate.setHours(0, 0, 0, 0);
+                return eventDate >= today;
+              });
+            }
 
             // Suodata tapahtumia jotka sisältävät suodatettuja tehtäviä
             if (assigneeFilter !== 'all' || taskFilter !== 'all') {
@@ -3273,6 +3390,167 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
           </div>
         )}
       </div>
+
+      {/* Tulostusmodaali */}
+      {showPrintModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold">🖨️ Tulosta tapahtumalista</h3>
+              <button
+                onClick={() => setShowPrintModal(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-semibold mb-3 text-gray-700">Valitse aikaväli:</label>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setPrintMode('week')}
+                  className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${
+                    printMode === 'week'
+                      ? 'bg-purple-600 text-white shadow-lg'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  📅 Viikko
+                </button>
+                <button
+                  onClick={() => setPrintMode('month')}
+                  className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${
+                    printMode === 'month'
+                      ? 'bg-purple-600 text-white shadow-lg'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  📆 Kuukausi
+                </button>
+              </div>
+            </div>
+
+            <div className="border-t pt-6 mb-6">
+              <div id="printable-area" className="bg-white p-8">
+                <div className="text-center mb-8">
+                  <h1 className="text-3xl font-bold text-green-800">Kirkkopuiston Terassi</h1>
+                  <h2 className="text-xl text-gray-600 mt-2">
+                    {printMode === 'week' ? 'Viikkolista' : 'Kuukausisuunnitelma'} - {selectedYear}
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-2">
+                    Tulostettu: {new Date().toLocaleDateString('fi-FI')}
+                  </p>
+                </div>
+
+                {(() => {
+                  const allPosts = posts[selectedYear] || [];
+                  const today = new Date();
+
+                  let filteredPosts = [];
+
+                  if (printMode === 'week') {
+                    // Hae tämän viikon tapahtumat
+                    const currentDayOfWeek = today.getDay();
+                    const daysToMonday = (currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1);
+                    const monday = new Date(today);
+                    monday.setDate(today.getDate() - daysToMonday);
+                    monday.setHours(0, 0, 0, 0);
+
+                    const sunday = new Date(monday);
+                    sunday.setDate(monday.getDate() + 6);
+                    sunday.setHours(23, 59, 59, 999);
+
+                    filteredPosts = allPosts.filter(post => {
+                      const eventDate = new Date(post.date);
+                      return eventDate >= monday && eventDate <= sunday;
+                    });
+                  } else {
+                    // Hae tämän kuukauden tapahtumat
+                    const currentMonth = today.getMonth();
+                    filteredPosts = allPosts.filter(post => {
+                      const eventDate = new Date(post.date);
+                      return eventDate.getMonth() === currentMonth;
+                    });
+                  }
+
+                  if (filteredPosts.length === 0) {
+                    return (
+                      <div className="text-center py-8 text-gray-500">
+                        <p>Ei tapahtumia valitulla aikavälillä.</p>
+                      </div>
+                    );
+                  }
+
+                  // Järjestä päivämäärän mukaan
+                  filteredPosts.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+                  return (
+                    <div className="space-y-6">
+                      {filteredPosts.map((event, index) => (
+                        <div key={event.id} className="border-2 border-gray-200 rounded-lg p-4">
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <h3 className="text-lg font-bold text-gray-900">
+                                {index + 1}. {event.title}
+                              </h3>
+                              {event.artist && (
+                                <p className="text-sm text-gray-600">{event.artist}</p>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p className="font-semibold text-gray-900">
+                                {new Date(event.date).toLocaleDateString('fi-FI', {
+                                  weekday: 'long',
+                                  day: 'numeric',
+                                  month: 'long'
+                                })}
+                              </p>
+                              {event.time && (
+                                <p className="text-sm text-gray-600">Klo {event.time}</p>
+                              )}
+                            </div>
+                          </div>
+                          {event.summary && (
+                            <p className="text-sm text-gray-700 mt-2 italic">{event.summary}</p>
+                          )}
+                          <div className="mt-3 pt-3 border-t flex items-center justify-between text-xs text-gray-500">
+                            <span>
+                              {event.eventType === 'artist' ? '🎤 Artisti' :
+                               event.eventType === 'dj' ? '🎧 DJ' :
+                               event.eventType === 'market' ? '🛍️ Kirppis' : '✨ Muu'}
+                            </span>
+                            <span>
+                              {event.tasks?.length || 0} tehtävää
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  window.print();
+                }}
+                className="flex-1 bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 font-bold"
+              >
+                🖨️ Tulosta
+              </button>
+              <button
+                onClick={() => setShowPrintModal(false)}
+                className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-semibold"
+              >
+                Sulje
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* PWA Asennusprompt */}
       <InstallPrompt />

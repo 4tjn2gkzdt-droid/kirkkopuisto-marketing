@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { supabase } from '../lib/supabase';
 import InstallPrompt from '../components/InstallPrompt';
 import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 export default function Home() {
   const [selectedYear, setSelectedYear] = useState(2026);
@@ -38,6 +40,7 @@ export default function Home() {
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [printMode, setPrintMode] = useState('week'); // 'week' or 'month'
   const [showPastEvents, setShowPastEvents] = useState(false); // Näytä menneet tapahtumat
+  const [showWeeklyTasksModal, setShowWeeklyTasksModal] = useState(false); // Viikon työtehtävät
   const [showEditEventModal, setShowEditEventModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [showDeadlineModal, setShowDeadlineModal] = useState(false);
@@ -642,6 +645,100 @@ export default function Home() {
     link.click();
   };
 
+  // Viikon työtehtävät PDF
+  const generateWeeklyTasksPDF = () => {
+    const doc = new jsPDF();
+    const today = new Date();
+
+    // Laske viikon alku ja loppu
+    const currentDayOfWeek = today.getDay();
+    const daysToMonday = (currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1);
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - daysToMonday);
+    monday.setHours(0, 0, 0, 0);
+
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999);
+
+    // Hae kaikki tehtävät tältä viikolta
+    const allPosts = posts[selectedYear] || [];
+    const thisWeekTasks = [];
+
+    allPosts.forEach(post => {
+      (post.tasks || []).forEach(task => {
+        if (!task.completed && task.dueDate) {
+          const dueDate = new Date(task.dueDate);
+          if (dueDate >= monday && dueDate <= sunday) {
+            thisWeekTasks.push({
+              tapahtuma: post.title,
+              tehtava: task.title,
+              deadline: new Date(task.dueDate).toLocaleDateString('fi-FI'),
+              aika: task.dueTime || '-',
+              vastuuhenkilo: task.assignee || 'Ei määritetty',
+              kanava: channels.find(c => c.id === task.channel)?.name || task.channel
+            });
+          }
+        }
+      });
+    });
+
+    // Järjestä deadlinen mukaan
+    thisWeekTasks.sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
+
+    // Otsikko
+    doc.setFontSize(18);
+    doc.text('Kirkkopuiston Terassi', 105, 15, { align: 'center' });
+    doc.setFontSize(14);
+    doc.text('Viikon työtehtävät', 105, 25, { align: 'center' });
+    doc.setFontSize(10);
+    doc.text(
+      `${monday.toLocaleDateString('fi-FI')} - ${sunday.toLocaleDateString('fi-FI')}`,
+      105,
+      32,
+      { align: 'center' }
+    );
+
+    // Taulukko
+    doc.autoTable({
+      startY: 40,
+      head: [['Tapahtuma', 'Tehtävä', 'Deadline', 'Vastuuhenkilö', 'Kanava']],
+      body: thisWeekTasks.map(task => [
+        task.tapahtuma,
+        task.tehtava,
+        `${task.deadline} ${task.aika}`,
+        task.vastuuhenkilo,
+        task.kanava
+      ]),
+      theme: 'grid',
+      headStyles: { fillColor: [22, 163, 74] }, // Vihreä
+      styles: { fontSize: 9, cellPadding: 3 },
+      columnStyles: {
+        0: { cellWidth: 40 },
+        1: { cellWidth: 50 },
+        2: { cellWidth: 30 },
+        3: { cellWidth: 35 },
+        4: { cellWidth: 30 }
+      }
+    });
+
+    // Alatunniste
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.text(
+        `Sivu ${i}/${pageCount} - Tulostettu ${new Date().toLocaleDateString('fi-FI')}`,
+        105,
+        doc.internal.pageSize.height - 10,
+        { align: 'center' }
+      );
+    }
+
+    // Tallenna
+    doc.save(`Viikon_tyotehtavat_${monday.toLocaleDateString('fi-FI').replace(/\./g, '-')}.pdf`);
+  };
+
   // Pikavalinnat markkinointikanavien valintaan
   const applyQuickSelection = (type) => {
     switch(type) {
@@ -1230,6 +1327,11 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   🗑️ Poista duplikaatit
                 </button>
               </Link>
+              <Link href="/tiimi">
+                <button className="bg-cyan-600 text-white px-4 py-2 rounded-lg hover:bg-cyan-700">
+                  👥 Tiimi
+                </button>
+              </Link>
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(Number(e.target.value))}
@@ -1320,39 +1422,39 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   📆 Kalenteri
                 </button>
               </div>
-              <div className="flex gap-3">
+              <div className="flex gap-2 flex-wrap">
                 <button
                   onClick={() => setShowAddEventModal(true)}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
+                  className="bg-green-600 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg hover:bg-green-700 text-sm md:text-base whitespace-nowrap"
                 >
-                  ➕ Lisää tapahtuma
+                  ➕ <span className="hidden sm:inline">Lisää tapahtuma</span><span className="sm:hidden">Lisää</span>
                 </button>
                 <button
                   onClick={() => setShowImportModal(true)}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                  className="bg-blue-600 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg hover:bg-blue-700 text-sm md:text-base whitespace-nowrap"
                 >
-                  📥 Tuo taulukosta
+                  📥 <span className="hidden sm:inline">Tuo</span>
                 </button>
                 <button
                   onClick={exportToExcel}
-                  className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700"
+                  className="bg-emerald-600 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg hover:bg-emerald-700 text-sm md:text-base whitespace-nowrap"
                   title="Vie tapahtumat Excel-tiedostoon"
                 >
-                  📊 Vie Exceliin
+                  📊 <span className="hidden sm:inline">Excel</span>
                 </button>
                 <button
                   onClick={exportToCSV}
-                  className="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700"
+                  className="bg-teal-600 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg hover:bg-teal-700 text-sm md:text-base whitespace-nowrap"
                   title="Vie tapahtumat CSV-tiedostoon (Google Sheets)"
                 >
-                  📄 Vie CSV
+                  📄 <span className="hidden sm:inline">CSV</span>
                 </button>
                 <button
                   onClick={() => setShowPrintModal(true)}
-                  className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700"
+                  className="bg-purple-600 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg hover:bg-purple-700 text-sm md:text-base whitespace-nowrap"
                   title="Tulosta tapahtumalista"
                 >
-                  🖨️ Tulosta
+                  🖨️ <span className="hidden sm:inline">Tulosta</span>
                 </button>
               </div>
             </div>
@@ -1366,6 +1468,27 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
               placeholder="🔍 Hae tapahtumia..."
               className="w-full px-4 py-2 border rounded-lg"
             />
+          </div>
+
+          {/* Viikon työtehtävät -kortti */}
+          <div className="mb-6 bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-300 rounded-lg p-4 md:p-6 shadow-sm">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex-1">
+                <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-1 flex items-center gap-2">
+                  <span className="text-2xl">📋</span>
+                  Viikon työtehtävät
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Tulosta tai jaa PDF viikon kaikista työtehtävistä
+                </p>
+              </div>
+              <button
+                onClick={() => setShowWeeklyTasksModal(true)}
+                className="bg-blue-600 text-white px-4 md:px-6 py-3 rounded-lg hover:bg-blue-700 font-semibold shadow-md hover:shadow-lg transition-all text-sm md:text-base w-full sm:w-auto"
+              >
+                📄 Avaa viikon tehtävät
+              </button>
+            </div>
           </div>
 
           {/* Suodattimet */}
@@ -3551,6 +3674,158 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
           </div>
         </div>
       )}
+
+      {/* Viikon työtehtävät -modaali */}
+      {showWeeklyTasksModal && (() => {
+        const today = new Date();
+        const currentDayOfWeek = today.getDay();
+        const daysToMonday = (currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1);
+        const monday = new Date(today);
+        monday.setDate(today.getDate() - daysToMonday);
+        monday.setHours(0, 0, 0, 0);
+
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        sunday.setHours(23, 59, 59, 999);
+
+        // Hae kaikki tehtävät tältä viikolta
+        const allPosts = posts[selectedYear] || [];
+        const thisWeekTasks = [];
+
+        allPosts.forEach(post => {
+          (post.tasks || []).forEach(task => {
+            if (!task.completed && task.dueDate) {
+              const dueDate = new Date(task.dueDate);
+              if (dueDate >= monday && dueDate <= sunday) {
+                const dueDateOnly = new Date(dueDate);
+                dueDateOnly.setHours(0, 0, 0, 0);
+                const diffTime = dueDateOnly - new Date().setHours(0, 0, 0, 0);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                let urgency = 'normal';
+                if (diffDays < 0) urgency = 'overdue';
+                else if (diffDays <= 1) urgency = 'urgent';
+                else if (diffDays <= 3) urgency = 'soon';
+
+                thisWeekTasks.push({
+                  task,
+                  event: post,
+                  dueDate: task.dueDate,
+                  dueTime: task.dueTime,
+                  diffDays,
+                  urgency
+                });
+              }
+            }
+          });
+        });
+
+        // Järjestä deadlinen mukaan
+        thisWeekTasks.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg max-w-4xl w-full p-4 md:p-6 max-h-[90vh] overflow-y-auto">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl md:text-2xl font-bold">📋 Viikon työtehtävät</h3>
+                <button
+                  onClick={() => setShowWeeklyTasksModal(false)}
+                  className="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm font-semibold text-blue-900">
+                  📅 {monday.toLocaleDateString('fi-FI', { day: 'numeric', month: 'long' })} - {sunday.toLocaleDateString('fi-FI', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </p>
+                <p className="text-xs text-gray-700 mt-1">
+                  Yhteensä {thisWeekTasks.length} tehtävää
+                </p>
+              </div>
+
+              {thisWeekTasks.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <p className="text-4xl mb-4">🎉</p>
+                  <p className="text-lg font-medium">Ei tehtäviä tällä viikolla!</p>
+                </div>
+              ) : (
+                <div className="space-y-3 mb-6">
+                  {thisWeekTasks.map((item, idx) => {
+                    const channel = channels.find(c => c.id === item.task.channel);
+                    return (
+                      <div
+                        key={idx}
+                        className={`border-2 rounded-lg p-3 md:p-4 ${
+                          item.urgency === 'overdue' ? 'bg-red-50 border-red-300' :
+                          item.urgency === 'urgent' ? 'bg-orange-50 border-orange-300' :
+                          item.urgency === 'soon' ? 'bg-yellow-50 border-yellow-300' :
+                          'bg-white border-gray-200'
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-gray-900 text-sm md:text-base">{item.task.title}</h4>
+                            <p className="text-xs md:text-sm text-gray-600 mt-1">
+                              📅 {item.event.title} {item.event.artist && `- ${item.event.artist}`}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-2 mt-2">
+                              <span className={`${channel?.color || 'bg-gray-500'} text-white px-2 py-0.5 rounded text-xs`}>
+                                {channel?.name || item.task.channel}
+                              </span>
+                              {item.task.assignee && (
+                                <span className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs">
+                                  👤 {item.task.assignee}
+                                </span>
+                              )}
+                              <span className="text-xs text-gray-600">
+                                {new Date(item.dueDate).toLocaleDateString('fi-FI')} {item.dueTime && `klo ${item.dueTime}`}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-xs font-semibold">
+                            {item.diffDays < 0 ? (
+                              <span className="text-red-600">🔴 Myöhässä {Math.abs(item.diffDays)} pv</span>
+                            ) : item.diffDays === 0 ? (
+                              <span className="text-orange-600">🟠 Tänään!</span>
+                            ) : item.diffDays === 1 ? (
+                              <span className="text-orange-600">🟡 Huomenna</span>
+                            ) : (
+                              <span className="text-gray-600">{item.diffDays} päivän päästä</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={generateWeeklyTasksPDF}
+                  className="flex-1 bg-red-600 text-white py-3 rounded-lg hover:bg-red-700 font-bold"
+                >
+                  📄 Lataa PDF
+                </button>
+                <button
+                  onClick={() => window.print()}
+                  className="flex-1 bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 font-bold"
+                >
+                  🖨️ Tulosta
+                </button>
+                <button
+                  onClick={() => setShowWeeklyTasksModal(false)}
+                  className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-semibold"
+                >
+                  Sulje
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* PWA Asennusprompt */}
       <InstallPrompt />

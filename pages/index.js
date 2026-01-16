@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabase';
 import InstallPrompt from '../components/InstallPrompt';
 import * as XLSX from 'xlsx';
@@ -7,6 +8,10 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
 export default function Home() {
+  const router = useRouter();
+  const [user, setUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState(2026);
   const [posts, setPosts] = useState({});
   const [expandedEvents, setExpandedEvents] = useState({});
@@ -212,6 +217,72 @@ export default function Home() {
     { id: 'calendar', name: 'Tapahtumakalenteri', ratio: '16:9 (1200x675px)', icon: '📅' }
   ];
 
+  // Tarkista autentikointi
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (!supabase) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (!session) {
+          // Ei kirjautunut, ohjaa kirjautumissivulle
+          router.push('/login');
+          return;
+        }
+
+        setUser(session.user);
+
+        // Hae käyttäjäprofiili
+        const { data: profile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profileError) {
+          console.error('Virhe ladattaessa profiilia:', profileError);
+        } else {
+          setUserProfile(profile);
+        }
+
+        setLoading(false);
+      } catch (error) {
+        console.error('Autentikoinnin tarkistusvirhe:', error);
+        router.push('/login');
+      }
+    };
+
+    checkAuth();
+
+    // Kuuntele kirjautumisen muutoksia
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_OUT') {
+        router.push('/login');
+      } else if (event === 'SIGNED_IN' && session) {
+        setUser(session.user);
+
+        // Hae päivitetty profiili
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profile) {
+          setUserProfile(profile);
+        }
+      }
+    });
+
+    return () => {
+      authListener?.subscription?.unsubscribe();
+    };
+  }, [router]);
+
   // Lataa tapahtumat vuodelle
   useEffect(() => {
     const loadYear = async () => {
@@ -344,7 +415,10 @@ export default function Home() {
                 time: post.time || null,
                 artist: post.artist || null,
                 year: year,
-                images: post.images || {}
+                images: post.images || {},
+                created_by_id: user?.id || null,
+                created_by_email: user?.email || null,
+                created_by_name: userProfile?.full_name || user?.email || null
               })
               .select()
               .single();
@@ -362,7 +436,10 @@ export default function Home() {
                 completed: task.completed || false,
                 content: task.content || null,
                 assignee: task.assignee || null,
-                notes: task.notes || null
+                notes: task.notes || null,
+                created_by_id: user?.id || null,
+                created_by_email: user?.email || null,
+                created_by_name: userProfile?.full_name || user?.email || null
               }));
 
               const { error: tasksError } = await supabase
@@ -380,7 +457,10 @@ export default function Home() {
                 date: post.date,
                 time: post.time || null,
                 artist: post.artist || null,
-                images: post.images || {}
+                images: post.images || {},
+                updated_by_id: user?.id || null,
+                updated_by_email: user?.email || null,
+                updated_by_name: userProfile?.full_name || user?.email || null
               })
               .eq('id', post.id);
 
@@ -399,7 +479,10 @@ export default function Home() {
                 completed: task.completed || false,
                 content: task.content || null,
                 assignee: task.assignee || null,
-                notes: task.notes || null
+                notes: task.notes || null,
+                created_by_id: user?.id || null,
+                created_by_email: user?.email || null,
+                created_by_name: userProfile?.full_name || user?.email || null
               }));
 
               const { error: tasksError } = await supabase
@@ -500,6 +583,14 @@ export default function Home() {
     }
     
     return events;
+  };
+
+  // Kirjaudu ulos
+  const handleLogout = async () => {
+    if (supabase) {
+      await supabase.auth.signOut();
+      router.push('/login');
+    }
   };
 
   const handleImport = async () => {
@@ -1196,7 +1287,10 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             artist: newEvent.artist || null,
             summary: newEvent.summary || null,
             year: eventYear,
-            images: {}
+            images: {},
+            created_by_id: user?.id || null,
+            created_by_email: user?.email || null,
+            created_by_name: userProfile?.full_name || user?.email || null
           })
           .select()
           .single();
@@ -1214,7 +1308,10 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             completed: false,
             content: task.content || null,
             assignee: task.assignee || null,
-            notes: task.notes || null
+            notes: task.notes || null,
+            created_by_id: user?.id || null,
+            created_by_email: user?.email || null,
+            created_by_name: userProfile?.full_name || user?.email || null
           }));
 
           const { error: tasksError } = await supabase
@@ -1338,14 +1435,22 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
           media_links: newSocialPost.mediaLinks || [],
           recurrence: newSocialPost.recurrence || 'none',
           recurrence_end_date: newSocialPost.recurrenceEndDate || null,
-          year: postYear
+          year: postYear,
+          created_by_id: user?.id || null,
+          created_by_email: user?.email || null,
+          created_by_name: userProfile?.full_name || user?.email || null
         };
 
         if (editingSocialPost) {
           // Päivitä olemassa oleva
           const { error } = await supabase
             .from('social_media_posts')
-            .update(dataToSave)
+            .update({
+              ...dataToSave,
+              updated_by_id: user?.id || null,
+              updated_by_email: user?.email || null,
+              updated_by_name: userProfile?.full_name || user?.email || null
+            })
             .eq('id', editingSocialPost.id);
 
           if (error) throw error;
@@ -1670,6 +1775,23 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
   const currentYearPosts = filterPosts();
 
+  // Näytä latausruutu autentikoinnin aikana
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-700 text-lg">⏳ Ladataan...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Jos ei ole käyttäjää, ei näytetä mitään (ohjataan kirjautumissivulle)
+  if (!user) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-yellow-50 p-4">
       <div className="max-w-6xl mx-auto">
@@ -1678,6 +1800,12 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             <div>
               <h1 className="text-3xl font-bold text-green-800">Kirkkopuiston Terassi</h1>
               <p className="text-gray-600">Markkinoinnin työkalut</p>
+              {userProfile && (
+                <p className="text-sm text-gray-500 mt-1">
+                  👤 Kirjautunut: <span className="font-semibold">{userProfile.full_name}</span>
+                  {userProfile.is_admin && <span className="ml-2 text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded">Admin</span>}
+                </p>
+              )}
             </div>
             <div className="flex gap-3 items-center flex-wrap">
               <a
@@ -1713,6 +1841,19 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   👥 Tiimi
                 </button>
               </Link>
+              {userProfile?.is_admin && (
+                <Link href="/admin">
+                  <button className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 font-medium">
+                    ⚙️ Admin
+                  </button>
+                </Link>
+              )}
+              <button
+                onClick={handleLogout}
+                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 font-medium"
+              >
+                🚪 Kirjaudu ulos
+              </button>
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(Number(e.target.value))}

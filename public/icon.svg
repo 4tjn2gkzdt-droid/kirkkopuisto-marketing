@@ -1,0 +1,17 @@
+<svg width="512" height="512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Vihreä tausta -->
+  <rect width="512" height="512" fill="#16a34a" rx="80"/>
+
+  <!-- Valkoinen ympyrä keskellä -->
+  <circle cx="256" cy="256" r="180" fill="#ffffff"/>
+
+  <!-- KP-kirjaimet -->
+  <text x="256" y="320" font-family="Arial, sans-serif" font-size="180" font-weight="bold" fill="#16a34a" text-anchor="middle">
+    KP
+  </text>
+
+  <!-- Pieni kalenteri-emoji yläosassa -->
+  <text x="256" y="140" font-size="80" text-anchor="middle">
+    📅
+  </text>
+</svg>

@@ -14,14 +14,27 @@ export default function Login() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [showResetPassword, setShowResetPassword] = useState(false);
+  const [debugLogs, setDebugLogs] = useState([]);
+
+  const addLog = (msg, type = 'info') => {
+    const timestamp = new Date().toLocaleTimeString('fi-FI');
+    const logEntry = `[${timestamp}] ${msg}`;
+    console.log(logEntry);
+    setDebugLogs(prev => [...prev, { msg: logEntry, type }]);
+  };
 
   useEffect(() => {
     // Tarkista onko käyttäjä jo kirjautunut
     const checkUser = async () => {
       if (supabase) {
+        console.log('[LOGIN] Checking existing session...');
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-          router.push('/');
+          console.log('[LOGIN] Session found, redirecting to home...');
+          // VÄLIAIKAINEN: Kommentoidaan pois automaattinen ohjaus
+          // router.push('/');
+        } else {
+          console.log('[LOGIN] No session found');
         }
       }
     };
@@ -41,12 +54,14 @@ export default function Login() {
     }
 
     try {
+      console.log('[LOGIN] Attempting login for:', email);
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (signInError) {
+        console.error('[LOGIN] Sign in error:', signInError);
         if (signInError.message.includes('Invalid login credentials')) {
           setError('Väärä sähköposti tai salasana');
         } else {
@@ -57,10 +72,17 @@ export default function Login() {
       }
 
       if (data?.session) {
+        console.log('[LOGIN] Login successful! Session created for:', data.session.user.email);
+        console.log('[LOGIN] Redirecting to home page...');
         // Kirjautuminen onnistui, ohjaa etusivulle
         router.push('/');
+      } else {
+        console.error('[LOGIN] No session in response data');
+        setError('Kirjautuminen epäonnistui: ei sessiota');
+        setLoading(false);
       }
     } catch (err) {
+      console.error('[LOGIN] Unexpected error:', err);
       setError('Kirjautuminen epäonnistui: ' + err.message);
       setLoading(false);
     }

@@ -226,17 +226,28 @@ export default function Home() {
       }
 
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        console.log('[AUTH] Checking session...');
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-        if (!session) {
-          // Ei kirjautunut, ohjaa kirjautumissivulle
+        if (sessionError) {
+          console.error('[AUTH] Session error:', sessionError);
+          setLoading(false);
           router.push('/login');
           return;
         }
 
+        if (!session) {
+          console.log('[AUTH] No session found, redirecting to login');
+          setLoading(false);
+          router.push('/login');
+          return;
+        }
+
+        console.log('[AUTH] Session found for:', session.user.email);
         setUser(session.user);
 
         // Hae käyttäjäprofiili
+        console.log('[AUTH] Fetching user profile...');
         const { data: profile, error: profileError } = await supabase
           .from('user_profiles')
           .select('*')
@@ -244,15 +255,20 @@ export default function Home() {
           .single();
 
         if (profileError) {
-          console.error('Virhe ladattaessa profiilia:', profileError);
+          console.error('[AUTH] Profile error:', profileError);
+          // Jatka silti - profiili ei ole pakollinen
+          console.log('[AUTH] Continuing without profile');
         } else {
+          console.log('[AUTH] Profile loaded:', profile.full_name);
           setUserProfile(profile);
         }
 
+        console.log('[AUTH] Auth check complete, setting loading=false');
         setLoading(false);
       } catch (error) {
-        console.error('Autentikoinnin tarkistusvirhe:', error);
-        router.push('/login');
+        console.error('[AUTH] Unexpected error:', error);
+        // ÄLÄ ohjaa loginiin - anna käyttäjän nähdä virhe
+        setLoading(false);
       }
     };
 
@@ -260,10 +276,14 @@ export default function Home() {
 
     // Kuuntele kirjautumisen muutoksia
     const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[AUTH] State change:', event);
       if (event === 'SIGNED_OUT') {
+        console.log('[AUTH] User signed out, redirecting to login');
         router.push('/login');
       } else if (event === 'SIGNED_IN' && session) {
+        console.log('[AUTH] User signed in:', session.user.email);
         setUser(session.user);
+        setLoading(false);
 
         // Hae päivitetty profiili
         const { data: profile } = await supabase
@@ -273,6 +293,7 @@ export default function Home() {
           .single();
 
         if (profile) {
+          console.log('[AUTH] Profile updated');
           setUserProfile(profile);
         }
       }

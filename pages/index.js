@@ -259,7 +259,7 @@ export default function Home() {
     checkAuth();
 
     // Kuuntele kirjautumisen muutoksia
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT') {
         router.push('/login');
       } else if (event === 'SIGNED_IN' && session) {
@@ -279,7 +279,7 @@ export default function Home() {
     });
 
     return () => {
-      authListener?.subscription?.unsubscribe();
+      data?.subscription?.unsubscribe();
     };
   }, [router]);
 

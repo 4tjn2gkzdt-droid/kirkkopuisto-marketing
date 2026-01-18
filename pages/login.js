@@ -27,14 +27,10 @@ export default function Login() {
     // Tarkista onko käyttäjä jo kirjautunut
     const checkUser = async () => {
       if (supabase) {
-        console.log('[LOGIN] Checking existing session...');
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-          console.log('[LOGIN] Session found, redirecting to home...');
-          // VÄLIAIKAINEN: Kommentoidaan pois automaattinen ohjaus
-          // router.push('/');
-        } else {
-          console.log('[LOGIN] No session found');
+          // Jos on jo kirjautunut, ohjaa etusivulle
+          window.location.href = '/';
         }
       }
     };
@@ -78,9 +74,9 @@ export default function Login() {
         // Odota hetki että session tallentuu
         await new Promise(resolve => setTimeout(resolve, 1000));
 
-        console.log('[LOGIN] Redirecting to test page...');
-        // Käytä window.location sijaan routeria
-        window.location.href = '/simple-test';
+        console.log('[LOGIN] Redirecting to home page...');
+        // Käytä window.location varmistamaan että sivu latautuu uudelleen
+        window.location.href = '/';
       } else {
         console.error('[LOGIN] No session in response data');
         setError('Kirjautuminen epäonnistui: ei sessiota');

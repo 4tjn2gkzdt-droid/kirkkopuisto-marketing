@@ -73,9 +73,14 @@ export default function Login() {
 
       if (data?.session) {
         console.log('[LOGIN] Login successful! Session created for:', data.session.user.email);
+        console.log('[LOGIN] Waiting for session to persist...');
+
+        // Odota hetki että session tallentuu
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
         console.log('[LOGIN] Redirecting to test page...');
-        // VÄLIAIKAINEN: Ohjaa testisivulle jotta nähdään toimiiko
-        router.push('/simple-test');
+        // Käytä window.location sijaan routeria
+        window.location.href = '/simple-test';
       } else {
         console.error('[LOGIN] No session in response data');
         setError('Kirjautuminen epäonnistui: ei sessiota');

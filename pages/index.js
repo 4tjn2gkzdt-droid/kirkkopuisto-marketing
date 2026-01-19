@@ -59,6 +59,14 @@ export default function Home() {
   const [autoGenerateContent, setAutoGenerateContent] = useState(true);
   const [generatingProgress, setGeneratingProgress] = useState({ current: 0, total: 0, isGenerating: false });
 
+  // Kalenterin lataussuodattimet
+  const [calendarDownloadFilters, setCalendarDownloadFilters] = useState({
+    includeEvents: true,
+    includeSocial: true,
+    includeTasks: true
+  });
+  const [showDownloadOptions, setShowDownloadOptions] = useState(false);
+
   // Somepostausten hallinta
   const [socialPosts, setSocialPosts] = useState([]);
   const [showAddSocialPostModal, setShowAddSocialPostModal] = useState(false);
@@ -1833,14 +1841,58 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
               )}
             </div>
             <div className="flex gap-3 items-center flex-wrap">
-              <a
-                href="/api/calendar.ics"
-                target="_blank"
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-medium"
-                title="Lataa kalenteri - lisää omaan kalenteriisi (Apple, Google, Outlook)"
-              >
-                📅 Lataa kalenteri
-              </a>
+              <div className="relative">
+                <button
+                  onClick={() => setShowDownloadOptions(!showDownloadOptions)}
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-medium flex items-center gap-2"
+                  title="Lataa kalenteri - lisää omaan kalenteriisi (Apple, Google, Outlook)"
+                >
+                  📅 Lataa kalenteri
+                  <span className="text-xs">{showDownloadOptions ? '▲' : '▼'}</span>
+                </button>
+                {showDownloadOptions && (
+                  <div className="absolute top-full mt-2 left-0 bg-white border-2 border-green-600 rounded-lg shadow-lg p-4 z-50 min-w-[280px]">
+                    <div className="space-y-3">
+                      <div className="font-semibold text-gray-800 border-b pb-2">Valitse sisältö:</div>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={calendarDownloadFilters.includeEvents}
+                          onChange={(e) => setCalendarDownloadFilters({...calendarDownloadFilters, includeEvents: e.target.checked})}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm">🎵 Tapahtumat</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={calendarDownloadFilters.includeSocial}
+                          onChange={(e) => setCalendarDownloadFilters({...calendarDownloadFilters, includeSocial: e.target.checked})}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm">📱 Somepostaukset</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={calendarDownloadFilters.includeTasks}
+                          onChange={(e) => setCalendarDownloadFilters({...calendarDownloadFilters, includeTasks: e.target.checked})}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm">⏰ Tehtävien deadlinet</span>
+                      </label>
+                      <a
+                        href={`/api/calendar.ics?includeEvents=${calendarDownloadFilters.includeEvents}&includeSocial=${calendarDownloadFilters.includeSocial}&includeTasks=${calendarDownloadFilters.includeTasks}`}
+                        target="_blank"
+                        className="block w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-center font-medium mt-4"
+                        onClick={() => setShowDownloadOptions(false)}
+                      >
+                        📥 Lataa
+                      </a>
+                    </div>
+                  </div>
+                )}
+              </div>
               <Link href="/materiaalit">
                 <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
                   📁 Materiaalit

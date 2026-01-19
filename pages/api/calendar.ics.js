@@ -6,19 +6,46 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Hae kaikki tapahtumat ja tehtävät
-    const { data: events, error } = await supabase
-      .from('events')
-      .select(`
-        *,
-        tasks (*)
-      `)
-      .gte('date', '2024-01-01') // Näytä vain tulevat ja viimeisen vuoden tapahtumat
-      .order('date', { ascending: true });
+    // Lue suodattimet query parametreistä
+    const includeEvents = req.query.includeEvents !== 'false';
+    const includeSocial = req.query.includeSocial !== 'false';
+    const includeTasks = req.query.includeTasks !== 'false';
 
-    if (error) {
-      console.error('Error fetching events:', error);
-      return res.status(500).send('Error generating calendar');
+    let events = [];
+    let socialPosts = [];
+
+    // Hae tapahtumat jos valittu
+    if (includeEvents) {
+      const { data, error } = await supabase
+        .from('events')
+        .select(`
+          *,
+          tasks (*)
+        `)
+        .gte('date', '2024-01-01') // Näytä vain tulevat ja viimeisen vuoden tapahtumat
+        .order('date', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching events:', error);
+        return res.status(500).send('Error generating calendar');
+      }
+      events = data || [];
+    }
+
+    // Hae somepostaukset jos valittu
+    if (includeSocial) {
+      const { data, error } = await supabase
+        .from('social_posts')
+        .select('*')
+        .gte('date', '2024-01-01')
+        .order('date', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching social posts:', error);
+        // Jatka ilman somepostauksia
+      } else {
+        socialPosts = data || [];
+      }
     }
 
     // Luo iCalendar-syöte
@@ -85,8 +112,8 @@ export default async function handler(req, res) {
       icalLines.push('END:VEVENT');
       icalLines.push('');
 
-      // Lisää tehtävät VTODO-tapahtumina (deadlinet)
-      if (event.tasks) {
+      // Lisää tehtävät VTODO-tapahtumina (deadlinet) jos valittu
+      if (includeTasks && event.tasks) {
         event.tasks.forEach(task => {
           if (task.due_date && !task.completed) {
             const dueDate = new Date(task.due_date);
@@ -148,6 +175,103 @@ export default async function handler(req, res) {
           }
         });
       }
+    });
+
+    // Lisää somepostaukset
+    socialPosts.forEach(post => {
+      const postDate = new Date(post.date);
+      let startTime = postDate;
+      let endTime = new Date(postDate);
+
+      if (post.time) {
+        const [hours, minutes] = post.time.split(':');
+        startTime = new Date(postDate);
+        startTime.setHours(parseInt(hours), parseInt(minutes), 0);
+        endTime = new Date(startTime);
+        endTime.setHours(endTime.getHours() + 1); // 1h kesto
+      } else {
+        // Koko päivän tapahtuma
+        endTime.setDate(endTime.getDate() + 1);
+      }
+
+      const formatICalDate = (date, allDay = false) => {
+        if (allDay) {
+          return date.toISOString().split('T')[0].replace(/-/g, '');
+        }
+        return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+      };
+
+      // Somepostauksen tyypit
+      const socialPostTypes = {
+        'viikko-ohjelma': '📅 Viikko-ohjelma',
+        'kuukausiohjelma': '📆 Kuukausiohjelma',
+        'artisti-animaatio': '🎬 Artisti-animaatio',
+        'artisti-karuselli': '📸 Artisti-karuselli',
+        'fiilistelypostaus': '✨ Fiilistelypostaus',
+        'tapahtuma-muistutus': '⏰ Tapahtuma-muistutus',
+        'kilpailu': '🎁 Kilpailu',
+        'muu': '📝 Muu'
+      };
+
+      const typeLabel = socialPostTypes[post.type] || '📝 Somepostaus';
+
+      icalLines.push('BEGIN:VEVENT');
+      icalLines.push(`UID:social-${post.id}@kirkkopuisto-marketing.vercel.app`);
+
+      if (post.time) {
+        icalLines.push(`DTSTART:${formatICalDate(startTime)}`);
+        icalLines.push(`DTEND:${formatICalDate(endTime)}`);
+      } else {
+        icalLines.push(`DTSTART;VALUE=DATE:${formatICalDate(startTime, true)}`);
+        icalLines.push(`DTEND;VALUE=DATE:${formatICalDate(endTime, true)}`);
+      }
+
+      icalLines.push(`SUMMARY:📱 ${typeLabel}: ${post.title}`);
+
+      let description = `Somepostaus: ${typeLabel}`;
+      if (post.channels && post.channels.length > 0) {
+        const channelNames = {
+          instagram: 'Instagram',
+          facebook: 'Facebook',
+          tiktok: 'TikTok',
+          linkedin: 'LinkedIn',
+          twitter: 'Twitter/X'
+        };
+        const channelList = post.channels.map(ch => channelNames[ch] || ch).join(', ');
+        description += `\\nKanavat: ${channelList}`;
+      }
+      if (post.assignee) {
+        description += `\\nVastuussa: ${post.assignee}`;
+      }
+      if (post.status) {
+        const statusLabels = {
+          'suunniteltu': '📋 Suunniteltu',
+          'työn alla': '⏳ Työn alla',
+          'valmis': '✅ Valmis',
+          'julkaistu': '🎉 Julkaistu'
+        };
+        description += `\\nStatus: ${statusLabels[post.status] || post.status}`;
+      }
+      if (post.caption) {
+        const shortCaption = post.caption.substring(0, 200);
+        description += `\\n\\nKuvateksti: ${shortCaption}${post.caption.length > 200 ? '...' : ''}`;
+      }
+      icalLines.push(`DESCRIPTION:${description}`);
+
+      icalLines.push(`LOCATION:Kirkkopuiston Terassi\\, Turku`);
+      icalLines.push('CATEGORIES:SoMe,Markkinointi');
+
+      // Status ja prioriteetti
+      const statusMap = {
+        'suunniteltu': 'TENTATIVE',
+        'työn alla': 'TENTATIVE',
+        'valmis': 'CONFIRMED',
+        'julkaistu': 'CONFIRMED'
+      };
+      icalLines.push(`STATUS:${statusMap[post.status] || 'TENTATIVE'}`);
+
+      icalLines.push('END:VEVENT');
+      icalLines.push('');
     });
 
     icalLines.push('END:VCALENDAR');

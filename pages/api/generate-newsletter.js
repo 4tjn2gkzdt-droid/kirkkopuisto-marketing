@@ -10,7 +10,8 @@ export default async function handler(req, res) {
   }
 
   const {
-    weeksAhead = 1, // Kuinka monta viikkoa eteenpäin
+    startDate: startDateStr, // Alkupäivämäärä (YYYY-MM-DD)
+    endDate: endDateStr,     // Loppupäivämäärä (YYYY-MM-DD)
     tone = 'casual', // casual, formal, energetic
     sendEmails = false,
     selectedVariant = 0, // Mikä variantti lähetetään (0-2)
@@ -18,13 +19,11 @@ export default async function handler(req, res) {
   } = req.body
 
   try {
-    // Laske aikaväli
-    const today = new Date()
-    const startDate = new Date(today)
+    // Käytä käyttäjän valitsemia päivämääriä
+    const startDate = new Date(startDateStr)
     startDate.setHours(0, 0, 0, 0)
 
-    const endDate = new Date(today)
-    endDate.setDate(today.getDate() + (weeksAhead * 7))
+    const endDate = new Date(endDateStr)
     endDate.setHours(23, 59, 59, 999)
 
     // Hae tapahtumat valitulta aikaväliltä

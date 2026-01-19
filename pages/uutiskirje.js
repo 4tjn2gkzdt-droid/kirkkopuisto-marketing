@@ -12,8 +12,22 @@ export default function NewsletterGenerator() {
   const [loadingEvents, setLoadingEvents] = useState(false)
 
   // Asetukset
-  const [weeksAhead, setWeeksAhead] = useState(1)
   const [tone, setTone] = useState('casual')
+
+  // Päivämäärävalinta - oletuksena tänään ja 7 päivää eteenpäin
+  const getDefaultStartDate = () => {
+    const today = new Date()
+    return today.toISOString().split('T')[0]
+  }
+
+  const getDefaultEndDate = () => {
+    const date = new Date()
+    date.setDate(date.getDate() + 7)
+    return date.toISOString().split('T')[0]
+  }
+
+  const [startDate, setStartDate] = useState(getDefaultStartDate())
+  const [endDate, setEndDate] = useState(getDefaultEndDate())
 
   // Tapahtumat
   const [availableEvents, setAvailableEvents] = useState([])
@@ -39,7 +53,7 @@ export default function NewsletterGenerator() {
     if (user) {
       loadAvailableEvents()
     }
-  }, [weeksAhead, user])
+  }, [startDate, endDate, user])
 
   const checkUser = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -65,14 +79,11 @@ export default function NewsletterGenerator() {
   const loadAvailableEvents = async () => {
     setLoadingEvents(true)
     try {
-      const today = new Date()
-      const endDate = new Date(Date.now() + (weeksAhead * 7 * 24 * 60 * 60 * 1000))
-
       const { data, error } = await supabase
         .from('events')
         .select('*')
-        .gte('date', today.toISOString().split('T')[0])
-        .lte('date', endDate.toISOString().split('T')[0])
+        .gte('date', startDate)
+        .lte('date', endDate)
         .order('date', { ascending: true })
 
       if (!error && data) {
@@ -113,7 +124,8 @@ export default function NewsletterGenerator() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          weeksAhead,
+          startDate,
+          endDate,
           tone,
           sendEmails: false,
           selectedEventIds
@@ -149,7 +161,8 @@ export default function NewsletterGenerator() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          weeksAhead,
+          startDate,
+          endDate,
           tone,
           sendEmails: false,
           selectedVariant,
@@ -179,7 +192,8 @@ export default function NewsletterGenerator() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          weeksAhead,
+          startDate,
+          endDate,
           tone,
           sendEmails: true,
           selectedVariant,
@@ -248,22 +262,35 @@ export default function NewsletterGenerator() {
         <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
           <h2 className="text-xl font-semibold mb-4">Asetukset</h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Aikaväli */}
+          <div className="space-y-6">
+            {/* Päivämääräväli */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Aikaväli
+                📅 Valitse aikaväli
               </label>
-              <select
-                value={weeksAhead}
-                onChange={(e) => setWeeksAhead(Number(e.target.value))}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              >
-                <option value={1}>Seuraava viikko</option>
-                <option value={2}>Seuraavat 2 viikkoa</option>
-                <option value={3}>Seuraavat 3 viikkoa</option>
-                <option value={4}>Seuraava kuukausi</option>
-              </select>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Alkupäivä</label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Loppupäivä</label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                💡 Valitse vapaa aikaväli uutiskirjeelle - voit tehdä uutiskirjeitä mihin tahansa tulevaisuuteen
+              </p>
             </div>
 
             {/* Sävy */}

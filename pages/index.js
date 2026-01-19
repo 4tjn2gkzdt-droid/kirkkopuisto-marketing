@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabase';
 import InstallPrompt from '../components/InstallPrompt';
 import * as XLSX from 'xlsx';
@@ -7,6 +8,10 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
 export default function Home() {
+  const router = useRouter();
+  const [user, setUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState(2026);
   const [posts, setPosts] = useState({});
   const [expandedEvents, setExpandedEvents] = useState({});
@@ -39,8 +44,12 @@ export default function Home() {
   const [showPreview, setShowPreview] = useState(false);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [printMode, setPrintMode] = useState('week'); // 'week' or 'month'
+  const [showExportModal, setShowExportModal] = useState(false); // Vienti/tulostusmodaali
+  const [exportStartDate, setExportStartDate] = useState('');
+  const [exportEndDate, setExportEndDate] = useState('');
+  const [exportIncludeTasks, setExportIncludeTasks] = useState(true);
   const [showPastEvents, setShowPastEvents] = useState(false); // Näytä menneet tapahtumat
-  const [showWeeklyTasksModal, setShowWeeklyTasksModal] = useState(false); // Viikon työtehtävät
+  const [showWeeklyTasksModal, setShowWeeklyTasksModal] = useState(false); // Tämän viikon työtehtävät
   const [showEditEventModal, setShowEditEventModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [showDeadlineModal, setShowDeadlineModal] = useState(false);
@@ -49,6 +58,14 @@ export default function Home() {
   const [generatingTaskId, setGeneratingTaskId] = useState(null);
   const [autoGenerateContent, setAutoGenerateContent] = useState(true);
   const [generatingProgress, setGeneratingProgress] = useState({ current: 0, total: 0, isGenerating: false });
+
+  // Kalenterin lataussuodattimet
+  const [calendarDownloadFilters, setCalendarDownloadFilters] = useState({
+    includeEvents: true,
+    includeSocial: true,
+    includeTasks: true
+  });
+  const [showDownloadOptions, setShowDownloadOptions] = useState(false);
 
   // Somepostausten hallinta
   const [socialPosts, setSocialPosts] = useState([]);
@@ -65,7 +82,9 @@ export default function Home() {
     status: 'suunniteltu',
     caption: '',
     notes: '',
-    mediaLinks: []
+    mediaLinks: [],
+    recurrence: 'none',
+    recurrenceEndDate: ''
   });
   const [contentFilter, setContentFilter] = useState('all'); // 'all', 'events', 'social'
 
@@ -206,6 +225,97 @@ export default function Home() {
     { id: 'calendar', name: 'Tapahtumakalenteri', ratio: '16:9 (1200x675px)', icon: '📅' }
   ];
 
+  // Tarkista autentikointi
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (!supabase) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        console.log('[AUTH] Checking session...');
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+        if (sessionError) {
+          console.error('[AUTH] Session error:', sessionError);
+          setLoading(false);
+          router.push('/login');
+          return;
+        }
+
+        if (!session) {
+          console.log('[AUTH] No session found, redirecting to login');
+          setLoading(false);
+          router.push('/login');
+          return;
+        }
+
+        console.log('[AUTH] Session found for:', session.user.email);
+        setUser(session.user);
+
+        // Hae käyttäjäprofiili
+        console.log('[AUTH] Fetching user profile...');
+        const { data: profile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profileError) {
+          console.error('[AUTH] Profile error:', profileError);
+          // Jatka silti - profiili ei ole pakollinen
+          console.log('[AUTH] Continuing without profile');
+        } else {
+          console.log('[AUTH] Profile loaded:', profile.full_name);
+          console.log('[AUTH] Profile is_admin:', profile.is_admin);
+          console.log('[AUTH] Full profile:', profile);
+          setUserProfile(profile);
+        }
+
+        console.log('[AUTH] Auth check complete, setting loading=false');
+        setLoading(false);
+      } catch (error) {
+        console.error('[AUTH] Unexpected error:', error);
+        // ÄLÄ ohjaa loginiin - anna käyttäjän nähdä virhe
+        setLoading(false);
+      }
+    };
+
+    checkAuth();
+
+    // Kuuntele kirjautumisen muutoksia
+    const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[AUTH] State change:', event);
+      if (event === 'SIGNED_OUT') {
+        console.log('[AUTH] User signed out, redirecting to login');
+        router.push('/login');
+      } else if (event === 'SIGNED_IN' && session) {
+        console.log('[AUTH] User signed in:', session.user.email);
+        setUser(session.user);
+        setLoading(false);
+
+        // Hae päivitetty profiili
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profile) {
+          console.log('[AUTH] Profile updated');
+          console.log('[AUTH] Updated is_admin:', profile.is_admin);
+          console.log('[AUTH] Updated full profile:', profile);
+          setUserProfile(profile);
+        }
+      }
+    });
+
+    return () => {
+      data?.subscription?.unsubscribe();
+    };
+  }, [router]);
+
   // Lataa tapahtumat vuodelle
   useEffect(() => {
     const loadYear = async () => {
@@ -338,7 +448,10 @@ export default function Home() {
                 time: post.time || null,
                 artist: post.artist || null,
                 year: year,
-                images: post.images || {}
+                images: post.images || {},
+                created_by_id: user?.id || null,
+                created_by_email: user?.email || null,
+                created_by_name: userProfile?.full_name || user?.email || null
               })
               .select()
               .single();
@@ -356,7 +469,10 @@ export default function Home() {
                 completed: task.completed || false,
                 content: task.content || null,
                 assignee: task.assignee || null,
-                notes: task.notes || null
+                notes: task.notes || null,
+                created_by_id: user?.id || null,
+                created_by_email: user?.email || null,
+                created_by_name: userProfile?.full_name || user?.email || null
               }));
 
               const { error: tasksError } = await supabase
@@ -374,7 +490,10 @@ export default function Home() {
                 date: post.date,
                 time: post.time || null,
                 artist: post.artist || null,
-                images: post.images || {}
+                images: post.images || {},
+                updated_by_id: user?.id || null,
+                updated_by_email: user?.email || null,
+                updated_by_name: userProfile?.full_name || user?.email || null
               })
               .eq('id', post.id);
 
@@ -393,7 +512,10 @@ export default function Home() {
                 completed: task.completed || false,
                 content: task.content || null,
                 assignee: task.assignee || null,
-                notes: task.notes || null
+                notes: task.notes || null,
+                created_by_id: user?.id || null,
+                created_by_email: user?.email || null,
+                created_by_name: userProfile?.full_name || user?.email || null
               }));
 
               const { error: tasksError } = await supabase
@@ -494,6 +616,14 @@ export default function Home() {
     }
     
     return events;
+  };
+
+  // Kirjaudu ulos
+  const handleLogout = async () => {
+    if (supabase) {
+      await supabase.auth.signOut();
+      router.push('/login');
+    }
   };
 
   const handleImport = async () => {
@@ -660,13 +790,28 @@ export default function Home() {
   };
 
   // Excel/CSV-vienti
-  const exportToExcel = () => {
-    const allPosts = posts[selectedYear] || [];
+  const exportToExcel = (startDate = null, endDate = null, includeTasks = true) => {
+    let allPosts = posts[selectedYear] || [];
+
+    // Suodata päivämäärän mukaan jos määritelty
+    if (startDate || endDate) {
+      allPosts = allPosts.filter(event => {
+        const eventDate = new Date(event.date);
+        if (startDate && endDate) {
+          return eventDate >= new Date(startDate) && eventDate <= new Date(endDate);
+        } else if (startDate) {
+          return eventDate >= new Date(startDate);
+        } else if (endDate) {
+          return eventDate <= new Date(endDate);
+        }
+        return true;
+      });
+    }
 
     // Luo data taulukkoon
     const data = [];
     allPosts.forEach(event => {
-      data.push({
+      const eventData = {
         'Tapahtuma': event.title,
         'Päivämäärä': new Date(event.date).toLocaleDateString('fi-FI'),
         'Aika': event.time || '',
@@ -674,10 +819,15 @@ export default function Home() {
                  event.eventType === 'dj' ? 'DJ' :
                  event.eventType === 'market' ? 'Kirppis' : 'Muu',
         'Esiintyjä/Lisätiedot': event.artist || '',
-        'Yhteenveto': event.summary || '',
-        'Tehtäviä yhteensä': event.tasks?.length || 0,
-        'Valmiit tehtävät': event.tasks?.filter(t => t.completed).length || 0
-      });
+        'Yhteenveto': event.summary || ''
+      };
+
+      if (includeTasks) {
+        eventData['Tehtäviä yhteensä'] = event.tasks?.length || 0;
+        eventData['Valmiit tehtävät'] = event.tasks?.filter(t => t.completed).length || 0;
+      }
+
+      data.push(eventData);
     });
 
     // Luo worksheet ja workbook
@@ -686,16 +836,34 @@ export default function Home() {
     XLSX.utils.book_append_sheet(wb, ws, 'Tapahtumat');
 
     // Lataa tiedosto
-    XLSX.writeFile(wb, `Kirkkopuisto_Tapahtumat_${selectedYear}.xlsx`);
+    const dateRange = startDate && endDate ?
+      `_${new Date(startDate).toLocaleDateString('fi-FI').replace(/\./g, '-')}_${new Date(endDate).toLocaleDateString('fi-FI').replace(/\./g, '-')}` :
+      `_${selectedYear}`;
+    XLSX.writeFile(wb, `Kirkkopuisto_Tapahtumat${dateRange}.xlsx`);
   };
 
-  const exportToCSV = () => {
-    const allPosts = posts[selectedYear] || [];
+  const exportToCSV = (startDate = null, endDate = null, includeTasks = true) => {
+    let allPosts = posts[selectedYear] || [];
+
+    // Suodata päivämäärän mukaan jos määritelty
+    if (startDate || endDate) {
+      allPosts = allPosts.filter(event => {
+        const eventDate = new Date(event.date);
+        if (startDate && endDate) {
+          return eventDate >= new Date(startDate) && eventDate <= new Date(endDate);
+        } else if (startDate) {
+          return eventDate >= new Date(startDate);
+        } else if (endDate) {
+          return eventDate <= new Date(endDate);
+        }
+        return true;
+      });
+    }
 
     // Luo CSV-data
     const data = [];
     allPosts.forEach(event => {
-      data.push({
+      const eventData = {
         'Tapahtuma': event.title,
         'Päivämäärä': new Date(event.date).toLocaleDateString('fi-FI'),
         'Aika': event.time || '',
@@ -703,10 +871,15 @@ export default function Home() {
                  event.eventType === 'dj' ? 'DJ' :
                  event.eventType === 'market' ? 'Kirppis' : 'Muu',
         'Esiintyjä/Lisätiedot': event.artist || '',
-        'Yhteenveto': event.summary || '',
-        'Tehtäviä yhteensä': event.tasks?.length || 0,
-        'Valmiit tehtävät': event.tasks?.filter(t => t.completed).length || 0
-      });
+        'Yhteenveto': event.summary || ''
+      };
+
+      if (includeTasks) {
+        eventData['Tehtäviä yhteensä'] = event.tasks?.length || 0;
+        eventData['Valmiit tehtävät'] = event.tasks?.filter(t => t.completed).length || 0;
+      }
+
+      data.push(eventData);
     });
 
     // Luo worksheet
@@ -717,11 +890,14 @@ export default function Home() {
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `Kirkkopuisto_Tapahtumat_${selectedYear}.csv`;
+    const dateRange = startDate && endDate ?
+      `_${new Date(startDate).toLocaleDateString('fi-FI').replace(/\./g, '-')}_${new Date(endDate).toLocaleDateString('fi-FI').replace(/\./g, '-')}` :
+      `_${selectedYear}`;
+    link.download = `Kirkkopuisto_Tapahtumat${dateRange}.csv`;
     link.click();
   };
 
-  // Viikon työtehtävät PDF
+  // Tämän viikon työtehtävät PDF
   const generateWeeklyTasksPDF = () => {
     const doc = new jsPDF();
     const today = new Date();
@@ -766,7 +942,7 @@ export default function Home() {
     doc.setFontSize(18);
     doc.text('Kirkkopuiston Terassi', 105, 15, { align: 'center' });
     doc.setFontSize(14);
-    doc.text('Viikon työtehtävät', 105, 25, { align: 'center' });
+    doc.text('Tämän viikon työtehtävät', 105, 25, { align: 'center' });
     doc.setFontSize(10);
     doc.text(
       `${monday.toLocaleDateString('fi-FI')} - ${sunday.toLocaleDateString('fi-FI')}`,
@@ -1073,6 +1249,112 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
     alert(`✨ Sisältö generoitu ${tasksToGenerate.length} tehtävälle!`);
   };
 
+  // Uusi: Generoi sisältö kaikille kanaville kerralla optimoituna
+  const generateMultichannelContent = async (event) => {
+    if (!event || !event.tasks || event.tasks.length === 0) {
+      alert('Tapahtumalla ei ole tehtäviä');
+      return;
+    }
+
+    // Kysytään käyttäjältä mitkä kanavat
+    const availableChannels = ['instagram', 'facebook', 'tiktok', 'linkedin', 'newsletter'];
+    const eventChannels = [...new Set(event.tasks.map(t => t.channel))];
+
+    // Mappi kanavista
+    const channelMap = {
+      'instagram': 'instagram',
+      'facebook': 'facebook',
+      'tiktok': 'tiktok',
+      'linkedin': 'linkedin',
+      'newsletter': 'newsletter',
+      'uutiskirje': 'newsletter'
+    };
+
+    const selectedChannels = eventChannels
+      .map(ch => channelMap[ch.toLowerCase()])
+      .filter(ch => ch && availableChannels.includes(ch));
+
+    if (selectedChannels.length === 0) {
+      alert('Ei tuettuja kanavia tälle tapahtumalle');
+      return;
+    }
+
+    if (!confirm(`Luodaanko optimoitu sisältö ${selectedChannels.length} kanavalle?\n\n${selectedChannels.join(', ')}`)) {
+      return;
+    }
+
+    setIsGenerating(true);
+
+    try {
+      const response = await fetch('/api/optimize-multichannel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: {
+            title: event.title,
+            artist: event.artist,
+            date: event.date,
+            time: event.time,
+            summary: event.summary
+          },
+          channels: selectedChannels
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Virhe sisällön generoinnissa');
+      }
+
+      const contents = data.contents;
+
+      // Päivitä tehtävät sisällöllä
+      let updatedCount = 0;
+      for (const task of event.tasks) {
+        const channelKey = channelMap[task.channel.toLowerCase()];
+        if (channelKey && contents[channelKey]) {
+          const newContent = contents[channelKey];
+
+          // Päivitä Supabaseen
+          if (supabase && typeof task.id === 'number') {
+            await supabase
+              .from('tasks')
+              .update({ content: newContent })
+              .eq('id', task.id);
+          }
+
+          // Päivitä UI
+          setPosts(prev => {
+            const yearPosts = prev[selectedYear] || [];
+            const updatedPosts = yearPosts.map(p => {
+              if (p.id === event.id) {
+                return {
+                  ...p,
+                  tasks: p.tasks.map(t =>
+                    t.id === task.id ? { ...t, content: newContent } : t
+                  )
+                };
+              }
+              return p;
+            });
+            return { ...prev, [selectedYear]: updatedPosts };
+          });
+
+          updatedCount++;
+        }
+      }
+
+      alert(`✨ Luotu optimoitu sisältö ${updatedCount} tehtävälle!`);
+
+    } catch (error) {
+      console.error('Error generating multichannel content:', error);
+      alert('Virhe sisällön generoinnissa: ' + error.message);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const addTaskToNewEvent = () => {
     const newTask = {
       id: `temp-${Date.now()}`,
@@ -1144,7 +1426,10 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             artist: newEvent.artist || null,
             summary: newEvent.summary || null,
             year: eventYear,
-            images: {}
+            images: {},
+            created_by_id: user?.id || null,
+            created_by_email: user?.email || null,
+            created_by_name: userProfile?.full_name || user?.email || null
           })
           .select()
           .single();
@@ -1162,7 +1447,10 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             completed: false,
             content: task.content || null,
             assignee: task.assignee || null,
-            notes: task.notes || null
+            notes: task.notes || null,
+            created_by_id: user?.id || null,
+            created_by_email: user?.email || null,
+            created_by_name: userProfile?.full_name || user?.email || null
           }));
 
           const { error: tasksError } = await supabase
@@ -1262,6 +1550,12 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
       return;
     }
 
+    // Validoi toisto
+    if ((newSocialPost.recurrence === 'weekly' || newSocialPost.recurrence === 'monthly') && !newSocialPost.recurrenceEndDate) {
+      alert('Valitse mihin päivään asti toistoa jatketaan');
+      return;
+    }
+
     const postYear = new Date(newSocialPost.date).getFullYear();
 
     if (supabase) {
@@ -1278,24 +1572,80 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
           caption: newSocialPost.caption || null,
           notes: newSocialPost.notes || null,
           media_links: newSocialPost.mediaLinks || [],
-          year: postYear
+          recurrence: newSocialPost.recurrence || 'none',
+          recurrence_end_date: newSocialPost.recurrenceEndDate || null,
+          year: postYear,
+          created_by_id: user?.id || null,
+          created_by_email: user?.email || null,
+          created_by_name: userProfile?.full_name || user?.email || null
         };
 
         if (editingSocialPost) {
           // Päivitä olemassa oleva
           const { error } = await supabase
             .from('social_media_posts')
-            .update(dataToSave)
+            .update({
+              ...dataToSave,
+              updated_by_id: user?.id || null,
+              updated_by_email: user?.email || null,
+              updated_by_name: userProfile?.full_name || user?.email || null
+            })
             .eq('id', editingSocialPost.id);
 
           if (error) throw error;
         } else {
-          // Lisää uusi
-          const { error } = await supabase
-            .from('social_media_posts')
-            .insert(dataToSave);
+          // Lisää uusi (tai useita jos toisto)
+          if (newSocialPost.recurrence !== 'none' && newSocialPost.recurrenceEndDate) {
+            // Luo toistuvat postaukset
+            const postsToCreate = [];
+            const startDate = new Date(newSocialPost.date);
+            const endDate = new Date(newSocialPost.recurrenceEndDate);
+            let currentDate = new Date(startDate);
 
-          if (error) throw error;
+            while (currentDate <= endDate) {
+              postsToCreate.push({
+                ...dataToSave,
+                date: currentDate.toISOString().split('T')[0],
+                year: currentDate.getFullYear(),
+                parent_post_id: null // Ensimmäinen on parent
+              });
+
+              // Lisää päivämäärään
+              if (newSocialPost.recurrence === 'weekly') {
+                currentDate.setDate(currentDate.getDate() + 7);
+              } else if (newSocialPost.recurrence === 'monthly') {
+                currentDate.setMonth(currentDate.getMonth() + 1);
+              }
+            }
+
+            // Tallenna kaikki postaukset
+            const { data: savedPosts, error } = await supabase
+              .from('social_media_posts')
+              .insert(postsToCreate)
+              .select();
+
+            if (error) throw error;
+
+            // Päivitä parent_post_id kaikkiin paitsi ensimmäiseen
+            if (savedPosts && savedPosts.length > 1) {
+              const parentId = savedPosts[0].id;
+              const childIds = savedPosts.slice(1).map(p => p.id);
+
+              await supabase
+                .from('social_media_posts')
+                .update({ parent_post_id: parentId })
+                .in('id', childIds);
+            }
+
+            alert(`✅ Luotiin ${postsToCreate.length} somepostausta!`);
+          } else {
+            // Tavallinen yksittäinen postaus
+            const { error } = await supabase
+              .from('social_media_posts')
+              .insert(dataToSave);
+
+            if (error) throw error;
+          }
         }
 
         // Lataa päivitetyt somepostaukset
@@ -1456,14 +1806,35 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
   };
 
   const filterPosts = () => {
-    const currentPosts = posts[selectedYear] || [];
-    if (!searchQuery) return currentPosts;
+    let currentPosts = posts[selectedYear] || [];
 
-    const q = searchQuery.toLowerCase();
-    return currentPosts.filter(p =>
-      p.title.toLowerCase().includes(q) ||
-      (p.artist && p.artist.toLowerCase().includes(q))
-    );
+    // Suodata sisältötyypin mukaan
+    if (contentFilter === 'social') {
+      // Jos halutaan vain somepostaukset, palauta tyhjä (tapahtumat pois)
+      currentPosts = [];
+    }
+
+    // Piilota menneet tapahtumat jos showPastEvents = false
+    if (!showPastEvents) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      currentPosts = currentPosts.filter(post => {
+        const eventDate = new Date(post.date);
+        eventDate.setHours(0, 0, 0, 0);
+        return eventDate >= today;
+      });
+    }
+
+    // Hakusuodatus
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      currentPosts = currentPosts.filter(p =>
+        p.title.toLowerCase().includes(q) ||
+        (p.artist && p.artist.toLowerCase().includes(q))
+      );
+    }
+
+    return currentPosts;
   };
 
   // Apufunktiot kalenterinäkymiä varten
@@ -1507,7 +1878,58 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
     return allPosts.filter(post => post.date === dateStr);
   };
 
+  const getSocialPostsForDate = (date) => {
+    if (!date) return [];
+    const dateStr = date.toISOString().split('T')[0];
+    let filteredSocialPosts = [...socialPosts];
+
+    // Suodata contentFilterin mukaan
+    if (contentFilter === 'events') {
+      // Jos halutaan vain tapahtumat, palauta tyhjä
+      return [];
+    }
+
+    // Piilota menneet jos showPastEvents = false
+    if (!showPastEvents) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      filteredSocialPosts = filteredSocialPosts.filter(post => {
+        const postDate = new Date(post.date);
+        postDate.setHours(0, 0, 0, 0);
+        return postDate >= today;
+      });
+    }
+
+    // Vastuuhenkilön suodatus
+    if (assigneeFilter !== 'all') {
+      if (assigneeFilter === 'unassigned') {
+        filteredSocialPosts = filteredSocialPosts.filter(post => !post.assignee || !post.assignee.trim());
+      } else {
+        filteredSocialPosts = filteredSocialPosts.filter(post => post.assignee === assigneeFilter);
+      }
+    }
+
+    return filteredSocialPosts.filter(post => post.date === dateStr);
+  };
+
   const currentYearPosts = filterPosts();
+
+  // Näytä latausruutu autentikoinnin aikana
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center">
+        <div className="bg-white rounded-2xl shadow-2xl p-8 text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-700 text-lg">⏳ Ladataan...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Jos ei ole käyttäjää, ei näytetä mitään (ohjataan kirjautumissivulle)
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-yellow-50 p-4">
@@ -1517,16 +1939,66 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             <div>
               <h1 className="text-3xl font-bold text-green-800">Kirkkopuiston Terassi</h1>
               <p className="text-gray-600">Markkinoinnin työkalut</p>
+              {userProfile && (
+                <p className="text-sm text-gray-500 mt-1">
+                  👤 Kirjautunut: <span className="font-semibold">{userProfile.full_name}</span>
+                  {userProfile.is_admin && <span className="ml-2 text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded">Admin</span>}
+                </p>
+              )}
             </div>
             <div className="flex gap-3 items-center flex-wrap">
-              <a
-                href="/api/calendar.ics"
-                target="_blank"
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-medium"
-                title="Avaa kalenteri - lisää omaan kalenteriisi (Apple, Google, Outlook)"
-              >
-                📅 Kalenteri
-              </a>
+              <div className="relative">
+                <button
+                  onClick={() => setShowDownloadOptions(!showDownloadOptions)}
+                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-medium flex items-center gap-2"
+                  title="Lataa kalenteri - lisää omaan kalenteriisi (Apple, Google, Outlook)"
+                >
+                  📅 Lataa kalenteri
+                  <span className="text-xs">{showDownloadOptions ? '▲' : '▼'}</span>
+                </button>
+                {showDownloadOptions && (
+                  <div className="absolute top-full mt-2 left-0 bg-white border-2 border-green-600 rounded-lg shadow-lg p-4 z-50 min-w-[280px]">
+                    <div className="space-y-3">
+                      <div className="font-semibold text-gray-800 border-b pb-2">Valitse sisältö:</div>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={calendarDownloadFilters.includeEvents}
+                          onChange={(e) => setCalendarDownloadFilters({...calendarDownloadFilters, includeEvents: e.target.checked})}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm">🎵 Tapahtumat</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={calendarDownloadFilters.includeSocial}
+                          onChange={(e) => setCalendarDownloadFilters({...calendarDownloadFilters, includeSocial: e.target.checked})}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm">📱 Somepostaukset</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={calendarDownloadFilters.includeTasks}
+                          onChange={(e) => setCalendarDownloadFilters({...calendarDownloadFilters, includeTasks: e.target.checked})}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm">⏰ Tehtävien deadlinet</span>
+                      </label>
+                      <a
+                        href={`/api/calendar.ics?includeEvents=${calendarDownloadFilters.includeEvents}&includeSocial=${calendarDownloadFilters.includeSocial}&includeTasks=${calendarDownloadFilters.includeTasks}`}
+                        target="_blank"
+                        className="block w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-center font-medium mt-4"
+                        onClick={() => setShowDownloadOptions(false)}
+                      >
+                        📥 Lataa
+                      </a>
+                    </div>
+                  </div>
+                )}
+              </div>
               <Link href="/materiaalit">
                 <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
                   📁 Materiaalit
@@ -1542,6 +2014,11 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   💡 Ideoi sisältöä
                 </button>
               </Link>
+              <Link href="/uutiskirje">
+                <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                  📧 Uutiskirje
+                </button>
+              </Link>
               <Link href="/poista-duplikaatit">
                 <button className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 text-sm">
                   🗑️ Poista duplikaatit
@@ -1552,6 +2029,33 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   👥 Tiimi
                 </button>
               </Link>
+              {userProfile?.is_admin && (
+                <Link href="/admin">
+                  <button className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 font-medium">
+                    ⚙️ Admin
+                  </button>
+                </Link>
+              )}
+
+              {/* DEBUG: Näytä admin-status */}
+              <div className="flex gap-2 items-center">
+                <div className="bg-gray-800 text-white px-3 py-2 rounded text-xs font-mono">
+                  Admin: {userProfile?.is_admin ? '✅ TRUE' : '❌ FALSE'}
+                  {!userProfile && ' (profile ei ladattu)'}
+                </div>
+                <Link href="/profile-debug">
+                  <button className="bg-yellow-600 text-white px-3 py-2 rounded text-xs hover:bg-yellow-700">
+                    🔍 Debug
+                  </button>
+                </Link>
+              </div>
+
+              <button
+                onClick={handleLogout}
+                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 font-medium"
+              >
+                🚪 Kirjaudu ulos
+              </button>
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(Number(e.target.value))}
@@ -1639,7 +2143,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   onClick={() => setViewMode('week')}
                   className={`px-4 py-2 rounded ${viewMode === 'week' ? 'bg-green-600 text-white' : 'text-gray-700 hover:bg-gray-200'}`}
                 >
-                  📆 Kalenteri
+                  📆 Viikko
                 </button>
               </div>
               <div className="flex gap-2 flex-wrap">
@@ -1662,25 +2166,11 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   📥 <span className="hidden sm:inline">Tuo</span>
                 </button>
                 <button
-                  onClick={exportToExcel}
+                  onClick={() => setShowExportModal(true)}
                   className="bg-emerald-600 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg hover:bg-emerald-700 text-sm md:text-base whitespace-nowrap"
-                  title="Vie tapahtumat Excel-tiedostoon"
+                  title="Vie tai tulosta tapahtumat"
                 >
-                  📊 <span className="hidden sm:inline">Excel</span>
-                </button>
-                <button
-                  onClick={exportToCSV}
-                  className="bg-teal-600 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg hover:bg-teal-700 text-sm md:text-base whitespace-nowrap"
-                  title="Vie tapahtumat CSV-tiedostoon (Google Sheets)"
-                >
-                  📄 <span className="hidden sm:inline">CSV</span>
-                </button>
-                <button
-                  onClick={() => setShowPrintModal(true)}
-                  className="bg-purple-600 text-white px-3 py-2 md:px-4 md:py-2 rounded-lg hover:bg-purple-700 text-sm md:text-base whitespace-nowrap"
-                  title="Tulosta tapahtumalista"
-                >
-                  🖨️ <span className="hidden sm:inline">Tulosta</span>
+                  📤 <span className="hidden sm:inline">Vie/Tulosta</span><span className="sm:hidden">Vie</span>
                 </button>
               </div>
             </div>
@@ -1696,13 +2186,13 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             />
           </div>
 
-          {/* Viikon työtehtävät -kortti */}
+          {/* Tämän viikon työtehtävät -kortti */}
           <div className="mb-6 bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-300 rounded-lg p-4 md:p-6 shadow-sm">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex-1">
                 <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-1 flex items-center gap-2">
                   <span className="text-2xl">📋</span>
-                  Viikon työtehtävät
+                  Tämän viikon työtehtävät
                 </h3>
                 <p className="text-sm text-gray-600">
                   Tulosta tai jaa PDF viikon kaikista työtehtävistä
@@ -1718,8 +2208,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
           </div>
 
           {/* Suodattimet */}
-          {(viewMode === 'dashboard' || viewMode === 'list') && (
-            <div className="mb-6 bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <div className="mb-6 bg-gray-50 border border-gray-200 rounded-lg p-4">
               <div className="flex flex-wrap gap-3 items-center">
                 <span className="text-sm font-semibold text-gray-700">🔍 Suodata:</span>
 
@@ -1847,7 +2336,6 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                 </p>
               </div>
             </div>
-          )}
 
           {/* Viikkonäkymä - Dashboard */}
           {viewMode === 'dashboard' && (() => {
@@ -2316,6 +2804,14 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
                         <div className="flex gap-2">
                           <button
+                            onClick={() => generateMultichannelContent(post)}
+                            className="p-2 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 rounded hover:from-purple-200 hover:to-pink-200"
+                            title="Luo kaikille kanaville - AI optimoi sisällön jokaiselle kanavalle"
+                            disabled={isGenerating}
+                          >
+                            ✨🌐
+                          </button>
+                          <button
                             onClick={() => {
                               // Kopioi tapahtuma
                               const copiedEvent = {
@@ -2611,6 +3107,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                 ))}
                 {getDaysInMonth(selectedYear, selectedMonth).map((date, idx) => {
                   const dayEvents = date ? getEventsForDate(date) : [];
+                  const daySocialPosts = date ? getSocialPostsForDate(date) : [];
                   const isToday = date && date.toDateString() === new Date().toDateString();
 
                   return (
@@ -2652,6 +3149,35 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                       ></div>
                                     </div>
                                     <span className="text-[8px] md:text-[10px]">{completed}/{total}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {daySocialPosts.map(post => {
+                              const postType = socialPostTypes.find(t => t.id === post.type) || { icon: '📝', name: 'Muu', color: 'bg-gray-500' };
+                              const statusEmoji = {
+                                'suunniteltu': '📋',
+                                'työn alla': '⏳',
+                                'valmis': '✅',
+                                'julkaistu': '🎉'
+                              }[post.status] || '📋';
+
+                              return (
+                                <div
+                                  key={`social-${post.id}`}
+                                  className="text-[9px] md:text-xs bg-blue-100 border border-blue-300 rounded p-0.5 md:p-1 cursor-pointer hover:bg-blue-200"
+                                  onClick={() => openEditSocialPostModal(post)}
+                                  title={post.title}
+                                >
+                                  <div className="font-semibold truncate flex items-center gap-1">
+                                    <span>{postType.icon}</span>
+                                    <span className="truncate">{post.title}</span>
+                                  </div>
+                                  {post.time && (
+                                    <div className="text-gray-600 hidden md:block">{post.time}</div>
+                                  )}
+                                  <div className="text-[8px] md:text-[10px] text-gray-600">
+                                    {statusEmoji} {post.status}
                                   </div>
                                 </div>
                               );
@@ -2698,6 +3224,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
               <div className="grid grid-cols-7 gap-2">
                 {getWeekDays(selectedWeek).map((date, idx) => {
                   const dayEvents = getEventsForDate(date);
+                  const daySocialPosts = getSocialPostsForDate(date);
                   const isToday = date.toDateString() === new Date().toDateString();
                   const dayName = ['Ma', 'Ti', 'Ke', 'To', 'Pe', 'La', 'Su'][idx];
 
@@ -2738,6 +3265,34 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                   ></div>
                                 </div>
                                 <span className="text-[10px]">{completed}/{total}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {daySocialPosts.map(post => {
+                          const postType = socialPostTypes.find(t => t.id === post.type) || { icon: '📝', name: 'Muu', color: 'bg-gray-500' };
+                          const statusEmoji = {
+                            'suunniteltu': '📋',
+                            'työn alla': '⏳',
+                            'valmis': '✅',
+                            'julkaistu': '🎉'
+                          }[post.status] || '📋';
+
+                          return (
+                            <div
+                              key={`social-${post.id}`}
+                              className="text-xs bg-blue-100 border border-blue-300 rounded p-2 cursor-pointer hover:bg-blue-200"
+                              onClick={() => openEditSocialPostModal(post)}
+                            >
+                              <div className="font-semibold mb-1 flex items-center gap-1">
+                                <span>{postType.icon}</span>
+                                <span className="truncate">{post.title}</span>
+                              </div>
+                              {post.time && (
+                                <div className="text-gray-600 mb-1">🕐 {post.time}</div>
+                              )}
+                              <div className="text-[10px] text-gray-600">
+                                {statusEmoji} {post.status}
                               </div>
                             </div>
                           );
@@ -4075,7 +4630,7 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
         </div>
       )}
 
-      {/* Viikon työtehtävät -modaali */}
+      {/* Tämän viikon työtehtävät -modaali */}
       {showWeeklyTasksModal && (() => {
         const today = new Date();
         const currentDayOfWeek = today.getDay();
@@ -4127,7 +4682,7 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg max-w-4xl w-full p-4 md:p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl md:text-2xl font-bold">📋 Viikon työtehtävät</h3>
+                <h3 className="text-xl md:text-2xl font-bold">📋 Tämän viikon työtehtävät</h3>
                 <button
                   onClick={() => setShowWeeklyTasksModal(false)}
                   className="text-gray-500 hover:text-gray-700 text-2xl"
@@ -4226,6 +4781,104 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
           </div>
         );
       })()}
+
+      {/* Vienti/tulostusmodaali */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-2xl w-full p-6">
+            <h3 className="text-2xl font-bold mb-6">📤 Vie tai tulosta tapahtumat</h3>
+
+            <div className="space-y-4 mb-6">
+              {/* Päivämääräväli */}
+              <div>
+                <label className="block text-sm font-semibold mb-2">Valitse aikaväli</label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Alkupäivä</label>
+                    <input
+                      type="date"
+                      value={exportStartDate}
+                      onChange={(e) => setExportStartDate(e.target.value)}
+                      className="w-full p-2 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Loppupäivä</label>
+                    <input
+                      type="date"
+                      value={exportEndDate}
+                      onChange={(e) => setExportEndDate(e.target.value)}
+                      className="w-full p-2 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Jätä tyhjäksi jos haluat viedä kaikki {selectedYear} vuoden tapahtumat
+                </p>
+              </div>
+
+              {/* Sisällytä tehtävät */}
+              <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-lg">
+                <input
+                  type="checkbox"
+                  id="exportIncludeTasks"
+                  checked={exportIncludeTasks}
+                  onChange={(e) => setExportIncludeTasks(e.target.checked)}
+                  className="w-5 h-5 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                />
+                <label htmlFor="exportIncludeTasks" className="text-sm font-medium text-gray-900 cursor-pointer">
+                  Sisällytä tehtävätiedot (tehtävien määrä, valmiit tehtävät)
+                </label>
+              </div>
+            </div>
+
+            {/* Toimintonapit */}
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                <button
+                  onClick={() => {
+                    exportToExcel(exportStartDate, exportEndDate, exportIncludeTasks);
+                    setShowExportModal(false);
+                  }}
+                  className="bg-emerald-600 text-white py-3 rounded-lg hover:bg-emerald-700 font-bold"
+                >
+                  📊 Excel
+                </button>
+                <button
+                  onClick={() => {
+                    exportToCSV(exportStartDate, exportEndDate, exportIncludeTasks);
+                    setShowExportModal(false);
+                  }}
+                  className="bg-teal-600 text-white py-3 rounded-lg hover:bg-teal-700 font-bold"
+                >
+                  📄 CSV
+                </button>
+                <button
+                  onClick={() => {
+                    setShowExportModal(false);
+                    setShowPrintModal(true);
+                  }}
+                  className="bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 font-bold"
+                >
+                  🖨️ Tulosta
+                </button>
+              </div>
+
+              <button
+                onClick={() => {
+                  setShowExportModal(false);
+                  setExportStartDate('');
+                  setExportEndDate('');
+                  setExportIncludeTasks(true);
+                }}
+                className="w-full px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-semibold"
+              >
+                Peruuta
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Somepostauksen lisäys/muokkausmodaali */}
       {showAddSocialPostModal && (
@@ -4363,6 +5016,38 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
                   <option value="valmis">✅ Valmis</option>
                   <option value="julkaistu">🎉 Julkaistu</option>
                 </select>
+              </div>
+
+              {/* Toisto */}
+              <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-4">
+                <label className="block text-sm font-semibold mb-3 text-purple-900">🔁 Toisto</label>
+                <div className="space-y-3">
+                  <select
+                    value={newSocialPost.recurrence}
+                    onChange={(e) => setNewSocialPost({ ...newSocialPost, recurrence: e.target.value })}
+                    className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                  >
+                    <option value="none">Ei toistoa</option>
+                    <option value="weekly">📅 Viikoittain</option>
+                    <option value="monthly">📆 Kuukausittain</option>
+                  </select>
+
+                  {(newSocialPost.recurrence === 'weekly' || newSocialPost.recurrence === 'monthly') && (
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Toista mihin päivään asti?</label>
+                      <input
+                        type="date"
+                        value={newSocialPost.recurrenceEndDate}
+                        onChange={(e) => setNewSocialPost({ ...newSocialPost, recurrenceEndDate: e.target.value })}
+                        className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                      />
+                      <p className="text-xs text-gray-600 mt-1">
+                        {newSocialPost.recurrence === 'weekly' && 'Luo automaattisesti sama postaus joka viikko samana viikonpäivänä.'}
+                        {newSocialPost.recurrence === 'monthly' && 'Luo automaattisesti sama postaus joka kuukausi samana päivänä.'}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Caption/Teksti */}

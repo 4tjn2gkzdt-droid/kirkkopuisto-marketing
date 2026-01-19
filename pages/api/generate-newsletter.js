@@ -30,39 +30,40 @@ export default async function handler(req, res) {
       selectedEventIdsCount: selectedEventIds?.length || 0
     })
 
-    // Jos valittuja tapahtumia on, hae ne suoraan ID:iden perusteella
-    // Tämä välttää aikavyöhykeongelmat päivämäärävertailussa
-    let events = []
-    let eventsError = null
+    // Hae kaikki tapahtumat aikaväliltä
+    console.log('Fetching events by date range:', startDate, '-', endDate)
+    console.log('Selected event IDs:', selectedEventIds)
 
+    const result = await supabase
+      .from('events')
+      .select('*')
+      .gte('date', startDate)
+      .lte('date', endDate)
+      .order('date', { ascending: true })
+
+    let events = result.data || []
+    let eventsError = result.error
+
+    console.log('All events from date range:', {
+      eventsCount: events.length,
+      error: eventsError,
+      eventIds: events.map(e => e.id)
+    })
+
+    // Jos valittuja tapahtumia on, suodata vain ne
     if (selectedEventIds && selectedEventIds.length > 0) {
-      console.log('Fetching events by IDs:', selectedEventIds)
-      const result = await supabase
-        .from('events')
-        .select('*')
-        .in('id', selectedEventIds)
-        .order('date', { ascending: true })
-
-      events = result.data
-      eventsError = result.error
-    } else {
-      console.log('Fetching events by date range:', startDate, '-', endDate)
-      const result = await supabase
-        .from('events')
-        .select('*')
-        .gte('date', startDate)
-        .lte('date', endDate)
-        .order('date', { ascending: true })
-
-      events = result.data
-      eventsError = result.error
+      const selectedIdsSet = new Set(selectedEventIds)
+      events = events.filter(event => selectedIdsSet.has(event.id))
+      console.log('After filtering by selected IDs:', {
+        selectedCount: events.length,
+        selectedIds: events.map(e => e.id)
+      })
     }
 
-    console.log('Events query result:', {
-      eventsCount: events?.length || 0,
-      error: eventsError,
-      firstEvent: events?.[0]?.date,
-      lastEvent: events?.[events?.length - 1]?.date
+    console.log('Final events:', {
+      eventsCount: events.length,
+      firstEvent: events[0]?.date,
+      lastEvent: events[events.length - 1]?.date
     })
 
     if (eventsError) {

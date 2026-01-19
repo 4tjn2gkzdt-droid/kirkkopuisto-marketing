@@ -10,132 +10,42 @@ export default async function handler(req, res) {
   }
 
   const {
-    startDate: startDateStr, // Alkupäivämäärä (YYYY-MM-DD)
-    endDate: endDateStr,     // Loppupäivämäärä (YYYY-MM-DD)
     tone = 'casual', // casual, formal, energetic
     sendEmails = false,
     selectedVariant = 0, // Mikä variantti lähetetään (0-2)
-    selectedEventIds = [] // Valitut tapahtumat korostettavaksi
+    selectedEventIds = [] // Valitut tapahtumat - AINOA pakollinen kenttä!
   } = req.body
 
   try {
-    // Varmista että päivämäärät ovat YYYY-MM-DD muodossa
-    let startDate = startDateStr
-    let endDate = endDateStr
-
-    // Jos päivämäärä on väärässä muodossa, yritä korjata
-    if (startDate && !startDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      console.warn('startDate not in YYYY-MM-DD format:', startDate)
-      // Yritä parseta Date-objektina ja muuttaa oikeaan muotoon
-      const parsedStart = new Date(startDate)
-      if (!isNaN(parsedStart.getTime())) {
-        startDate = parsedStart.toISOString().split('T')[0]
-        console.log('Converted startDate to:', startDate)
-      }
-    }
-
-    if (endDate && !endDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      console.warn('endDate not in YYYY-MM-DD format:', endDate)
-      const parsedEnd = new Date(endDate)
-      if (!isNaN(parsedEnd.getTime())) {
-        endDate = parsedEnd.toISOString().split('T')[0]
-        console.log('Converted endDate to:', endDate)
-      }
-    }
-
     console.log('Newsletter generation request:', {
-      startDate,
-      endDate,
-      startDateType: typeof startDate,
-      endDateType: typeof endDate,
-      startDateRaw: JSON.stringify(startDate),
-      endDateRaw: JSON.stringify(endDate),
       selectedEventIds,
-      selectedEventIdsCount: selectedEventIds?.length || 0
+      selectedEventIdsCount: selectedEventIds?.length || 0,
+      tone,
+      sendEmails
     })
 
-    // Haetaan ensin 10 tapahtumaa tietokannasta debug tarkoitukseen
-    const { data: sampleEvents } = await supabase
+    // Tarkista että tapahtumia on valittu
+    if (!selectedEventIds || selectedEventIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Valitse vähintään yksi tapahtuma'
+      })
+    }
+
+    // Hae tapahtumat SUORAAN ID:n perusteella - ei päivämääräsuodatuksia!
+    console.log('Fetching events by IDs:', selectedEventIds)
+
+    const { data: events, error: eventsError } = await supabase
       .from('events')
-      .select('id, title, date, year')
-      .order('date', { ascending: false })
-      .limit(10)
+      .select('*')
+      .in('id', selectedEventIds)
+      .order('date', { ascending: true })
 
-    console.log('Sample of latest events in DB:', sampleEvents?.map(e => ({
-      id: e.id,
-      date: e.date,
-      dateType: typeof e.date,
-      year: e.year,
-      title: e.title.substring(0, 30)
-    })))
-
-    // Hae myös valitut tapahtumat suoraan ID:n perusteella
-    if (selectedEventIds && selectedEventIds.length > 0) {
-      const { data: selectedEventsCheck } = await supabase
-        .from('events')
-        .select('id, title, date, year')
-        .in('id', selectedEventIds)
-
-      console.log('Selected events directly from DB:', selectedEventsCheck?.map(e => ({
-        id: e.id,
-        date: e.date,
-        year: e.year,
-        title: e.title.substring(0, 30)
-      })))
-    }
-
-    // Jos valittuja tapahtumia on, hae ne SUORAAN ID:n perusteella
-    // (vältetään päivämääräsuodatuksen ongelmat)
-    let events = []
-    let eventsError = null
-    let allEventsInRange = 0
-
-    if (selectedEventIds && selectedEventIds.length > 0) {
-      console.log('Fetching selected events by IDs:', selectedEventIds)
-
-      const result = await supabase
-        .from('events')
-        .select('*')
-        .in('id', selectedEventIds)
-        .order('date', { ascending: true })
-
-      events = result.data || []
-      eventsError = result.error
-      allEventsInRange = events.length
-
-      console.log('Fetched events by IDs:', {
-        eventsCount: events.length,
-        error: eventsError,
-        eventIds: events.map(e => e.id),
-        eventDates: events.map(e => ({ id: e.id, date: e.date, year: e.year, title: e.title }))
-      })
-    } else {
-      // Jos ei ole valittuja tapahtumia, hae kaikki aikaväliltä
-      console.log('Fetching all events by date range:', startDate, '-', endDate)
-
-      const result = await supabase
-        .from('events')
-        .select('*')
-        .gte('date', startDate)
-        .lte('date', endDate)
-        .order('date', { ascending: true })
-
-      events = result.data || []
-      eventsError = result.error
-      allEventsInRange = events.length
-
-      console.log('All events from date range:', {
-        eventsCount: events.length,
-        error: eventsError,
-        eventIds: events.map(e => e.id),
-        eventDates: events.map(e => ({ id: e.id, date: e.date, title: e.title }))
-      })
-    }
-
-    console.log('Final events:', {
-      eventsCount: events.length,
-      firstEvent: events[0]?.date,
-      lastEvent: events[events.length - 1]?.date
+    console.log('Fetched events:', {
+      eventsCount: events?.length || 0,
+      error: eventsError?.message,
+      eventIds: events?.map(e => e.id),
+      eventDates: events?.map(e => ({ id: e.id, date: e.date, title: e.title }))
     })
 
     if (eventsError) {
@@ -143,38 +53,24 @@ export default async function handler(req, res) {
     }
 
     if (!events || events.length === 0) {
-      const dateRangeText = `${new Date(startDate).toLocaleDateString('fi-FI')} - ${new Date(endDate).toLocaleDateString('fi-FI')}`
-      const errorMessage = allEventsInRange === 0
-        ? `Ei tapahtumia aikavälillä ${dateRangeText}`
-        : `Ei valittuja tapahtumia aikavälillä ${dateRangeText} (Aikavälillä on ${allEventsInRange} tapahtumaa, mutta yksikään valituista ID:istä ei täsmää)`
-
-      console.log('No events found:', {
-        message: errorMessage,
-        startDate,
-        endDate,
-        dateRangeText,
-        allEventsInRange,
-        selectedEventIds,
-        selectedEventIdsCount: selectedEventIds?.length || 0
-      })
-
-      return res.status(200).json({
-        success: true,
-        message: errorMessage,
-        events: [],
-        variants: [],
+      console.log('No events found with given IDs')
+      return res.status(400).json({
+        success: false,
+        error: 'Valittuja tapahtumia ei löytynyt tietokannasta',
         debug: {
-          startDate,
-          endDate,
-          dateRange: dateRangeText,
-          allEventsInRange,
           selectedEventIds,
           selectedEventIdsCount: selectedEventIds?.length || 0
         }
       })
     }
 
-    // Jos valittuja tapahtumia on, käytä niitä; muuten käytä kaikkia aikavälin tapahtumia
+    // Laske aikavälä tapahtumista automaattisesti
+    const eventDates = events.map(e => new Date(e.date)).sort((a, b) => a - b)
+    const startDate = eventDates[0].toISOString().split('T')[0]
+    const endDate = eventDates[eventDates.length - 1].toISOString().split('T')[0]
+
+    console.log('Auto-calculated date range from events:', startDate, '-', endDate)
+
     const selectedEvents = events
 
     // Muotoile valitut tapahtumat AI:lle (korostettavat)

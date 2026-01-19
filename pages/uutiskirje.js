@@ -199,17 +199,14 @@ export default function NewsletterGenerator() {
 
   const handleGenerate = async () => {
     if (selectedEventIds.length === 0) {
-      alert('Valitse vähintään yksi tapahtuma korostettavaksi!')
+      alert('Valitse vähintään yksi tapahtuma!')
       return
     }
 
     console.log('Frontend: Sending newsletter generation request:', {
-      startDate,
-      endDate,
-      startDateType: typeof startDate,
-      endDateType: typeof endDate,
       selectedEventIds,
-      selectedEventIdsCount: selectedEventIds.length
+      selectedEventIdsCount: selectedEventIds.length,
+      tone
     })
 
     setGenerating(true)
@@ -222,8 +219,6 @@ export default function NewsletterGenerator() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          startDate,
-          endDate,
           tone,
           sendEmails: false,
           selectedEventIds
@@ -270,8 +265,6 @@ export default function NewsletterGenerator() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          startDate,
-          endDate,
           tone,
           sendEmails: false,
           selectedVariant,
@@ -301,8 +294,6 @@ export default function NewsletterGenerator() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          startDate,
-          endDate,
           tone,
           sendEmails: true,
           selectedVariant,

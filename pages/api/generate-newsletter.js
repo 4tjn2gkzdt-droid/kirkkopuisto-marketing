@@ -2,21 +2,27 @@ import { supabaseAdmin } from '../../lib/supabase-admin'
 import { Resend } from 'resend'
 import Anthropic from '@anthropic-ai/sdk'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+// Lazy-load Resend vain kun sitä tarvitaan
+function getResendClient() {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey || apiKey === 'your_resend_api_key_here') {
+    throw new Error('RESEND_API_KEY puuttuu tai on placeholder-arvo. Aseta oikea API-avain .env.local tiedostoon.')
+  }
+  return new Resend(apiKey)
+}
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' })
-  }
-
-  const {
-    tone = 'casual', // casual, formal, energetic
-    sendEmails = false,
-    selectedVariant = 0, // Mikä variantti lähetetään (0-2)
-    selectedEventIds = [] // Valitut tapahtumat - AINOA pakollinen kenttä!
-  } = req.body
-
   try {
+    if (req.method !== 'POST') {
+      return res.status(405).json({ error: 'Method not allowed' })
+    }
+
+    const {
+      tone = 'casual', // casual, formal, energetic
+      sendEmails = false,
+      selectedVariant = 0, // Mikä variantti lähetetään (0-2)
+      selectedEventIds = [] // Valitut tapahtumat - AINOA pakollinen kenttä!
+    } = req.body
     console.log('Newsletter generation request:', {
       selectedEventIds,
       selectedEventIdsCount: selectedEventIds?.length || 0,
@@ -239,6 +245,9 @@ Vastaa AINA JSON-muodossa. Älä lisää markdown-muotoilua tai muuta tekstiä, 
         })
       }
 
+      // Luo Resend-client vasta kun sitä tarvitaan
+      const resend = getResendClient()
+
       // Lähetä sähköposti
       const emailPromises = teamMembers.map(member =>
         resend.emails.send({
@@ -279,10 +288,17 @@ Vastaa AINA JSON-muodossa. Älä lisää markdown-muotoilua tai muuta tekstiä, 
     })
 
   } catch (error) {
-    console.error('Newsletter generation error:', error)
+    console.error('=== NEWSLETTER API: Unexpected error ===')
+    console.error('Error type:', error.constructor.name)
+    console.error('Error message:', error.message)
+    console.error('Error stack:', error.stack)
+
     res.status(500).json({
-      error: error.message,
-      details: error.toString()
+      success: false,
+      error: error.message || 'Unknown error',
+      errorType: error.constructor.name,
+      details: error.toString(),
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     })
   }
 }

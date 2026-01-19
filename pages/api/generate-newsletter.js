@@ -84,37 +84,51 @@ export default async function handler(req, res) {
       })))
     }
 
-    // Hae kaikki tapahtumat aikaväliltä
-    console.log('Fetching events by date range:', startDate, '-', endDate)
-    console.log('Selected event IDs:', selectedEventIds)
+    // Jos valittuja tapahtumia on, hae ne SUORAAN ID:n perusteella
+    // (vältetään päivämääräsuodatuksen ongelmat)
+    let events = []
+    let eventsError = null
+    let allEventsInRange = 0
 
-    const result = await supabase
-      .from('events')
-      .select('*')
-      .gte('date', startDate)
-      .lte('date', endDate)
-      .order('date', { ascending: true })
-
-    let events = result.data || []
-    let eventsError = result.error
-
-    console.log('All events from date range:', {
-      eventsCount: events.length,
-      error: eventsError,
-      eventIds: events.map(e => e.id),
-      eventDates: events.map(e => ({ id: e.id, date: e.date, title: e.title }))
-    })
-
-    // Tallenna alkuperäiset tapahtumat debugging-tarkoituksiin
-    const allEventsInRange = events.length
-
-    // Jos valittuja tapahtumia on, suodata vain ne
     if (selectedEventIds && selectedEventIds.length > 0) {
-      const selectedIdsSet = new Set(selectedEventIds)
-      events = events.filter(event => selectedIdsSet.has(event.id))
-      console.log('After filtering by selected IDs:', {
-        selectedCount: events.length,
-        selectedIds: events.map(e => e.id)
+      console.log('Fetching selected events by IDs:', selectedEventIds)
+
+      const result = await supabase
+        .from('events')
+        .select('*')
+        .in('id', selectedEventIds)
+        .order('date', { ascending: true })
+
+      events = result.data || []
+      eventsError = result.error
+      allEventsInRange = events.length
+
+      console.log('Fetched events by IDs:', {
+        eventsCount: events.length,
+        error: eventsError,
+        eventIds: events.map(e => e.id),
+        eventDates: events.map(e => ({ id: e.id, date: e.date, year: e.year, title: e.title }))
+      })
+    } else {
+      // Jos ei ole valittuja tapahtumia, hae kaikki aikaväliltä
+      console.log('Fetching all events by date range:', startDate, '-', endDate)
+
+      const result = await supabase
+        .from('events')
+        .select('*')
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: true })
+
+      events = result.data || []
+      eventsError = result.error
+      allEventsInRange = events.length
+
+      console.log('All events from date range:', {
+        eventsCount: events.length,
+        error: eventsError,
+        eventIds: events.map(e => e.id),
+        eventDates: events.map(e => ({ id: e.id, date: e.date, title: e.title }))
       })
     }
 

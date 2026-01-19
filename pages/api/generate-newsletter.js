@@ -19,15 +19,37 @@ export default async function handler(req, res) {
   } = req.body
 
   try {
-    // Käytä päivämäärämerkkijonoja suoraan (välttää aikavyöhykeongelmia)
-    const startDate = startDateStr
-    const endDate = endDateStr
+    // Varmista että päivämäärät ovat YYYY-MM-DD muodossa
+    let startDate = startDateStr
+    let endDate = endDateStr
+
+    // Jos päivämäärä on väärässä muodossa, yritä korjata
+    if (startDate && !startDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      console.warn('startDate not in YYYY-MM-DD format:', startDate)
+      // Yritä parseta Date-objektina ja muuttaa oikeaan muotoon
+      const parsedStart = new Date(startDate)
+      if (!isNaN(parsedStart.getTime())) {
+        startDate = parsedStart.toISOString().split('T')[0]
+        console.log('Converted startDate to:', startDate)
+      }
+    }
+
+    if (endDate && !endDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      console.warn('endDate not in YYYY-MM-DD format:', endDate)
+      const parsedEnd = new Date(endDate)
+      if (!isNaN(parsedEnd.getTime())) {
+        endDate = parsedEnd.toISOString().split('T')[0]
+        console.log('Converted endDate to:', endDate)
+      }
+    }
 
     console.log('Newsletter generation request:', {
       startDate,
       endDate,
       startDateType: typeof startDate,
       endDateType: typeof endDate,
+      startDateRaw: JSON.stringify(startDate),
+      endDateRaw: JSON.stringify(endDate),
       selectedEventIds,
       selectedEventIdsCount: selectedEventIds?.length || 0
     })
@@ -42,9 +64,25 @@ export default async function handler(req, res) {
     console.log('Sample of latest events in DB:', sampleEvents?.map(e => ({
       id: e.id,
       date: e.date,
+      dateType: typeof e.date,
       year: e.year,
       title: e.title.substring(0, 30)
     })))
+
+    // Hae myös valitut tapahtumat suoraan ID:n perusteella
+    if (selectedEventIds && selectedEventIds.length > 0) {
+      const { data: selectedEventsCheck } = await supabase
+        .from('events')
+        .select('id, title, date, year')
+        .in('id', selectedEventIds)
+
+      console.log('Selected events directly from DB:', selectedEventsCheck?.map(e => ({
+        id: e.id,
+        date: e.date,
+        year: e.year,
+        title: e.title.substring(0, 30)
+      })))
+    }
 
     // Hae kaikki tapahtumat aikaväliltä
     console.log('Fetching events by date range:', startDate, '-', endDate)

@@ -114,6 +114,15 @@ export default function NewsletterGenerator() {
       return
     }
 
+    console.log('Frontend: Sending newsletter generation request:', {
+      startDate,
+      endDate,
+      startDateType: typeof startDate,
+      endDateType: typeof endDate,
+      selectedEventIds,
+      selectedEventIdsCount: selectedEventIds.length
+    })
+
     setGenerating(true)
     setVariants([])
     setPreviewHtml('')

@@ -26,9 +26,25 @@ export default async function handler(req, res) {
     console.log('Newsletter generation request:', {
       startDate,
       endDate,
+      startDateType: typeof startDate,
+      endDateType: typeof endDate,
       selectedEventIds,
       selectedEventIdsCount: selectedEventIds?.length || 0
     })
+
+    // Haetaan ensin 10 tapahtumaa tietokannasta debug tarkoitukseen
+    const { data: sampleEvents } = await supabase
+      .from('events')
+      .select('id, title, date, year')
+      .order('date', { ascending: false })
+      .limit(10)
+
+    console.log('Sample of latest events in DB:', sampleEvents?.map(e => ({
+      id: e.id,
+      date: e.date,
+      year: e.year,
+      title: e.title.substring(0, 30)
+    })))
 
     // Hae kaikki tapahtumat aikaväliltä
     console.log('Fetching events by date range:', startDate, '-', endDate)
@@ -47,8 +63,12 @@ export default async function handler(req, res) {
     console.log('All events from date range:', {
       eventsCount: events.length,
       error: eventsError,
-      eventIds: events.map(e => e.id)
+      eventIds: events.map(e => e.id),
+      eventDates: events.map(e => ({ id: e.id, date: e.date, title: e.title }))
     })
+
+    // Tallenna alkuperäiset tapahtumat debugging-tarkoituksiin
+    const allEventsInRange = events.length
 
     // Jos valittuja tapahtumia on, suodata vain ne
     if (selectedEventIds && selectedEventIds.length > 0) {
@@ -71,12 +91,34 @@ export default async function handler(req, res) {
     }
 
     if (!events || events.length === 0) {
-      console.log('No events found')
+      const dateRangeText = `${new Date(startDate).toLocaleDateString('fi-FI')} - ${new Date(endDate).toLocaleDateString('fi-FI')}`
+      const errorMessage = allEventsInRange === 0
+        ? `Ei tapahtumia aikavälillä ${dateRangeText}`
+        : `Ei valittuja tapahtumia aikavälillä ${dateRangeText} (Aikavälillä on ${allEventsInRange} tapahtumaa, mutta yksikään valituista ID:istä ei täsmää)`
+
+      console.log('No events found:', {
+        message: errorMessage,
+        startDate,
+        endDate,
+        dateRangeText,
+        allEventsInRange,
+        selectedEventIds,
+        selectedEventIdsCount: selectedEventIds?.length || 0
+      })
+
       return res.status(200).json({
         success: true,
-        message: 'Ei tapahtumia valitulla aikavälillä',
+        message: errorMessage,
         events: [],
-        variants: []
+        variants: [],
+        debug: {
+          startDate,
+          endDate,
+          dateRange: dateRangeText,
+          allEventsInRange,
+          selectedEventIds,
+          selectedEventIdsCount: selectedEventIds?.length || 0
+        }
       })
     }
 

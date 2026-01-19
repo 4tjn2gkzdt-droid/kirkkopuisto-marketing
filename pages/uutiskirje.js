@@ -142,7 +142,18 @@ export default function NewsletterGenerator() {
           setDateRange(data.dateRange)
           setSelectedVariant(0)
         } else {
-          alert(data.message || 'Ei tapahtumia valitulla aikavälillä')
+          // Näytä yksityiskohtainen virheviesti
+          let alertMsg = data.message || 'Ei tapahtumia valitulla aikavälillä'
+          if (data.debug) {
+            alertMsg += `\n\nDebug-tiedot:\n`
+            alertMsg += `Aikaväli: ${data.debug.dateRange}\n`
+            alertMsg += `Tapahtumia aikavälillä: ${data.debug.allEventsInRange}\n`
+            alertMsg += `Valittuja tapahtumaIDitä: ${data.debug.selectedEventIdsCount}\n`
+            if (data.debug.selectedEventIds && data.debug.selectedEventIds.length > 0) {
+              alertMsg += `Valitut IDit: ${data.debug.selectedEventIds.join(', ')}`
+            }
+          }
+          alert(alertMsg)
         }
       } else {
         alert('Virhe generoinnissa: ' + (data.error || 'Tuntematon virhe'))

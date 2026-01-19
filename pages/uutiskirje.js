@@ -47,6 +47,7 @@ export default function NewsletterGenerator() {
   useEffect(() => {
     checkUser()
     loadTeamMembers()
+    suggestNextEventMonth()
   }, [])
 
   useEffect(() => {
@@ -76,9 +77,82 @@ export default function NewsletterGenerator() {
     }
   }
 
+  const suggestNextEventMonth = async () => {
+    try {
+      const today = new Date()
+      const todayStr = today.toISOString().split('T')[0]
+
+      console.log('Searching for next month with events starting from:', todayStr)
+
+      // Hae seuraavat tapahtumat
+      const { data: upcomingEvents, error } = await supabase
+        .from('events')
+        .select('date')
+        .gte('date', todayStr)
+        .order('date', { ascending: true })
+        .limit(50)
+
+      console.log('Found upcoming events:', upcomingEvents?.length || 0, upcomingEvents?.slice(0, 5))
+
+      if (error || !upcomingEvents || upcomingEvents.length === 0) {
+        console.log('No upcoming events found, using default dates')
+        return
+      }
+
+      // Ryhmittele tapahtumat kuukauden mukaan
+      const eventsByMonth = {}
+      upcomingEvents.forEach(event => {
+        const eventDate = new Date(event.date)
+        const monthKey = `${eventDate.getFullYear()}-${String(eventDate.getMonth() + 1).padStart(2, '0')}`
+        if (!eventsByMonth[monthKey]) {
+          eventsByMonth[monthKey] = []
+        }
+        eventsByMonth[monthKey].push(event)
+      })
+
+      console.log('Events grouped by month:', Object.keys(eventsByMonth).map(key => ({
+        month: key,
+        count: eventsByMonth[key].length
+      })))
+
+      // Löydä ensimmäinen kuukausi jossa on tapahtumia
+      const months = Object.keys(eventsByMonth).sort()
+      if (months.length === 0) {
+        console.log('No months with events found')
+        return
+      }
+
+      const suggestedMonth = months[0]
+      const [year, month] = suggestedMonth.split('-').map(Number)
+
+      // Aseta aikaväli kuukauden alkuun ja loppuun
+      const startOfMonth = new Date(year, month - 1, 1)
+      const endOfMonth = new Date(year, month, 0)
+
+      const suggestedStartDate = startOfMonth.toISOString().split('T')[0]
+      const suggestedEndDate = endOfMonth.toISOString().split('T')[0]
+
+      console.log('Suggesting month:', suggestedMonth, 'with', eventsByMonth[suggestedMonth].length, 'events')
+      console.log('Date range:', suggestedStartDate, '-', suggestedEndDate)
+
+      setStartDate(suggestedStartDate)
+      setEndDate(suggestedEndDate)
+    } catch (error) {
+      console.error('Error suggesting event month:', error)
+      // Käytä oletusarvoja virhetilanteessa
+    }
+  }
+
   const loadAvailableEvents = async () => {
     setLoadingEvents(true)
     try {
+      console.log('Frontend: Loading events with date range:', {
+        startDate,
+        endDate,
+        startDateType: typeof startDate,
+        endDateType: typeof endDate
+      })
+
       const { data, error } = await supabase
         .from('events')
         .select('*')
@@ -86,13 +160,28 @@ export default function NewsletterGenerator() {
         .lte('date', endDate)
         .order('date', { ascending: true })
 
+      console.log('Frontend: Events query result:', {
+        dataLength: data?.length || 0,
+        error: error?.message,
+        sampleEvent: data?.[0] ? {
+          id: data[0].id,
+          date: data[0].date,
+          dateType: typeof data[0].date,
+          title: data[0].title
+        } : null
+      })
+
       if (!error && data) {
         setAvailableEvents(data)
         // Valitse automaattisesti kaikki tapahtumat
         setSelectedEventIds(data.map(e => e.id))
+      } else if (error) {
+        console.error('Error loading events:', error)
+        alert('Virhe tapahtumien latauksessa: ' + error.message)
       }
     } catch (error) {
       console.error('Error loading events:', error)
+      alert('Virhe tapahtumien latauksessa: ' + error.message)
     } finally {
       setLoadingEvents(false)
     }
@@ -309,7 +398,7 @@ export default function NewsletterGenerator() {
                 </div>
               </div>
               <p className="text-xs text-gray-500 mt-2">
-                💡 Valitse vapaa aikaväli uutiskirjeelle - voit tehdä uutiskirjeitä mihin tahansa tulevaisuuteen
+                💡 Aikaväli on ehdotettu automaattisesti kuukaudelle, jossa on seuraavaksi tapahtumia. Voit muuttaa aikaväliä vapaasti.
               </p>
             </div>
 

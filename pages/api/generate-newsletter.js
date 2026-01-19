@@ -19,19 +19,16 @@ export default async function handler(req, res) {
   } = req.body
 
   try {
-    // Käytä käyttäjän valitsemia päivämääriä
-    const startDate = new Date(startDateStr)
-    startDate.setHours(0, 0, 0, 0)
-
-    const endDate = new Date(endDateStr)
-    endDate.setHours(23, 59, 59, 999)
+    // Käytä päivämäärämerkkijonoja suoraan (välttää aikavyöhykeongelmia)
+    const startDate = startDateStr
+    const endDate = endDateStr
 
     // Hae tapahtumat valitulta aikaväliltä
     const { data: events, error: eventsError } = await supabase
       .from('events')
       .select('*')
-      .gte('date', startDate.toISOString().split('T')[0])
-      .lte('date', endDate.toISOString().split('T')[0])
+      .gte('date', startDate)
+      .lte('date', endDate)
       .order('date', { ascending: true })
 
     if (eventsError) {
@@ -74,7 +71,7 @@ export default async function handler(req, res) {
 
 TYYLI: ${toneInstructions[tone] || toneInstructions.casual}
 
-TAPAHTUMAT (${startDate.toLocaleDateString('fi-FI')} - ${endDate.toLocaleDateString('fi-FI')}):
+TAPAHTUMAT (${new Date(startDate).toLocaleDateString('fi-FI')} - ${new Date(endDate).toLocaleDateString('fi-FI')}):
 ${eventsText}
 
 LUO UUTISKIRJE SEURAAVILLA OSIOILLA:
@@ -217,8 +214,8 @@ Vastaa AINA JSON-muodossa. Älä lisää markdown-muotoilua tai muuta tekstiä, 
       variants,
       html,
       dateRange: {
-        start: startDate.toLocaleDateString('fi-FI'),
-        end: endDate.toLocaleDateString('fi-FI')
+        start: new Date(startDate).toLocaleDateString('fi-FI'),
+        end: new Date(endDate).toLocaleDateString('fi-FI')
       }
     })
 
@@ -366,7 +363,7 @@ function generateNewsletterHTML(content, allEvents, startDate, endDate) {
   <div class="container">
     <div class="header">
       <h1>🌿 Kirkkopuiston Terassi</h1>
-      <p>${startDate.toLocaleDateString('fi-FI')} - ${endDate.toLocaleDateString('fi-FI')}</p>
+      <p>${new Date(startDate).toLocaleDateString('fi-FI')} - ${new Date(endDate).toLocaleDateString('fi-FI')}</p>
     </div>
 
     <div class="content">

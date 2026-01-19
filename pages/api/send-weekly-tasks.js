@@ -1,7 +1,14 @@
 import { supabase } from '../../lib/supabase'
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+// Lazy-load Resend vain kun sitä tarvitaan
+function getResendClient() {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey || apiKey === 'your_resend_api_key_here') {
+    throw new Error('RESEND_API_KEY puuttuu tai on placeholder-arvo. Aseta oikea API-avain .env.local tiedostoon.')
+  }
+  return new Resend(apiKey)
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -137,6 +144,9 @@ export default async function handler(req, res) {
           error: 'Ei vastaanottajia. Lisää tiimin jäsenille sähköpostiosoitteet.'
         })
       }
+
+      // Luo Resend-client vasta kun sitä tarvitaan
+      const resend = getResendClient()
 
       // Lähetä sähköposti jokaiselle tiimin jäsenelle
       const emailPromises = teamMembers.map(member =>

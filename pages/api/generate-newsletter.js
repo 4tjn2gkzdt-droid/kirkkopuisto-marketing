@@ -1,4 +1,4 @@
-import { supabase } from '../../lib/supabase'
+import { supabaseAdmin } from '../../lib/supabase-admin'
 import { Resend } from 'resend'
 import Anthropic from '@anthropic-ai/sdk'
 
@@ -33,33 +33,68 @@ export default async function handler(req, res) {
     }
 
     // Hae tapahtumat SUORAAN ID:n perusteella - ei päivämääräsuodatuksia!
-    console.log('Fetching events by IDs:', selectedEventIds)
+    console.log('=== NEWSLETTER API: Fetching events ===')
+    console.log('Selected event IDs:', selectedEventIds)
+    console.log('IDs type:', typeof selectedEventIds[0])
+    console.log('IDs count:', selectedEventIds.length)
 
-    const { data: events, error: eventsError } = await supabase
+    const { data: events, error: eventsError } = await supabaseAdmin
       .from('events')
       .select('*')
       .in('id', selectedEventIds)
       .order('date', { ascending: true })
 
-    console.log('Fetched events:', {
-      eventsCount: events?.length || 0,
-      error: eventsError?.message,
-      eventIds: events?.map(e => e.id),
-      eventDates: events?.map(e => ({ id: e.id, date: e.date, title: e.title }))
-    })
+    console.log('=== NEWSLETTER API: Query result ===')
+    console.log('Events found:', events?.length || 0)
+    console.log('Error:', eventsError)
+    if (events && events.length > 0) {
+      console.log('First event:', {
+        id: events[0].id,
+        title: events[0].title,
+        date: events[0].date
+      })
+    }
 
     if (eventsError) {
-      throw eventsError
+      console.error('=== NEWSLETTER API: Supabase error ===')
+      console.error('Error details:', eventsError)
+      return res.status(500).json({
+        success: false,
+        error: 'Tietokantavirhe tapahtumien haussa',
+        details: eventsError.message,
+        debug: {
+          selectedEventIds,
+          errorCode: eventsError.code,
+          errorHint: eventsError.hint
+        }
+      })
     }
 
     if (!events || events.length === 0) {
-      console.log('No events found with given IDs')
+      console.log('=== NEWSLETTER API: No events found ===')
+      console.log('Selected IDs:', selectedEventIds)
+
+      // Kokeile hakea KAIKKI tapahtumat debuggausta varten
+      const { data: allEvents, error: allEventsError } = await supabaseAdmin
+        .from('events')
+        .select('id, title, date')
+        .limit(10)
+
+      console.log('All events in database (first 10):', allEvents?.map(e => ({
+        id: e.id,
+        idType: typeof e.id,
+        title: e.title
+      })))
+
       return res.status(400).json({
         success: false,
         error: 'Valittuja tapahtumia ei löytynyt tietokannasta',
         debug: {
           selectedEventIds,
-          selectedEventIdsCount: selectedEventIds?.length || 0
+          selectedEventIdsTypes: selectedEventIds.map(id => typeof id),
+          selectedEventIdsCount: selectedEventIds?.length || 0,
+          databaseHasEvents: (allEvents?.length || 0) > 0,
+          sampleDatabaseIds: allEvents?.slice(0, 3).map(e => ({ id: e.id, type: typeof e.id }))
         }
       })
     }
@@ -191,7 +226,7 @@ Vastaa AINA JSON-muodossa. Älä lisää markdown-muotoilua tai muuta tekstiä, 
 
     // Jos pyydetään lähettämään sähköpostit
     if (sendEmails) {
-      const { data: teamMembers, error: teamError } = await supabase
+      const { data: teamMembers, error: teamError } = await supabaseAdmin
         .from('team_members')
         .select('*')
         .not('email', 'is', null)

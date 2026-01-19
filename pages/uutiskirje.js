@@ -203,11 +203,12 @@ export default function NewsletterGenerator() {
       return
     }
 
-    console.log('Frontend: Sending newsletter generation request:', {
-      selectedEventIds,
-      selectedEventIdsCount: selectedEventIds.length,
-      tone
-    })
+    console.log('=== FRONTEND: Newsletter generation request ===')
+    console.log('Selected event IDs:', selectedEventIds)
+    console.log('IDs count:', selectedEventIds.length)
+    console.log('IDs types:', selectedEventIds.map(id => typeof id))
+    console.log('First 3 IDs:', selectedEventIds.slice(0, 3))
+    console.log('Tone:', tone)
 
     setGenerating(true)
     setVariants([])
@@ -226,6 +227,18 @@ export default function NewsletterGenerator() {
       })
 
       const data = await response.json()
+
+      console.log('=== FRONTEND: API response ===')
+      console.log('Success:', data.success)
+      console.log('Events found:', data.events?.length || 0)
+      console.log('Variants:', data.variants?.length || 0)
+      if (data.debug) {
+        console.log('Debug info:', data.debug)
+      }
+      if (data.error) {
+        console.error('API error:', data.error)
+        console.error('Error details:', data.details)
+      }
 
       if (data.success) {
         if (data.variants && data.variants.length > 0) {

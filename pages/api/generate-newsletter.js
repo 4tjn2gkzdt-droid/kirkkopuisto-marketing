@@ -12,10 +12,12 @@ function getResendClient() {
 }
 
 export default async function handler(req, res) {
+  console.log('=== GENERATE-NEWSLETTER API CALLED ===')
   try {
     if (req.method !== 'POST') {
       return res.status(405).json({ error: 'Method not allowed' })
     }
+    console.log('Method check passed')
 
     const {
       tone = 'casual', // casual, formal, energetic
@@ -163,12 +165,15 @@ MUOTOILE VASTAUS TÄHÄN JSON-MUOTOON:
 Pidä teksti napakkana ja helppolukuisena. Käytä emojeja säästeliäästi.`
 
     // Kutsu Claude API:ta - luo 3 varianttia
+    console.log('About to check Anthropic API key...')
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) {
       throw new Error('ANTHROPIC_API_KEY puuttuu')
     }
+    console.log('Anthropic API key exists, creating client...')
 
     const anthropic = new Anthropic({ apiKey })
+    console.log('Anthropic client created successfully')
 
     console.log('Generating newsletter variants with Claude AI...')
 
@@ -290,13 +295,18 @@ Vastaa AINA JSON-muodossa. Älä lisää markdown-muotoilua tai muuta tekstiä, 
   } catch (error) {
     console.error('=== NEWSLETTER API: Unexpected error ===')
     console.error('Error type:', error.constructor.name)
+    console.error('Error name:', error.name)
     console.error('Error message:', error.message)
+    console.error('Error code:', error.code)
     console.error('Error stack:', error.stack)
+    console.error('Full error object:', JSON.stringify(error, null, 2))
 
     res.status(500).json({
       success: false,
       error: error.message || 'Unknown error',
       errorType: error.constructor.name,
+      errorName: error.name,
+      errorCode: error.code,
       details: error.toString(),
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     })

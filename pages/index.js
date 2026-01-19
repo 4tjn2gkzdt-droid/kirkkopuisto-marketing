@@ -260,6 +260,8 @@ export default function Home() {
           console.log('[AUTH] Continuing without profile');
         } else {
           console.log('[AUTH] Profile loaded:', profile.full_name);
+          console.log('[AUTH] Profile is_admin:', profile.is_admin);
+          console.log('[AUTH] Full profile:', profile);
           setUserProfile(profile);
         }
 
@@ -294,6 +296,8 @@ export default function Home() {
 
         if (profile) {
           console.log('[AUTH] Profile updated');
+          console.log('[AUTH] Updated is_admin:', profile.is_admin);
+          console.log('[AUTH] Updated full profile:', profile);
           setUserProfile(profile);
         }
       }
@@ -1869,6 +1873,20 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   </button>
                 </Link>
               )}
+
+              {/* DEBUG: Näytä admin-status */}
+              <div className="flex gap-2 items-center">
+                <div className="bg-gray-800 text-white px-3 py-2 rounded text-xs font-mono">
+                  Admin: {userProfile?.is_admin ? '✅ TRUE' : '❌ FALSE'}
+                  {!userProfile && ' (profile ei ladattu)'}
+                </div>
+                <Link href="/profile-debug">
+                  <button className="bg-yellow-600 text-white px-3 py-2 rounded text-xs hover:bg-yellow-700">
+                    🔍 Debug
+                  </button>
+                </Link>
+              </div>
+
               <button
                 onClick={handleLogout}
                 className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 font-medium"

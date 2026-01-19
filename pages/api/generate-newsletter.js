@@ -23,19 +23,54 @@ export default async function handler(req, res) {
     const startDate = startDateStr
     const endDate = endDateStr
 
-    // Hae tapahtumat valitulta aikaväliltä
-    const { data: events, error: eventsError } = await supabase
-      .from('events')
-      .select('*')
-      .gte('date', startDate)
-      .lte('date', endDate)
-      .order('date', { ascending: true })
+    console.log('Newsletter generation request:', {
+      startDate,
+      endDate,
+      selectedEventIds,
+      selectedEventIdsCount: selectedEventIds?.length || 0
+    })
+
+    // Jos valittuja tapahtumia on, hae ne suoraan ID:iden perusteella
+    // Tämä välttää aikavyöhykeongelmat päivämäärävertailussa
+    let events = []
+    let eventsError = null
+
+    if (selectedEventIds && selectedEventIds.length > 0) {
+      console.log('Fetching events by IDs:', selectedEventIds)
+      const result = await supabase
+        .from('events')
+        .select('*')
+        .in('id', selectedEventIds)
+        .order('date', { ascending: true })
+
+      events = result.data
+      eventsError = result.error
+    } else {
+      console.log('Fetching events by date range:', startDate, '-', endDate)
+      const result = await supabase
+        .from('events')
+        .select('*')
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: true })
+
+      events = result.data
+      eventsError = result.error
+    }
+
+    console.log('Events query result:', {
+      eventsCount: events?.length || 0,
+      error: eventsError,
+      firstEvent: events?.[0]?.date,
+      lastEvent: events?.[events?.length - 1]?.date
+    })
 
     if (eventsError) {
       throw eventsError
     }
 
     if (!events || events.length === 0) {
+      console.log('No events found')
       return res.status(200).json({
         success: true,
         message: 'Ei tapahtumia valitulla aikavälillä',
@@ -44,10 +79,8 @@ export default async function handler(req, res) {
       })
     }
 
-    // Suodata valitut tapahtumat korostettavaksi
-    const selectedEvents = selectedEventIds.length > 0
-      ? events.filter(e => selectedEventIds.includes(e.id))
-      : events
+    // Jos valittuja tapahtumia on, käytä niitä; muuten käytä kaikkia aikavälin tapahtumia
+    const selectedEvents = events
 
     // Muotoile valitut tapahtumat AI:lle (korostettavat)
     const eventsText = selectedEvents.map(event => {

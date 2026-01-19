@@ -27,11 +27,9 @@ export default async function handler(req, res) {
     endDate.setHours(23, 59, 59, 999)
 
     // Hae tapahtumat valitulta aikaväliltä
-    const year = new Date().getFullYear()
     const { data: events, error: eventsError } = await supabase
       .from('events')
       .select('*')
-      .eq('year', year)
       .gte('date', startDate.toISOString().split('T')[0])
       .lte('date', endDate.toISOString().split('T')[0])
       .order('date', { ascending: true })

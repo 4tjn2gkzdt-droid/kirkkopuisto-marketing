@@ -13,7 +13,8 @@ export default async function handler(req, res) {
     weeksAhead = 1, // Kuinka monta viikkoa eteenpäin
     tone = 'casual', // casual, formal, energetic
     sendEmails = false,
-    selectedVariant = 0 // Mikä variantti lähetetään (0-2)
+    selectedVariant = 0, // Mikä variantti lähetetään (0-2)
+    selectedEventIds = [] // Valitut tapahtumat korostettavaksi
   } = req.body
 
   try {
@@ -49,8 +50,13 @@ export default async function handler(req, res) {
       })
     }
 
-    // Muotoile tapahtumat AI:lle
-    const eventsText = events.map(event => {
+    // Suodata valitut tapahtumat korostettavaksi
+    const selectedEvents = selectedEventIds.length > 0
+      ? events.filter(e => selectedEventIds.includes(e.id))
+      : events
+
+    // Muotoile valitut tapahtumat AI:lle (korostettavat)
+    const eventsText = selectedEvents.map(event => {
       const eventDate = new Date(event.date)
       const dateStr = eventDate.toLocaleDateString('fi-FI', {
         weekday: 'long',
@@ -143,7 +149,7 @@ Vastaa AINA JSON-muodossa. Älä lisää markdown-muotoilua tai muuta tekstiä, 
           content: {
             subject: `Tulevat tapahtumat Kirkkopuiston Terassilla`,
             intro: `Katso mitä jännittävää on tulossa!`,
-            events: events.map(e => ({
+            events: selectedEvents.map(e => ({
               title: e.title,
               date: new Date(e.date).toLocaleDateString('fi-FI'),
               description: e.summary || 'Tule mukaan!'
@@ -229,9 +235,11 @@ Vastaa AINA JSON-muodossa. Älä lisää markdown-muotoilua tai muuta tekstiä, 
 }
 
 // HTML-generaattori funktio
-function generateNewsletterHTML(content, events, startDate, endDate) {
-  const eventCards = content.events.map((event, index) => {
-    const originalEvent = events[index]
+function generateNewsletterHTML(content, allEvents, startDate, endDate) {
+  // Korostettavat tapahtumat (yksityiskohtaiset kortit)
+  const eventCards = content.events.map((event) => {
+    // Etsi alkuperäinen tapahtuma kuvaa varten
+    const originalEvent = allEvents.find(e => e.title === event.title)
     const imageUrl = originalEvent?.images?.[0] || ''
 
     return `
@@ -244,6 +252,29 @@ function generateNewsletterHTML(content, events, startDate, endDate) {
           <p style="margin: 5px 0; color: #666; font-size: 14px;">📅 ${event.date}</p>
           <p style="margin: 15px 0 0 0; color: #333; line-height: 1.6;">${event.description}</p>
         </div>
+      </div>
+    `
+  }).join('')
+
+  // Kaikki tapahtumat selkeänä listana
+  const allEventsList = allEvents.map(event => {
+    const eventDate = new Date(event.date)
+    const dateStr = eventDate.toLocaleDateString('fi-FI', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'numeric'
+    })
+    const timeStr = event.time ? ` klo ${event.time}` : ''
+
+    return `
+      <div style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+        <span style="font-weight: 600; color: #16a34a;">🎵</span>
+        <strong style="color: #111827;">${event.title}</strong>
+        ${event.artist ? `<span style="color: #6b7280;"> - ${event.artist}</span>` : ''}
+        <br>
+        <span style="color: #6b7280; font-size: 14px; margin-left: 20px;">
+          ${dateStr}${timeStr}
+        </span>
       </div>
     `
   }).join('')
@@ -352,6 +383,14 @@ function generateNewsletterHTML(content, events, startDate, endDate) {
         <p>${content.cta}</p>
         <a href="https://www.kirkkopuistonterassi.fi" class="button">Tutustu tapahtumiin</a>
         <a href="https://www.instagram.com/kirkkopuistonterassi" class="button">Seuraa Instagramissa</a>
+      </div>
+
+      <!-- Kaikki tapahtumat listana -->
+      <div style="background: #f9fafb; border-radius: 10px; padding: 20px; margin: 30px 0;">
+        <h3 style="margin: 0 0 15px 0; color: #16a34a; font-size: 18px;">📅 Kaikki tapahtumat</h3>
+        <div style="background: white; border-radius: 8px; padding: 15px;">
+          ${allEventsList}
+        </div>
       </div>
     </div>
 

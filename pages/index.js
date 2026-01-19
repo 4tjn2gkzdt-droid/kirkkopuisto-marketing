@@ -1249,6 +1249,112 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
     alert(`✨ Sisältö generoitu ${tasksToGenerate.length} tehtävälle!`);
   };
 
+  // Uusi: Generoi sisältö kaikille kanaville kerralla optimoituna
+  const generateMultichannelContent = async (event) => {
+    if (!event || !event.tasks || event.tasks.length === 0) {
+      alert('Tapahtumalla ei ole tehtäviä');
+      return;
+    }
+
+    // Kysytään käyttäjältä mitkä kanavat
+    const availableChannels = ['instagram', 'facebook', 'tiktok', 'linkedin', 'newsletter'];
+    const eventChannels = [...new Set(event.tasks.map(t => t.channel))];
+
+    // Mappi kanavista
+    const channelMap = {
+      'instagram': 'instagram',
+      'facebook': 'facebook',
+      'tiktok': 'tiktok',
+      'linkedin': 'linkedin',
+      'newsletter': 'newsletter',
+      'uutiskirje': 'newsletter'
+    };
+
+    const selectedChannels = eventChannels
+      .map(ch => channelMap[ch.toLowerCase()])
+      .filter(ch => ch && availableChannels.includes(ch));
+
+    if (selectedChannels.length === 0) {
+      alert('Ei tuettuja kanavia tälle tapahtumalle');
+      return;
+    }
+
+    if (!confirm(`Luodaanko optimoitu sisältö ${selectedChannels.length} kanavalle?\n\n${selectedChannels.join(', ')}`)) {
+      return;
+    }
+
+    setIsGenerating(true);
+
+    try {
+      const response = await fetch('/api/optimize-multichannel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: {
+            title: event.title,
+            artist: event.artist,
+            date: event.date,
+            time: event.time,
+            summary: event.summary
+          },
+          channels: selectedChannels
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Virhe sisällön generoinnissa');
+      }
+
+      const contents = data.contents;
+
+      // Päivitä tehtävät sisällöllä
+      let updatedCount = 0;
+      for (const task of event.tasks) {
+        const channelKey = channelMap[task.channel.toLowerCase()];
+        if (channelKey && contents[channelKey]) {
+          const newContent = contents[channelKey];
+
+          // Päivitä Supabaseen
+          if (supabase && typeof task.id === 'number') {
+            await supabase
+              .from('tasks')
+              .update({ content: newContent })
+              .eq('id', task.id);
+          }
+
+          // Päivitä UI
+          setPosts(prev => {
+            const yearPosts = prev[selectedYear] || [];
+            const updatedPosts = yearPosts.map(p => {
+              if (p.id === event.id) {
+                return {
+                  ...p,
+                  tasks: p.tasks.map(t =>
+                    t.id === task.id ? { ...t, content: newContent } : t
+                  )
+                };
+              }
+              return p;
+            });
+            return { ...prev, [selectedYear]: updatedPosts };
+          });
+
+          updatedCount++;
+        }
+      }
+
+      alert(`✨ Luotu optimoitu sisältö ${updatedCount} tehtävälle!`);
+
+    } catch (error) {
+      console.error('Error generating multichannel content:', error);
+      alert('Virhe sisällön generoinnissa: ' + error.message);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   const addTaskToNewEvent = () => {
     const newTask = {
       id: `temp-${Date.now()}`,
@@ -1906,6 +2012,11 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
               <Link href="/ideoi">
                 <button className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
                   💡 Ideoi sisältöä
+                </button>
+              </Link>
+              <Link href="/uutiskirje">
+                <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                  📧 Uutiskirje
                 </button>
               </Link>
               <Link href="/poista-duplikaatit">
@@ -2692,6 +2803,14 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                         </div>
 
                         <div className="flex gap-2">
+                          <button
+                            onClick={() => generateMultichannelContent(post)}
+                            className="p-2 bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 rounded hover:from-purple-200 hover:to-pink-200"
+                            title="Luo kaikille kanaville - AI optimoi sisällön jokaiselle kanavalle"
+                            disabled={isGenerating}
+                          >
+                            ✨🌐
+                          </button>
                           <button
                             onClick={() => {
                               // Kopioi tapahtuma

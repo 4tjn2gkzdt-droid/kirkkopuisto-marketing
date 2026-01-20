@@ -67,6 +67,10 @@ ANNA 5-8 KONKREETTISTA SISÄLTÖEHDOTUSTA:
 - Mitä julkaista
 - Mihin kanavaan
 - Miksi juuri nyt
+- Luo KOLME eri pituista caption-versiota jokaiselle ehdotukselle:
+  * short: Lyhyt, napakka versio (1-2 lausetta)
+  * medium: Keskipitkä versio (2-4 lausetta)
+  * long: Pitkä, yksityiskohtainen versio (5-8 lausetta)
 
 Muotoile JSON:
 {
@@ -76,7 +80,12 @@ Muotoile JSON:
       "type": "Viikko-ohjelma",
       "channel": "Instagram",
       "reason": "Maanantai-aamuna viikon avaus",
-      "priority": "high/medium/low"
+      "priority": "high/medium/low",
+      "captions": {
+        "short": "Lyhyt caption-teksti tähän",
+        "medium": "Keskipitkä caption-teksti tähän",
+        "long": "Pitkä caption-teksti tähän"
+      }
     }
   ]
 }`

@@ -1,5 +1,4 @@
 import { supabase } from '../../lib/supabase'
-import cors from '../../lib/cors'
 import Anthropic from '@anthropic-ai/sdk'
 import cors from '../../lib/cors'
 

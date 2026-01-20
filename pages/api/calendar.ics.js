@@ -1,6 +1,13 @@
 import { supabase } from '../../lib/supabase';
 import cors from '../../lib/cors';
 
+// Apufunktio: Parsii YYYY-MM-DD stringin paikalliseksi Date-objektiksi (ei UTC)
+function parseLocalDate(dateString) {
+  if (!dateString) return new Date()
+  const [year, month, day] = dateString.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
 async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -64,7 +71,7 @@ async function handler(req, res) {
 
     // Lisää tapahtumat
     events.forEach(event => {
-      const eventDate = new Date(event.date);
+      const eventDate = parseLocalDate(event.date);
       let startTime = eventDate;
       let endTime = new Date(eventDate);
 
@@ -117,7 +124,7 @@ async function handler(req, res) {
       if (includeTasks && event.tasks) {
         event.tasks.forEach(task => {
           if (task.due_date && !task.completed) {
-            const dueDate = new Date(task.due_date);
+            const dueDate = parseLocalDate(task.due_date);
 
             if (task.due_time) {
               const [hours, minutes] = task.due_time.split(':');
@@ -180,7 +187,7 @@ async function handler(req, res) {
 
     // Lisää somepostaukset
     socialPosts.forEach(post => {
-      const postDate = new Date(post.date);
+      const postDate = parseLocalDate(post.date);
       let startTime = postDate;
       let endTime = new Date(postDate);
 

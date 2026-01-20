@@ -65,6 +65,15 @@ export default function ContentCalendar() {
         setAiSuggestions(data.aiSuggestions || [])
         setEvents(data.events || [])
         setSocialPosts(data.socialPosts || [])
+
+        // Näytä varoitus jos AI-ehdotuksia ei tullut
+        if (!data.aiSuggestions || data.aiSuggestions.length === 0) {
+          if (data.message) {
+            alert('⚠️ ' + data.message)
+          } else {
+            alert('⚠️ AI-ehdotuksia ei voitu generoida. Tarkista console-logi.')
+          }
+        }
       } else {
         alert('Virhe analyysissä: ' + (data.error || 'Tuntematon virhe'))
       }
@@ -119,6 +128,18 @@ export default function ContentCalendar() {
       // Käytä customCaption jos annettu, muuten reason
       const captionText = customCaption || suggestion.reason
 
+      // Tallenna myös AI-ehdotukset notes-kenttään
+      let notesText = 'Luotu AI-ehdotuksesta'
+      if (suggestion.captions) {
+        notesText += '\n\n🤖 AI-EHDOTUKSET:\n\n'
+        notesText += '📝 LYHYT:\n' + suggestion.captions.short + '\n\n'
+        notesText += '📄 KESKIPITKÄ:\n' + suggestion.captions.medium + '\n\n'
+        notesText += '📜 PITKÄ:\n' + suggestion.captions.long
+      }
+
+      // Ekstraktoi vuosi päivämäärästä
+      const year = parseInt(suggestion.date.split('-')[0])
+
       // Luo uusi somepostaus
       const { data, error } = await supabase
         .from('social_media_posts')
@@ -126,11 +147,12 @@ export default function ContentCalendar() {
           title: suggestion.type,
           date: suggestion.date,
           time: '12:00',
+          year: year,
           type: suggestion.type.toLowerCase().replace(/\s+/g, '-'),
           channels: [channel],
           status: 'suunniteltu',
           caption: captionText,
-          notes: 'Luotu AI-ehdotuksesta',
+          notes: notesText,
           created_by_id: user.id,
           created_by_email: user.email,
           created_by_name: user.user_metadata?.full_name || user.email
@@ -141,9 +163,8 @@ export default function ContentCalendar() {
 
       alert('✅ Ehdotus lisätty kalenteriin!')
 
-      // Päivitä listaus poistamalla lisätty ehdotus
-      setAiSuggestions(prev => prev.filter((_, i) => _ !== suggestion))
-      setExpandedSuggestion(null)
+      // ÄLÄ poista ehdotusta listasta - käyttäjä haluaa että ne jäävät näkyviin
+      // Tyhjennä vain muokattava kenttä
       setEditableCaption('')
 
     } catch (error) {

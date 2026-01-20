@@ -2,6 +2,21 @@ import { supabase } from '../../lib/supabase'
 import Anthropic from '@anthropic-ai/sdk'
 import cors from '../../lib/cors'
 
+// Apufunktio: Parsii YYYY-MM-DD stringin paikalliseksi Date-objektiksi (ei UTC)
+function parseLocalDate(dateString) {
+  if (!dateString) return new Date()
+  const [year, month, day] = dateString.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
+// Apufunktio: Muuntaa Date-objektin YYYY-MM-DD stringiksi paikallisessa ajassa
+function formatLocalDate(date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -10,15 +25,15 @@ async function handler(req, res) {
   const { startDate, endDate } = req.body
 
   try {
-    const start = startDate ? new Date(startDate) : new Date()
-    const end = endDate ? new Date(endDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+    const start = startDate ? parseLocalDate(startDate) : new Date()
+    const end = endDate ? parseLocalDate(endDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
 
     // Hae tapahtumat
     const { data: events, error: eventsError } = await supabase
       .from('events')
       .select('*, tasks (*)')
-      .gte('date', start.toISOString().split('T')[0])
-      .lte('date', end.toISOString().split('T')[0])
+      .gte('date', formatLocalDate(start))
+      .lte('date', formatLocalDate(end))
       .order('date', { ascending: true })
 
     if (eventsError) throw eventsError
@@ -27,8 +42,8 @@ async function handler(req, res) {
     const { data: socialPosts, error: socialError } = await supabase
       .from('social_media_posts')
       .select('*')
-      .gte('date', start.toISOString().split('T')[0])
-      .lte('date', end.toISOString().split('T')[0])
+      .gte('date', formatLocalDate(start))
+      .lte('date', formatLocalDate(end))
       .order('date', { ascending: true })
 
     if (socialError) throw socialError
@@ -90,29 +105,35 @@ Muotoile JSON:
   ]
 }`
 
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2048,
-      temperature: 0.7,
-      messages: [{
-        role: 'user',
-        content: summary
-      }],
-      system: `Olet sisältöstrategisti Kirkkopuiston Terassille.
-Analysoit sisältökalenteria ja ehdotat sisältöä.
-Vastaa AINA JSON-muodossa.`
-    })
-
-    const textContent = response.content.find(block => block.type === 'text')
-    let contentText = textContent?.text || '{}'
-    contentText = contentText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-
     let aiSuggestions = []
     try {
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        temperature: 0.7,
+        messages: [{
+          role: 'user',
+          content: summary
+        }],
+        system: `Olet sisältöstrategisti Kirkkopuiston Terassille.
+Analysoit sisältökalenteria ja ehdotat sisältöä.
+Vastaa AINA JSON-muodossa.`
+      })
+
+      const textContent = response.content.find(block => block.type === 'text')
+      let contentText = textContent?.text || '{}'
+
+      console.log('AI response:', contentText.substring(0, 200)) // Debug log
+
+      contentText = contentText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+
       const parsed = JSON.parse(contentText)
       aiSuggestions = parsed.suggestions || []
-    } catch (parseError) {
-      console.error('Failed to parse AI suggestions:', parseError)
+
+      console.log(`AI generated ${aiSuggestions.length} suggestions`) // Debug log
+    } catch (aiError) {
+      console.error('AI suggestion generation failed:', aiError)
+      // Palauta virhe käyttäjälle mutta älä kaada koko requestia
       aiSuggestions = []
     }
 
@@ -141,7 +162,7 @@ function analyzeContentGaps(events, socialPosts, startDate, endDate) {
   const weeks = getWeeksInRange(startDate, endDate)
   weeks.forEach(week => {
     const weekPosts = socialPosts.filter(p => {
-      const postDate = new Date(p.date)
+      const postDate = parseLocalDate(p.date)
       return postDate >= week.start && postDate <= week.end && p.type === 'viikko-ohjelma'
     })
 
@@ -149,7 +170,7 @@ function analyzeContentGaps(events, socialPosts, startDate, endDate) {
       gaps.push({
         type: 'missing-weekly-program',
         description: `Viikko-ohjelma puuttuu viikolle ${week.start.toLocaleDateString('fi-FI')}`,
-        date: week.start,
+        date: formatLocalDate(week.start),
         priority: 'high'
       })
     }
@@ -157,13 +178,13 @@ function analyzeContentGaps(events, socialPosts, startDate, endDate) {
 
   // Tarkista tapahtumien markkinointi
   events.forEach(event => {
-    const eventDate = new Date(event.date)
+    const eventDate = parseLocalDate(event.date)
     const twoDaysBefore = new Date(eventDate)
     twoDaysBefore.setDate(twoDaysBefore.getDate() - 2)
 
     // Onko last-minute markkinointia?
     const lastMinutePosts = socialPosts.filter(p => {
-      const postDate = new Date(p.date)
+      const postDate = parseLocalDate(p.date)
       return postDate >= twoDaysBefore && postDate < eventDate && p.linked_event_id === event.id
     })
 
@@ -171,7 +192,7 @@ function analyzeContentGaps(events, socialPosts, startDate, endDate) {
       gaps.push({
         type: 'missing-last-minute',
         description: `Last minute -markkinointi puuttuu: ${event.title}`,
-        date: twoDaysBefore,
+        date: formatLocalDate(twoDaysBefore),
         priority: 'medium',
         eventId: event.id
       })
@@ -182,7 +203,7 @@ function analyzeContentGaps(events, socialPosts, startDate, endDate) {
     oneDayAfter.setDate(oneDayAfter.getDate() + 1)
 
     const thankYouPosts = socialPosts.filter(p => {
-      const postDate = new Date(p.date)
+      const postDate = parseLocalDate(p.date)
       return postDate > eventDate && postDate <= oneDayAfter && p.linked_event_id === event.id
     })
 
@@ -190,7 +211,7 @@ function analyzeContentGaps(events, socialPosts, startDate, endDate) {
       gaps.push({
         type: 'missing-thank-you',
         description: `Kiitos-postaus puuttuu: ${event.title}`,
-        date: oneDayAfter,
+        date: formatLocalDate(oneDayAfter),
         priority: 'low',
         eventId: event.id
       })
@@ -198,10 +219,10 @@ function analyzeContentGaps(events, socialPosts, startDate, endDate) {
   })
 
   // Tarkista onko pitkiä hiljaisia jaksoja (yli 3 päivää ilman postauksia)
-  const sortedPosts = [...socialPosts].sort((a, b) => new Date(a.date) - new Date(b.date))
+  const sortedPosts = [...socialPosts].sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date))
   for (let i = 0; i < sortedPosts.length - 1; i++) {
-    const currentDate = new Date(sortedPosts[i].date)
-    const nextDate = new Date(sortedPosts[i + 1].date)
+    const currentDate = parseLocalDate(sortedPosts[i].date)
+    const nextDate = parseLocalDate(sortedPosts[i + 1].date)
     const daysDiff = Math.ceil((nextDate - currentDate) / (1000 * 60 * 60 * 24))
 
     if (daysDiff > 3) {
@@ -211,7 +232,7 @@ function analyzeContentGaps(events, socialPosts, startDate, endDate) {
       gaps.push({
         type: 'long-silence',
         description: `${daysDiff} päivän hiljainen jakso`,
-        date: middleDate,
+        date: formatLocalDate(middleDate),
         priority: 'medium'
       })
     }

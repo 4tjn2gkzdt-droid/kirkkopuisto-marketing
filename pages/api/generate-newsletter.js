@@ -1,7 +1,6 @@
 import { supabaseAdmin } from '../../lib/supabase-admin'
 import { Resend } from 'resend'
 import Anthropic from '@anthropic-ai/sdk'
-import cors from '../../lib/cors'
 
 // Lazy-load Resend vain kun sitä tarvitaan
 function getResendClient() {
@@ -21,9 +20,18 @@ export const config = {
   },
 }
 
-async function handler(req, res) {
-  // Aseta JSON content-type heti alussa
+export default async function handler(req, res) {
+  // Set CORS headers first
+  res.setHeader('Access-Control-Allow-Credentials', 'true')
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT')
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization')
   res.setHeader('Content-Type', 'application/json')
+
+  // Handle preflight OPTIONS request
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end()
+  }
 
   console.log('=== GENERATE-NEWSLETTER API CALLED ===')
   console.log('Request method:', req.method)
@@ -518,5 +526,3 @@ function generateNewsletterHTML(content, allEvents, startDate, endDate) {
 </html>
   `
 }
-
-export default cors(handler)

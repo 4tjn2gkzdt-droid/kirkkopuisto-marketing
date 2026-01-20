@@ -124,7 +124,7 @@ Vastaa VAIN puhtaalla JSON:lla, ei muuta tekstiä.`
     console.log('Sending request to Claude API...')
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 3072,
       temperature: 0.7,
       messages: [{

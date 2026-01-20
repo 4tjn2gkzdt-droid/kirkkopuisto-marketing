@@ -52,7 +52,7 @@ async function handler(req, res) {
     console.log('Sending request to Claude API...');
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 1024,
       messages: [{
         role: 'user',

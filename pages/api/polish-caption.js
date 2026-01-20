@@ -47,7 +47,7 @@ Palauta vastaus JSON-muodossa:
 }`
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 1500,
       temperature: 0.7,
       messages: [{

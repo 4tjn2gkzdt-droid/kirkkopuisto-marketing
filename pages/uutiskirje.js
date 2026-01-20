@@ -43,6 +43,7 @@ export default function NewsletterGenerator() {
   // UI state
   const [showPreview, setShowPreview] = useState(false)
   const [teamMembers, setTeamMembers] = useState([])
+  const [copySuccess, setCopySuccess] = useState(false)
 
   useEffect(() => {
     checkUser()
@@ -359,6 +360,17 @@ export default function NewsletterGenerator() {
       alert('Virhe lähetyksessä: ' + error.message)
     } finally {
       setSending(false)
+    }
+  }
+
+  const handleCopyHTML = async () => {
+    try {
+      await navigator.clipboard.writeText(previewHtml)
+      setCopySuccess(true)
+      setTimeout(() => setCopySuccess(false), 2000)
+    } catch (error) {
+      console.error('Error copying:', error)
+      alert('Virhe kopioinnissa. Kokeile uudelleen.')
     }
   }
 
@@ -734,20 +746,32 @@ export default function NewsletterGenerator() {
                 />
               </div>
 
-              <div className="p-4 border-t border-gray-200 flex justify-end gap-3">
+              <div className="p-4 border-t border-gray-200 flex justify-between gap-3">
                 <button
-                  onClick={() => setShowPreview(false)}
-                  className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition"
+                  onClick={handleCopyHTML}
+                  className={`px-4 py-2 rounded-lg transition ${
+                    copySuccess
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                  }`}
                 >
-                  Sulje
+                  {copySuccess ? '✓ Kopioitu!' : '📋 Kopioi HTML'}
                 </button>
-                <button
-                  onClick={handleSend}
-                  disabled={sending}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition"
-                >
-                  {sending ? 'Lähetetään...' : 'Lähetä nyt'}
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowPreview(false)}
+                    className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition"
+                  >
+                    Sulje
+                  </button>
+                  <button
+                    onClick={handleSend}
+                    disabled={sending}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition"
+                  >
+                    {sending ? 'Lähetetään...' : 'Lähetä nyt'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

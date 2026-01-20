@@ -106,14 +106,22 @@ export default async function handler(req, res) {
 
     // Sävy-ohjeet
     const toneInstructions = {
-      casual: 'Käytä rentoa, ystävällistä ja helposti lähestyttävää sävyä.',
-      formal: 'Käytä ammattitaitoista, asiallista mutta lämmintä sävyä.',
-      energetic: 'Käytä energistä, innostavaa ja positiivista sävyä.'
+      casual: 'Käytä rentoa, leikkisää ja helposti lähestyttävää sävyä. Sinutellaan lukijaa.',
+      formal: 'Käytä ammattitaitoista, asiallista mutta lämmintä sävyä. Sinutellaan lukijaa.',
+      energetic: 'Käytä energistä, innostavaa ja positiivista sävyä. Sinutellaan lukijaa.'
     }
 
     const prompt = `Luo houkutteleva uutiskirje Kirkkopuiston Terassin tulevista tapahtumista.
 
 TYYLI: ${toneInstructions[tone] || toneInstructions.casual}
+- SINUTTELE lukijaa aina
+- Ole leikkisä mutta vältä liikaa imelyyttä
+- Älä käytä liioiteltuja ilmaisuja
+
+TÄRKEÄÄ:
+- Kirkkopuistossa EI VOI varata pöytiä eikä sinne myydä lippuja
+- ÄLÄ mainitse pöytävarauksia tai lippuja missään vaiheessa
+- Keskity tapahtumien tunnelmaan ja kokemukseen
 
 TAPAHTUMAT (${new Date(startDate).toLocaleDateString('fi-FI')} - ${new Date(endDate).toLocaleDateString('fi-FI')}):
 ${eventsText}
@@ -123,7 +131,7 @@ LUO UUTISKIRJE SEURAAVILLA OSIOILLA:
 1. **OTSIKKO** (subject line, 50-70 merkkiä, houkutteleva)
 2. **JOHDANTO** (1-2 kappaletta, luo tunnelmaa ja innostusta)
 3. **TAPAHTUMAKORTIT** (jokaiselle tapahtumalle oma osio, 2-3 lausetta per tapahtuma)
-4. **CTA-LOPPUOSA** (Call-to-action: rohkaise varaamaan pöytä, seuraamaan somessa, tms.)
+4. **CTA-LOPPUOSA** (Call-to-action: rohkaise tulemaan paikalle, seuraamaan somessa, kertomaan kavereillekin)
 
 MUOTOILE VASTAUS TÄHÄN JSON-MUOTOON:
 {
@@ -162,6 +170,8 @@ Pidä teksti napakkana ja helppolukuisena. Käytä emojeja säästeliäästi.`
       }],
       system: `Olet luova markkinointisisällön kirjoittaja Kirkkopuiston Terassille.
 Luo houkuttelevia uutiskirjeitä jotka saavat ihmiset innostumaan tapahtumista.
+TÄRKEÄÄ: Kirkkopuistossa ei voi varata pöytiä eikä sinne myydä lippuja. Älä mainitse näitä koskaan.
+Sinuttele lukijaa aina. Ole leikkisä mutta vältä liikaa imelyyttä.
 Vastaa AINA JSON-muodossa. Älä lisää markdown-muotoilua tai muuta tekstiä, vain puhdas JSON.`
     })
 
@@ -409,6 +419,7 @@ function generateNewsletterHTML(content, allEvents, startDate, endDate) {
         <p>${content.cta}</p>
         <a href="https://www.kirkkopuistonterassi.fi" class="button">Tutustu tapahtumiin</a>
         <a href="https://www.instagram.com/kirkkopuistonterassi" class="button">Seuraa Instagramissa</a>
+        <a href="https://www.facebook.com/kirkkopuistonterassi" class="button">Seuraa Facebookissa</a>
       </div>
 
       <div style="background: #f9fafb; border-radius: 10px; padding: 20px; margin: 30px 0;">

@@ -1,8 +1,13 @@
 // Skripti duplikaattitapahtumien poistamiseen
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://xygwnxithawewlqatold.supabase.co';
-const supabaseKey = 'sb_publishable_owvsPZGK3PqG_aHU5CoA0w_C15vwcMQ';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error('❌ Virhe: NEXT_PUBLIC_SUPABASE_URL ja NEXT_PUBLIC_SUPABASE_ANON_KEY ympäristömuuttujat vaaditaan');
+  process.exit(1);
+}
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 

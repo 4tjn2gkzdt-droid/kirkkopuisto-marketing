@@ -1,3 +1,4 @@
+// Uusi puhdas newsletter endpoint - perustuu toimivaan simple-test.js rakenteeseen
 import { supabaseAdmin } from '../../lib/supabase-admin'
 import { Resend } from 'resend'
 import Anthropic from '@anthropic-ai/sdk'
@@ -6,12 +7,11 @@ import Anthropic from '@anthropic-ai/sdk'
 function getResendClient() {
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey || apiKey === 'your_resend_api_key_here') {
-    throw new Error('RESEND_API_KEY puuttuu tai on placeholder-arvo. Aseta oikea API-avain .env.local tiedostoon.')
+    throw new Error('RESEND_API_KEY puuttuu tai on placeholder-arvo.')
   }
   return new Resend(apiKey)
 }
 
-// Disable body parser size limit and configure API route
 export const config = {
   api: {
     bodyParser: {
@@ -21,37 +21,31 @@ export const config = {
 }
 
 export default async function handler(req, res) {
-  // Set CORS headers first
-  res.setHeader('Access-Control-Allow-Credentials', 'true')
+  // CORS headers (yksinkertaiset, kuten simple-test.js)
   res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT')
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization')
-  res.setHeader('Content-Type', 'application/json')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
 
-  // Handle preflight OPTIONS request
+  // Käsittele OPTIONS
   if (req.method === 'OPTIONS') {
     return res.status(200).end()
   }
 
-  console.log('=== GENERATE-NEWSLETTER API CALLED ===')
-  console.log('Request method:', req.method)
+  // Vain POST sallittu
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
 
   try {
-    if (req.method !== 'POST') {
-      console.log('Method not allowed:', req.method)
-      return res.status(405).json({ error: 'Method not allowed' })
-    }
-    console.log('Method check passed')
-
     const {
-      tone = 'casual', // casual, formal, energetic
+      tone = 'casual',
       sendEmails = false,
-      selectedVariant = 0, // Mikä variantti lähetetään (0-2)
-      selectedEventIds = [] // Valitut tapahtumat - AINOA pakollinen kenttä!
+      selectedVariant = 0,
+      selectedEventIds = []
     } = req.body
-    console.log('Newsletter generation request:', {
+
+    console.log('Newsletter request:', {
       selectedEventIds,
-      selectedEventIdsCount: selectedEventIds?.length || 0,
       tone,
       sendEmails
     })
@@ -64,84 +58,35 @@ export default async function handler(req, res) {
       })
     }
 
-    // Hae tapahtumat SUORAAN ID:n perusteella - ei päivämääräsuodatuksia!
-    console.log('=== NEWSLETTER API: Fetching events ===')
-    console.log('Selected event IDs:', selectedEventIds)
-    console.log('IDs type:', typeof selectedEventIds[0])
-    console.log('IDs count:', selectedEventIds.length)
-
+    // Hae tapahtumat
     const { data: events, error: eventsError } = await supabaseAdmin
       .from('events')
       .select('*')
       .in('id', selectedEventIds)
       .order('date', { ascending: true })
 
-    console.log('=== NEWSLETTER API: Query result ===')
-    console.log('Events found:', events?.length || 0)
-    console.log('Error:', eventsError)
-    if (events && events.length > 0) {
-      console.log('First event:', {
-        id: events[0].id,
-        title: events[0].title,
-        date: events[0].date
-      })
-    }
-
     if (eventsError) {
-      console.error('=== NEWSLETTER API: Supabase error ===')
-      console.error('Error details:', eventsError)
       return res.status(500).json({
         success: false,
-        error: 'Tietokantavirhe tapahtumien haussa',
-        details: eventsError.message,
-        debug: {
-          selectedEventIds,
-          errorCode: eventsError.code,
-          errorHint: eventsError.hint
-        }
+        error: 'Tietokantavirhe',
+        details: eventsError.message
       })
     }
 
     if (!events || events.length === 0) {
-      console.log('=== NEWSLETTER API: No events found ===')
-      console.log('Selected IDs:', selectedEventIds)
-
-      // Kokeile hakea KAIKKI tapahtumat debuggausta varten
-      const { data: allEvents, error: allEventsError } = await supabaseAdmin
-        .from('events')
-        .select('id, title, date')
-        .limit(10)
-
-      console.log('All events in database (first 10):', allEvents?.map(e => ({
-        id: e.id,
-        idType: typeof e.id,
-        title: e.title
-      })))
-
       return res.status(400).json({
         success: false,
-        error: 'Valittuja tapahtumia ei löytynyt tietokannasta',
-        debug: {
-          selectedEventIds,
-          selectedEventIdsTypes: selectedEventIds.map(id => typeof id),
-          selectedEventIdsCount: selectedEventIds?.length || 0,
-          databaseHasEvents: (allEvents?.length || 0) > 0,
-          sampleDatabaseIds: allEvents?.slice(0, 3).map(e => ({ id: e.id, type: typeof e.id }))
-        }
+        error: 'Valittuja tapahtumia ei löytynyt'
       })
     }
 
-    // Laske aikavälä tapahtumista automaattisesti
+    // Laske aikavälä
     const eventDates = events.map(e => new Date(e.date)).sort((a, b) => a - b)
     const startDate = eventDates[0].toISOString().split('T')[0]
     const endDate = eventDates[eventDates.length - 1].toISOString().split('T')[0]
 
-    console.log('Auto-calculated date range from events:', startDate, '-', endDate)
-
-    const selectedEvents = events
-
-    // Muotoile valitut tapahtumat AI:lle (korostettavat)
-    const eventsText = selectedEvents.map(event => {
+    // Muotoile tapahtumat
+    const eventsText = events.map(event => {
       const eventDate = new Date(event.date)
       const dateStr = eventDate.toLocaleDateString('fi-FI', {
         weekday: 'long',
@@ -151,11 +96,11 @@ export default async function handler(req, res) {
       return `- ${dateStr}: ${event.title}${event.artist ? ` - ${event.artist}` : ''}${event.summary ? `\n  Kuvaus: ${event.summary}` : ''}`
     }).join('\n')
 
-    // Luo prompt Claude AI:lle
+    // Sävy-ohjeet
     const toneInstructions = {
-      casual: 'Käytä rentoa, ystävällistä ja helposti lähestyttävää sävyä. Ikään kuin juttelisit ystävällesi.',
+      casual: 'Käytä rentoa, ystävällistä ja helposti lähestyttävää sävyä.',
       formal: 'Käytä ammattitaitoista, asiallista mutta lämmintä sävyä.',
-      energetic: 'Käytä energistä, innostavaa ja positiivista sävyä. Ole innostunut!'
+      energetic: 'Käytä energistä, innostavaa ja positiivista sävyä.'
     }
 
     const prompt = `Luo houkutteleva uutiskirje Kirkkopuiston Terassin tulevista tapahtumista.
@@ -188,93 +133,63 @@ MUOTOILE VASTAUS TÄHÄN JSON-MUOTOON:
 
 Pidä teksti napakkana ja helppolukuisena. Käytä emojeja säästeliäästi.`
 
-    // Kutsu Claude API:ta - luo 3 varianttia
-    console.log('About to check Anthropic API key...')
+    // Kutsu Claude API:ta
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) {
       throw new Error('ANTHROPIC_API_KEY puuttuu')
     }
-    console.log('Anthropic API key exists, creating client...')
 
     const anthropic = new Anthropic({ apiKey })
-    console.log('Anthropic client created successfully')
 
-    console.log('Generating newsletter variants with Claude AI...')
+    console.log('Generating newsletter variant...')
 
-    // VÄLIAIKAINEN: Generoi vain 1 versio testiä varten, muutetaan takaisin 3:ksi kun toimii
-    const variantPromises = [0].map(async (index) => {
-      console.log(`Starting to generate variant ${index + 1}...`)
-
-      try {
-        const response = await anthropic.messages.create({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 2048,
-          temperature: 0.7 + (index * 0.15), // Vähän eri temperature jokaiselle
-          messages: [{
-            role: 'user',
-            content: prompt
-          }],
-          system: `Olet luova markkinointisisällön kirjoittaja Kirkkopuiston Terassille.
+    // Generoi 1 versio
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2048,
+      temperature: 0.7,
+      messages: [{
+        role: 'user',
+        content: prompt
+      }],
+      system: `Olet luova markkinointisisällön kirjoittaja Kirkkopuiston Terassille.
 Luo houkuttelevia uutiskirjeitä jotka saavat ihmiset innostumaan tapahtumista.
 Vastaa AINA JSON-muodossa. Älä lisää markdown-muotoilua tai muuta tekstiä, vain puhdas JSON.`
-        })
-
-        console.log(`Variant ${index + 1} API call completed`)
-        console.log(`Response ID: ${response.id}`)
-        console.log(`Response model: ${response.model}`)
-        console.log(`Response usage:`, response.usage)
-
-        const textContent = response.content.find(block => block.type === 'text')
-        let contentText = textContent?.text || '{}'
-
-        console.log(`Variant ${index + 1} content length:`, contentText.length)
-
-        // Poista mahdolliset markdown code block -merkit
-        contentText = contentText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-
-        try {
-          const parsed = JSON.parse(contentText)
-          console.log(`Variant ${index + 1} parsed successfully`)
-          return {
-            variant: index + 1,
-            content: parsed,
-            usage: response.usage
-          }
-        } catch (parseError) {
-          console.error(`Failed to parse variant ${index + 1}:`, contentText)
-          // Palauta fallback
-          return {
-            variant: index + 1,
-            content: {
-              subject: `Tulevat tapahtumat Kirkkopuiston Terassilla`,
-              intro: `Katso mitä jännittävää on tulossa!`,
-              events: selectedEvents.map(e => ({
-                title: e.title,
-                date: new Date(e.date).toLocaleDateString('fi-FI'),
-                description: e.summary || 'Tule mukaan!'
-              })),
-              cta: 'Varaa pöytä ja tule nauttimaan! 🎵'
-            },
-            usage: response.usage,
-            parseError: true
-          }
-        }
-      } catch (anthropicError) {
-        console.error(`Anthropic API error for variant ${index + 1}:`, anthropicError)
-        throw anthropicError
-      }
     })
 
-    const variants = await Promise.all(variantPromises)
+    const textContent = response.content.find(block => block.type === 'text')
+    let contentText = textContent?.text || '{}'
 
-    console.log('Generated variants:', variants.length)
+    // Poista mahdolliset markdown code block -merkit
+    contentText = contentText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
 
-    // Generoi HTML-esikatselu valitulle variantille
-    const selectedContent = variants[selectedVariant]?.content || variants[0]?.content
+    let content
+    try {
+      content = JSON.parse(contentText)
+    } catch (parseError) {
+      // Fallback
+      content = {
+        subject: `Tulevat tapahtumat Kirkkopuiston Terassilla`,
+        intro: `Katso mitä jännittävää on tulossa!`,
+        events: events.map(e => ({
+          title: e.title,
+          date: new Date(e.date).toLocaleDateString('fi-FI'),
+          description: e.summary || 'Tule mukaan!'
+        })),
+        cta: 'Varaa pöytä ja tule nauttimaan! 🎵'
+      }
+    }
 
-    const html = generateNewsletterHTML(selectedContent, events, startDate, endDate)
+    const variant = {
+      variant: 1,
+      content,
+      usage: response.usage
+    }
 
-    // Jos pyydetään lähettämään sähköpostit
+    // Generoi HTML
+    const html = generateNewsletterHTML(content, events, startDate, endDate)
+
+    // Jos lähetetään sähköpostit
     if (sendEmails) {
       const { data: teamMembers, error: teamError } = await supabaseAdmin
         .from('team_members')
@@ -285,19 +200,17 @@ Vastaa AINA JSON-muodossa. Älä lisää markdown-muotoilua tai muuta tekstiä, 
 
       if (!teamMembers || teamMembers.length === 0) {
         return res.status(400).json({
-          error: 'Ei vastaanottajia. Lisää tiimin jäsenille sähköpostiosoitteet.'
+          error: 'Ei vastaanottajia'
         })
       }
 
-      // Luo Resend-client vasta kun sitä tarvitaan
       const resend = getResendClient()
 
-      // Lähetä sähköposti
       const emailPromises = teamMembers.map(member =>
         resend.emails.send({
           from: 'Kirkkopuiston Terassi <noreply@foodandwineturku.com>',
           to: member.email,
-          subject: selectedContent.subject,
+          subject: content.subject,
           html: html
         })
       )
@@ -313,17 +226,17 @@ Vastaa AINA JSON-muodossa. Älä lisää markdown-muotoilua tai muuta tekstiä, 
         emailsFailed: failed,
         recipients: teamMembers,
         events,
-        variants,
-        selectedVariant
+        variants: [variant],
+        selectedVariant: 0
       })
     }
 
     // Palauta esikatselu
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       sent: false,
       events,
-      variants,
+      variants: [variant],
       html,
       dateRange: {
         start: new Date(startDate).toLocaleDateString('fi-FI'),
@@ -332,21 +245,11 @@ Vastaa AINA JSON-muodossa. Älä lisää markdown-muotoilua tai muuta tekstiä, 
     })
 
   } catch (error) {
-    console.error('=== NEWSLETTER API: Unexpected error ===')
-    console.error('Error type:', error.constructor.name)
-    console.error('Error name:', error.name)
-    console.error('Error message:', error.message)
-    console.error('Error code:', error.code)
-    console.error('Error stack:', error.stack)
-    console.error('Full error object:', JSON.stringify(error, null, 2))
-
-    res.status(500).json({
+    console.error('Newsletter error:', error)
+    return res.status(500).json({
       success: false,
       error: error.message || 'Unknown error',
       errorType: error.constructor.name,
-      errorName: error.name,
-      errorCode: error.code,
-      details: error.toString(),
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     })
   }
@@ -354,9 +257,7 @@ Vastaa AINA JSON-muodossa. Älä lisää markdown-muotoilua tai muuta tekstiä, 
 
 // HTML-generaattori funktio
 function generateNewsletterHTML(content, allEvents, startDate, endDate) {
-  // Korostettavat tapahtumat (yksityiskohtaiset kortit)
   const eventCards = content.events.map((event) => {
-    // Etsi alkuperäinen tapahtuma kuvaa varten
     const originalEvent = allEvents.find(e => e.title === event.title)
     const imageUrl = originalEvent?.images?.[0] || ''
 
@@ -374,7 +275,6 @@ function generateNewsletterHTML(content, allEvents, startDate, endDate) {
     `
   }).join('')
 
-  // Kaikki tapahtumat selkeänä listana
   const allEventsList = allEvents.map(event => {
     const eventDate = new Date(event.date)
     const dateStr = eventDate.toLocaleDateString('fi-FI', {
@@ -503,7 +403,6 @@ function generateNewsletterHTML(content, allEvents, startDate, endDate) {
         <a href="https://www.instagram.com/kirkkopuistonterassi" class="button">Seuraa Instagramissa</a>
       </div>
 
-      <!-- Kaikki tapahtumat listana -->
       <div style="background: #f9fafb; border-radius: 10px; padding: 20px; margin: 30px 0;">
         <h3 style="margin: 0 0 15px 0; color: #16a34a; font-size: 18px;">📅 Kaikki tapahtumat</h3>
         <div style="background: white; border-radius: 8px; padding: 15px;">

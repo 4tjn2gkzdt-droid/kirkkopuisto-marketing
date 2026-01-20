@@ -64,10 +64,57 @@ export default function TestAPI() {
           sendEmails: false
         })
       })
-      const data = await response.json()
+
+      // Hae teksti ensin, yritä parsea JSON:ksi
+      const responseText = await response.text()
+      let data
+      try {
+        data = JSON.parse(responseText)
+      } catch (parseError) {
+        data = {
+          __raw_response__: responseText.substring(0, 500), // Rajoita pituus
+          __parse_error__: parseError.message,
+          __is_html__: responseText.includes('<!DOCTYPE') || responseText.includes('<html'),
+          __response_length__: responseText.length
+        }
+      }
+
       addResult('POST /api/generate-newsletter', response.status, data)
     } catch (error) {
       addResult('POST /api/generate-newsletter', 'ERROR', error.message)
+    }
+  }
+
+  const testNewsletterMinimal = async () => {
+    try {
+      const response = await fetch('/api/test-newsletter-minimal', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          selectedEventIds: [1],
+          tone: 'casual'
+        })
+      })
+
+      // Hae teksti ensin, yritä parsea JSON:ksi
+      const responseText = await response.text()
+      let data
+      try {
+        data = JSON.parse(responseText)
+      } catch (parseError) {
+        data = {
+          __raw_response__: responseText.substring(0, 500),
+          __parse_error__: parseError.message,
+          __is_html__: responseText.includes('<!DOCTYPE') || responseText.includes('<html'),
+          __response_length__: responseText.length
+        }
+      }
+
+      addResult('POST /api/test-newsletter-minimal', response.status, data)
+    } catch (error) {
+      addResult('POST /api/test-newsletter-minimal', 'ERROR', error.message)
     }
   }
 
@@ -90,6 +137,9 @@ export default function TestAPI() {
         </button>
         <button onClick={testNewsletter} style={buttonStyle}>
           Test POST /newsletter
+        </button>
+        <button onClick={testNewsletterMinimal} style={{ ...buttonStyle, background: '#f59e0b' }}>
+          🔍 Debug Newsletter (Step-by-Step)
         </button>
         <button onClick={clearResults} style={{ ...buttonStyle, background: '#ef4444' }}>
           Clear Results

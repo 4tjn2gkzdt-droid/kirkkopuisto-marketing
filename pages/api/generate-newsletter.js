@@ -25,9 +25,16 @@ export default async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json')
 
   console.log('=== GENERATE-NEWSLETTER API CALLED ===')
+  console.log('Request method:', req.method)
+
+  // Handle OPTIONS request (CORS preflight)
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end()
+  }
 
   try {
     if (req.method !== 'POST') {
+      console.log('Method not allowed:', req.method)
       return res.status(405).json({ error: 'Method not allowed' })
     }
     console.log('Method check passed')

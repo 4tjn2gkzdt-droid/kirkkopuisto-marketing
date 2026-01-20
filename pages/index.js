@@ -2019,6 +2019,26 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   📧 Uutiskirje
                 </button>
               </Link>
+              <Link href="/mallit">
+                <button className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
+                  📝 Sisältömallit
+                </button>
+              </Link>
+              <Link href="/sisaltokalenteri">
+                <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
+                  📅 Sisältökalenteri
+                </button>
+              </Link>
+              <Link href="/copilot">
+                <button className="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700">
+                  🤖 Co-Pilot
+                </button>
+              </Link>
+              <Link href="/muistutukset">
+                <button className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">
+                  🔔 Muistutukset
+                </button>
+              </Link>
               <Link href="/poista-duplikaatit">
                 <button className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 text-sm">
                   🗑️ Poista duplikaatit

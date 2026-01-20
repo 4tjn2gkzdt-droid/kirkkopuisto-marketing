@@ -1,16 +1,41 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabase';
 
 export default function Ideoi() {
+  const router = useRouter();
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
 
+  // Tarkista autentikointi
+  useEffect(() => {
+    checkUser();
+  }, []);
+
+  const checkUser = async () => {
+    if (!supabase) {
+      setLoading(false);
+      return;
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+    setUser(user);
+    setLoading(false);
+  };
+
   // Lataa viestit
   useEffect(() => {
     const loadMessages = async () => {
+      if (!user) return;
       if (supabase) {
         // Lataa Supabasesta
         const { data, error } = await supabase
@@ -24,7 +49,11 @@ export default function Ideoi() {
           const stored = localStorage.getItem('brainstorm-messages');
           setMessages(stored ? JSON.parse(stored) : getWelcomeMessage());
         } else if (data && data.length > 0) {
-          setMessages(data.map(msg => ({ role: msg.role, content: msg.content })));
+          setMessages(data.map(msg => ({
+            role: msg.role,
+            content: msg.content,
+            created_by_email: msg.created_by_email
+          })));
         } else {
           setMessages(getWelcomeMessage());
         }
@@ -35,16 +64,19 @@ export default function Ideoi() {
       }
     };
     loadMessages();
-  }, []);
+  }, [user]);
 
   // Tallenna uudet viestit
   const saveMessage = async (message) => {
-    if (supabase) {
+    if (supabase && user) {
       const { error } = await supabase
         .from('brainstorm_messages')
         .insert({
           role: message.role,
-          content: message.content
+          content: message.content,
+          created_by_id: user.id,
+          created_by_email: user.email,
+          created_by_name: user.user_metadata?.name || user.email
         });
 
       if (error) {
@@ -151,6 +183,17 @@ export default function Ideoi() {
     }
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-yellow-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-800 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Ladataan...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-yellow-50 p-4">
       <div className="max-w-4xl mx-auto h-screen flex flex-col pb-4">
@@ -159,7 +202,7 @@ export default function Ideoi() {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-3xl font-bold text-green-800">💡 Ideoi sisältöä</h1>
-              <p className="text-gray-600">Brainstormaa Clauden kanssa</p>
+              <p className="text-gray-600">Brainstormaa Clauden kanssa • {user?.email}</p>
             </div>
             <div className="flex gap-3">
               <button
@@ -192,6 +235,9 @@ export default function Ideoi() {
                       : 'bg-gray-100 text-gray-800'
                   }`}
                 >
+                  {message.role === 'user' && message.created_by_email && (
+                    <div className="text-xs opacity-75 mb-1">{message.created_by_email}</div>
+                  )}
                   <div className="whitespace-pre-wrap">{message.content}</div>
                 </div>
               </div>

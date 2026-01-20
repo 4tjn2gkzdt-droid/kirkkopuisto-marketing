@@ -226,6 +226,26 @@ export default function NewsletterGenerator() {
         })
       })
 
+      console.log('=== FRONTEND: Response received ===')
+      console.log('Status:', response.status)
+      console.log('Status text:', response.statusText)
+      console.log('Content-Type:', response.headers.get('content-type'))
+
+      // Tarkista että vastaus on OK
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('Server error response:', errorText)
+        throw new Error(`Server error (${response.status}): ${errorText.substring(0, 200)}`)
+      }
+
+      // Tarkista että vastaus on JSON
+      const contentType = response.headers.get('content-type')
+      if (!contentType || !contentType.includes('application/json')) {
+        const responseText = await response.text()
+        console.error('Non-JSON response:', responseText)
+        throw new Error(`Palvelin palautti väärän tyyppisen vastauksen: ${contentType}. Vastaus: ${responseText.substring(0, 200)}`)
+      }
+
       const data = await response.json()
 
       console.log('=== FRONTEND: API response ===')
@@ -535,7 +555,7 @@ export default function NewsletterGenerator() {
         {variants.length > 0 && (
           <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
             <h2 className="text-xl font-semibold mb-4">
-              📝 AI loi {variants.length} versiota
+              📝 AI loi {variants.length} {variants.length === 1 ? 'version' : 'versiota'}
             </h2>
 
             {dateRange && (
@@ -544,7 +564,7 @@ export default function NewsletterGenerator() {
               </p>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className={`grid grid-cols-1 ${variants.length > 1 ? 'md:grid-cols-3' : ''} gap-4 mb-6`}>
               {variants.map((variant, index) => {
                 const content = variant.content
                 const isSelected = selectedVariant === index

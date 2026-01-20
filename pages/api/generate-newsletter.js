@@ -12,7 +12,11 @@ function getResendClient() {
 }
 
 export default async function handler(req, res) {
+  // Aseta JSON content-type heti alussa
+  res.setHeader('Content-Type', 'application/json')
+
   console.log('=== GENERATE-NEWSLETTER API CALLED ===')
+
   try {
     if (req.method !== 'POST') {
       return res.status(405).json({ error: 'Method not allowed' })
@@ -177,52 +181,67 @@ Pidä teksti napakkana ja helppolukuisena. Käytä emojeja säästeliäästi.`
 
     console.log('Generating newsletter variants with Claude AI...')
 
-    // Generoi 3 eri versiota rinnakkain
-    const variantPromises = [0, 1, 2].map(async (index) => {
-      const response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 2048,
-        temperature: 0.7 + (index * 0.15), // Vähän eri temperature jokaiselle
-        messages: [{
-          role: 'user',
-          content: prompt
-        }],
-        system: `Olet luova markkinointisisällön kirjoittaja Kirkkopuiston Terassille.
-Luo houkuttelevia uutiskirjeitä jotka saavat ihmiset innostumaan tapahtumista.
-Vastaa AINA JSON-muodossa. Älä lisää markdown-muotoilua tai muuta tekstiä, vain puhdas JSON.`
-      })
-
-      const textContent = response.content.find(block => block.type === 'text')
-      let contentText = textContent?.text || '{}'
-
-      // Poista mahdolliset markdown code block -merkit
-      contentText = contentText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+    // VÄLIAIKAINEN: Generoi vain 1 versio testiä varten, muutetaan takaisin 3:ksi kun toimii
+    const variantPromises = [0].map(async (index) => {
+      console.log(`Starting to generate variant ${index + 1}...`)
 
       try {
-        const parsed = JSON.parse(contentText)
-        return {
-          variant: index + 1,
-          content: parsed,
-          usage: response.usage
+        const response = await anthropic.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 2048,
+          temperature: 0.7 + (index * 0.15), // Vähän eri temperature jokaiselle
+          messages: [{
+            role: 'user',
+            content: prompt
+          }],
+          system: `Olet luova markkinointisisällön kirjoittaja Kirkkopuiston Terassille.
+Luo houkuttelevia uutiskirjeitä jotka saavat ihmiset innostumaan tapahtumista.
+Vastaa AINA JSON-muodossa. Älä lisää markdown-muotoilua tai muuta tekstiä, vain puhdas JSON.`
+        })
+
+        console.log(`Variant ${index + 1} API call completed`)
+        console.log(`Response ID: ${response.id}`)
+        console.log(`Response model: ${response.model}`)
+        console.log(`Response usage:`, response.usage)
+
+        const textContent = response.content.find(block => block.type === 'text')
+        let contentText = textContent?.text || '{}'
+
+        console.log(`Variant ${index + 1} content length:`, contentText.length)
+
+        // Poista mahdolliset markdown code block -merkit
+        contentText = contentText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+
+        try {
+          const parsed = JSON.parse(contentText)
+          console.log(`Variant ${index + 1} parsed successfully`)
+          return {
+            variant: index + 1,
+            content: parsed,
+            usage: response.usage
+          }
+        } catch (parseError) {
+          console.error(`Failed to parse variant ${index + 1}:`, contentText)
+          // Palauta fallback
+          return {
+            variant: index + 1,
+            content: {
+              subject: `Tulevat tapahtumat Kirkkopuiston Terassilla`,
+              intro: `Katso mitä jännittävää on tulossa!`,
+              events: selectedEvents.map(e => ({
+                title: e.title,
+                date: new Date(e.date).toLocaleDateString('fi-FI'),
+                description: e.summary || 'Tule mukaan!'
+              })),
+              cta: 'Varaa pöytä ja tule nauttimaan! 🎵'
+            },
+            usage: response.usage,
+            parseError: true
+          }
         }
-      } catch (parseError) {
-        console.error(`Failed to parse variant ${index + 1}:`, contentText)
-        // Palauta fallback
-        return {
-          variant: index + 1,
-          content: {
-            subject: `Tulevat tapahtumat Kirkkopuiston Terassilla`,
-            intro: `Katso mitä jännittävää on tulossa!`,
-            events: selectedEvents.map(e => ({
-              title: e.title,
-              date: new Date(e.date).toLocaleDateString('fi-FI'),
-              description: e.summary || 'Tule mukaan!'
-            })),
-            cta: 'Varaa pöytä ja tule nauttimaan! 🎵'
-          },
-          usage: response.usage,
-          parseError: true
-        }
+      } catch (anthropicError) {
+        console.error(`Anthropic API error for variant ${index + 1}:`, anthropicError)
+        throw anthropicError
       }
     })
 

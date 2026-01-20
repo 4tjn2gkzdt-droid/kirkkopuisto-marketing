@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase'
 import Anthropic from '@anthropic-ai/sdk'
+import cors from '../../lib/cors'
 
 // Configure API route
 export const config = {
@@ -10,12 +11,7 @@ export const config = {
   },
 }
 
-export default async function handler(req, res) {
-  // Handle OPTIONS request (CORS preflight)
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end()
-  }
-
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -252,3 +248,5 @@ Pidä tyyli rentona mutta ammattimaisena.`
     })
   }
 }
+
+export default cors(handler)

@@ -235,7 +235,20 @@ export default function NewsletterGenerator() {
       if (!response.ok) {
         const errorText = await response.text()
         console.error('Server error response:', errorText)
-        throw new Error(`Server error (${response.status}): ${errorText.substring(0, 200)}`)
+
+        // Näytä eri virheviestit eri statuksille
+        let errorMessage = `Virhe (${response.status} ${response.statusText}): `
+        if (response.status === 405) {
+          errorMessage += 'Method Not Allowed. API-kutsu hylätty. Tämä saattaa johtua CORS-ongelmasta.'
+        } else if (response.status === 500) {
+          errorMessage += 'Palvelinvirhe. ' + errorText.substring(0, 200)
+        } else if (response.status === 400) {
+          errorMessage += 'Virheellinen pyyntö. ' + errorText.substring(0, 200)
+        } else {
+          errorMessage += errorText.substring(0, 200)
+        }
+
+        throw new Error(errorMessage)
       }
 
       // Tarkista että vastaus on JSON

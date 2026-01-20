@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
+import cors from '../../lib/cors';
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -104,3 +105,5 @@ Lisää hashtagit loppuun: #kirkkopuistonterassi #turku ja muita relevantteja.`
     });
   }
 }
+
+export default cors(handler);

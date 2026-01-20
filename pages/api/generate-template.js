@@ -1,6 +1,15 @@
 import { supabase } from '../../lib/supabase'
 import Anthropic from '@anthropic-ai/sdk'
 
+// Configure API route
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '1mb',
+    },
+  },
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })

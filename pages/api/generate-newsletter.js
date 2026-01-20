@@ -11,6 +11,15 @@ function getResendClient() {
   return new Resend(apiKey)
 }
 
+// Disable body parser size limit and configure API route
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '1mb',
+    },
+  },
+}
+
 export default async function handler(req, res) {
   // Aseta JSON content-type heti alussa
   res.setHeader('Content-Type', 'application/json')

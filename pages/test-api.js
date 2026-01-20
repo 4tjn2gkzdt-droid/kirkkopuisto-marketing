@@ -64,7 +64,21 @@ export default function TestAPI() {
           sendEmails: false
         })
       })
-      const data = await response.json()
+
+      // Hae teksti ensin, yritä parsea JSON:ksi
+      const responseText = await response.text()
+      let data
+      try {
+        data = JSON.parse(responseText)
+      } catch (parseError) {
+        data = {
+          __raw_response__: responseText.substring(0, 500), // Rajoita pituus
+          __parse_error__: parseError.message,
+          __is_html__: responseText.includes('<!DOCTYPE') || responseText.includes('<html'),
+          __response_length__: responseText.length
+        }
+      }
+
       addResult('POST /api/generate-newsletter', response.status, data)
     } catch (error) {
       addResult('POST /api/generate-newsletter', 'ERROR', error.message)
@@ -83,7 +97,21 @@ export default function TestAPI() {
           tone: 'casual'
         })
       })
-      const data = await response.json()
+
+      // Hae teksti ensin, yritä parsea JSON:ksi
+      const responseText = await response.text()
+      let data
+      try {
+        data = JSON.parse(responseText)
+      } catch (parseError) {
+        data = {
+          __raw_response__: responseText.substring(0, 500),
+          __parse_error__: parseError.message,
+          __is_html__: responseText.includes('<!DOCTYPE') || responseText.includes('<html'),
+          __response_length__: responseText.length
+        }
+      }
+
       addResult('POST /api/test-newsletter-minimal', response.status, data)
     } catch (error) {
       addResult('POST /api/test-newsletter-minimal', 'ERROR', error.message)

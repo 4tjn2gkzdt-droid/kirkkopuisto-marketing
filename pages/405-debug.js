@@ -16,7 +16,22 @@ export default function Debug405Page() {
         body: JSON.stringify({ test: 'data' })
       })
 
-      const data = await response.json()
+      // Hae TEKSTI ensin, älä yritä parsea JSON:ksi
+      const responseText = await response.text()
+
+      // Yritä parsea JSON:ksi
+      let data
+      let isJson = false
+      try {
+        data = JSON.parse(responseText)
+        isJson = true
+      } catch (parseError) {
+        data = {
+          __raw_response__: responseText,
+          __parse_error__: parseError.message,
+          __is_html__: responseText.includes('<!DOCTYPE') || responseText.includes('<html')
+        }
+      }
 
       setResults(prev => ({
         ...prev,
@@ -24,9 +39,11 @@ export default function Debug405Page() {
           status: response.status,
           statusText: response.statusText,
           ok: response.ok,
+          isJson,
           headers: {
             'content-type': response.headers.get('content-type'),
             'access-control-allow-origin': response.headers.get('access-control-allow-origin'),
+            'x-vercel-error': response.headers.get('x-vercel-error'),
           },
           data
         }

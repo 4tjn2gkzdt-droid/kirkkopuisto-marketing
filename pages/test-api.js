@@ -71,6 +71,25 @@ export default function TestAPI() {
     }
   }
 
+  const testNewsletterMinimal = async () => {
+    try {
+      const response = await fetch('/api/test-newsletter-minimal', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          selectedEventIds: [1],
+          tone: 'casual'
+        })
+      })
+      const data = await response.json()
+      addResult('POST /api/test-newsletter-minimal', response.status, data)
+    } catch (error) {
+      addResult('POST /api/test-newsletter-minimal', 'ERROR', error.message)
+    }
+  }
+
   const clearResults = () => setResults([])
 
   return (
@@ -90,6 +109,9 @@ export default function TestAPI() {
         </button>
         <button onClick={testNewsletter} style={buttonStyle}>
           Test POST /newsletter
+        </button>
+        <button onClick={testNewsletterMinimal} style={{ ...buttonStyle, background: '#f59e0b' }}>
+          🔍 Debug Newsletter (Step-by-Step)
         </button>
         <button onClick={clearResults} style={{ ...buttonStyle, background: '#ef4444' }}>
           Clear Results

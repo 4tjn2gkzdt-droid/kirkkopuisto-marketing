@@ -15,6 +15,7 @@ export default function ContentCalendar() {
   const [aiSuggestions, setAiSuggestions] = useState([])
   const [events, setEvents] = useState([])
   const [socialPosts, setSocialPosts] = useState([])
+  const [savingSuggestion, setSavingSuggestion] = useState(null)
 
   useEffect(() => {
     checkUser()
@@ -99,6 +100,50 @@ export default function ContentCalendar() {
     }
   }
 
+  const addSuggestionToCalendar = async (suggestion) => {
+    setSavingSuggestion(suggestion)
+
+    try {
+      // Muunna kanavan nimi tietokantamuotoon
+      const channelMap = {
+        'Instagram': 'instagram',
+        'Facebook': 'facebook',
+        'TikTok': 'tiktok',
+        'Uutiskirje': 'newsletter'
+      }
+
+      const channel = channelMap[suggestion.channel] || 'instagram'
+
+      // Luo uusi somepostaus
+      const { data, error } = await supabase
+        .from('social_media_posts')
+        .insert({
+          title: suggestion.type,
+          date: suggestion.date,
+          type: suggestion.type.toLowerCase().replace(/\s+/g, '-'),
+          channels: [channel],
+          status: 'suunniteltu',
+          caption: suggestion.reason,
+          notes: 'Luotu AI-ehdotuksesta',
+          user_id: user.id
+        })
+        .select()
+
+      if (error) throw error
+
+      alert('✅ Ehdotus lisätty kalenteriin!')
+
+      // Päivitä listaus poistamalla lisätty ehdotus
+      setAiSuggestions(prev => prev.filter((_, i) => _ !== suggestion))
+
+    } catch (error) {
+      console.error('Error saving suggestion:', error)
+      alert('Virhe tallennuksessa: ' + error.message)
+    } finally {
+      setSavingSuggestion(null)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -118,7 +163,7 @@ export default function ContentCalendar() {
                 ← Takaisin
               </Link>
               <h1 className="text-2xl font-bold text-gray-900">
-                📅 Sisältökalenteri & AI-ehdotukset
+                🤖 SOME-AI
               </h1>
             </div>
             <div className="text-sm text-gray-600">
@@ -278,7 +323,18 @@ export default function ContentCalendar() {
                         </span>
                       </div>
                       <h4 className="font-semibold text-gray-900 mb-1">{suggestion.type}</h4>
-                      <p className="text-sm text-gray-600">{suggestion.reason}</p>
+                      <p className="text-sm text-gray-600 mb-3">{suggestion.reason}</p>
+                      <button
+                        onClick={() => addSuggestionToCalendar(suggestion)}
+                        disabled={savingSuggestion === suggestion}
+                        className={`w-full py-2 px-4 rounded-lg font-semibold transition ${
+                          savingSuggestion === suggestion
+                            ? 'bg-gray-400 text-white cursor-not-allowed'
+                            : 'bg-green-600 hover:bg-green-700 text-white'
+                        }`}
+                      >
+                        {savingSuggestion === suggestion ? '💾 Tallennetaan...' : '➕ Lisää kalenteriin'}
+                      </button>
                     </div>
                   ))}
                 </div>

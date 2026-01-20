@@ -43,11 +43,24 @@ export default function NewsletterGenerator() {
   // UI state
   const [showPreview, setShowPreview] = useState(false)
   const [teamMembers, setTeamMembers] = useState([])
+  const [copySuccess, setCopySuccess] = useState(false)
+
+  // Muokkaus-state
+  const [isEditing, setIsEditing] = useState(false)
+  const [editedContent, setEditedContent] = useState(null)
+
+  // Luonnosten tallennus
+  const [showSaveDialog, setShowSaveDialog] = useState(false)
+  const [draftName, setDraftName] = useState('')
+  const [drafts, setDrafts] = useState([])
+  const [loadingDrafts, setLoadingDrafts] = useState(false)
+  const [showDraftsPanel, setShowDraftsPanel] = useState(false)
 
   useEffect(() => {
     checkUser()
     loadTeamMembers()
     suggestNextEventMonth()
+    loadDrafts()
   }, [])
 
   useEffect(() => {
@@ -74,6 +87,115 @@ export default function NewsletterGenerator() {
 
     if (!error && data) {
       setTeamMembers(data)
+    }
+  }
+
+  const loadDrafts = async () => {
+    setLoadingDrafts(true)
+    try {
+      const { data, error } = await supabase
+        .from('newsletter_drafts')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (!error && data) {
+        setDrafts(data)
+      }
+    } catch (error) {
+      console.error('Error loading drafts:', error)
+    } finally {
+      setLoadingDrafts(false)
+    }
+  }
+
+  const saveDraft = async () => {
+    if (!draftName.trim()) {
+      alert('Anna luonnokselle nimi')
+      return
+    }
+
+    if (variants.length === 0) {
+      alert('Ei tallennettavaa sisältöä')
+      return
+    }
+
+    try {
+      const draftData = {
+        name: draftName,
+        content: variants[selectedVariant].content,
+        selected_event_ids: selectedEventIds,
+        tone: tone,
+        html: previewHtml
+      }
+
+      const { data, error } = await supabase
+        .from('newsletter_drafts')
+        .insert([draftData])
+        .select()
+
+      if (error) throw error
+
+      alert('✅ Luonnos tallennettu!')
+      setDraftName('')
+      setShowSaveDialog(false)
+      loadDrafts()
+    } catch (error) {
+      console.error('Error saving draft:', error)
+      alert('Virhe tallennuksessa: ' + error.message)
+    }
+  }
+
+  const loadDraft = async (draft) => {
+    try {
+      // Lataa valitut tapahtumat
+      if (draft.selected_event_ids && draft.selected_event_ids.length > 0) {
+        const { data: eventData, error: eventError } = await supabase
+          .from('events')
+          .select('*')
+          .in('id', draft.selected_event_ids)
+          .order('date', { ascending: true })
+
+        if (!eventError && eventData) {
+          setEvents(eventData)
+          setSelectedEventIds(draft.selected_event_ids)
+        }
+      }
+
+      // Aseta sisältö
+      setVariants([{
+        variant: 1,
+        content: draft.content
+      }])
+      setSelectedVariant(0)
+      setPreviewHtml(draft.html)
+      setTone(draft.tone)
+
+      setShowDraftsPanel(false)
+      alert('✅ Luonnos ladattu!')
+    } catch (error) {
+      console.error('Error loading draft:', error)
+      alert('Virhe ladattaessa: ' + error.message)
+    }
+  }
+
+  const deleteDraft = async (draftId) => {
+    if (!confirm('Haluatko varmasti poistaa luonnoksen?')) {
+      return
+    }
+
+    try {
+      const { error } = await supabase
+        .from('newsletter_drafts')
+        .delete()
+        .eq('id', draftId)
+
+      if (error) throw error
+
+      alert('✅ Luonnos poistettu')
+      loadDrafts()
+    } catch (error) {
+      console.error('Error deleting draft:', error)
+      alert('Virhe poistossa: ' + error.message)
     }
   }
 
@@ -362,6 +484,235 @@ export default function NewsletterGenerator() {
     }
   }
 
+  const handleCopyHTML = async () => {
+    try {
+      await navigator.clipboard.writeText(previewHtml)
+      setCopySuccess(true)
+      setTimeout(() => setCopySuccess(false), 2000)
+    } catch (error) {
+      console.error('Error copying:', error)
+      alert('Virhe kopioinnissa. Kokeile uudelleen.')
+    }
+  }
+
+  const startEditing = () => {
+    setEditedContent(JSON.parse(JSON.stringify(variants[selectedVariant].content)))
+    setIsEditing(true)
+  }
+
+  const cancelEditing = () => {
+    setEditedContent(null)
+    setIsEditing(false)
+  }
+
+  const saveEdits = () => {
+    // Päivitä valittu variantti muokatulla sisällöllä
+    const updatedVariants = [...variants]
+    updatedVariants[selectedVariant] = {
+      ...updatedVariants[selectedVariant],
+      content: editedContent
+    }
+    setVariants(updatedVariants)
+
+    // Generoi uusi HTML päivitetystä sisällöstä
+    const startDate = events[0]?.date
+    const endDate = events[events.length - 1]?.date
+    const html = generateNewsletterHTMLClient(editedContent, events, startDate, endDate)
+    setPreviewHtml(html)
+
+    setIsEditing(false)
+    setEditedContent(null)
+  }
+
+  const updateEditedField = (field, value) => {
+    setEditedContent(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  const updateEditedEvent = (index, field, value) => {
+    setEditedContent(prev => ({
+      ...prev,
+      events: prev.events.map((event, i) =>
+        i === index ? { ...event, [field]: value } : event
+      )
+    }))
+  }
+
+  // Client-side HTML generation
+  const generateNewsletterHTMLClient = (content, allEvents, startDate, endDate) => {
+    // Sama logiikka kuin serverillä
+    const eventCards = content.events.map((event) => {
+      const originalEvent = allEvents.find(e => e.title === event.title)
+      const imageUrl = originalEvent?.images?.[0] || ''
+
+      return `
+        <div style="background: white; border-radius: 10px; overflow: hidden; margin: 20px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+          ${imageUrl ? `
+            <img src="${imageUrl}" alt="${event.title}" style="width: 100%; height: 200px; object-fit: cover;">
+          ` : ''}
+          <div style="padding: 20px;">
+            <h3 style="margin: 0 0 10px 0; color: #16a34a; font-size: 20px;">${event.title}</h3>
+            <p style="margin: 5px 0; color: #666; font-size: 14px;">📅 ${event.date}</p>
+            <p style="margin: 15px 0 0 0; color: #333; line-height: 1.6;">${event.description}</p>
+          </div>
+        </div>
+      `
+    }).join('')
+
+    const allEventsList = allEvents.map(event => {
+      const eventDate = new Date(event.date)
+      const dateStr = eventDate.toLocaleDateString('fi-FI', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'numeric'
+      })
+      const timeStr = event.time ? ` klo ${event.time}` : ''
+
+      return `
+        <div style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+          <span style="font-weight: 600; color: #16a34a;">🎵</span>
+          <strong style="color: #111827;">${event.title}</strong>
+          ${event.artist ? `<span style="color: #6b7280;"> - ${event.artist}</span>` : ''}
+          <br>
+          <span style="color: #6b7280; font-size: 14px; margin-left: 20px;">
+            ${dateStr}${timeStr}
+          </span>
+        </div>
+      `
+    }).join('')
+
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      margin: 0;
+      padding: 0;
+      background: #f5f5f5;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+    }
+    .header {
+      background: linear-gradient(135deg, #16a34a 0%, #059669 100%);
+      color: white;
+      padding: 40px 20px;
+      text-align: center;
+    }
+    .header h1 {
+      margin: 0 0 10px 0;
+      font-size: 28px;
+      font-weight: 700;
+    }
+    .header p {
+      margin: 0;
+      font-size: 14px;
+      opacity: 0.9;
+    }
+    .content {
+      padding: 30px 20px;
+    }
+    .intro {
+      font-size: 16px;
+      line-height: 1.8;
+      color: #333;
+      margin-bottom: 30px;
+    }
+    .cta-section {
+      background: linear-gradient(135deg, #16a34a 0%, #059669 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
+      border-radius: 10px;
+      margin: 30px 0;
+    }
+    .cta-section p {
+      margin: 0 0 20px 0;
+      font-size: 18px;
+      line-height: 1.6;
+    }
+    .button {
+      display: inline-block;
+      background: white;
+      color: #16a34a;
+      padding: 12px 30px;
+      text-decoration: none;
+      border-radius: 25px;
+      font-weight: 600;
+      margin: 5px;
+    }
+    .footer {
+      text-align: center;
+      padding: 30px 20px;
+      color: #999;
+      font-size: 12px;
+      background: #f9fafb;
+    }
+    .social-links {
+      margin: 20px 0;
+    }
+    .social-links a {
+      display: inline-block;
+      margin: 0 10px;
+      color: #16a34a;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🌿 Kirkkopuiston Terassi</h1>
+      <p>${new Date(startDate).toLocaleDateString('fi-FI')} - ${new Date(endDate).toLocaleDateString('fi-FI')}</p>
+    </div>
+
+    <div class="content">
+      <div class="intro">
+        ${content.intro.split('\n').map(p => `<p>${p}</p>`).join('')}
+      </div>
+
+      ${eventCards}
+
+      <div class="cta-section">
+        <p>${content.cta}</p>
+        <a href="https://www.kirkkopuistonterassi.fi" class="button">Tutustu tapahtumiin</a>
+        <a href="https://www.instagram.com/kirkkopuistonterassi" class="button">Seuraa Instagramissa</a>
+        <a href="https://www.facebook.com/kirkkopuistonterassi" class="button">Seuraa Facebookissa</a>
+      </div>
+
+      <div style="background: #f9fafb; border-radius: 10px; padding: 20px; margin: 30px 0;">
+        <h3 style="margin: 0 0 15px 0; color: #16a34a; font-size: 18px;">📅 Kaikki tapahtumat</h3>
+        <div style="background: white; border-radius: 8px; padding: 15px;">
+          ${allEventsList}
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="social-links">
+        <a href="https://www.instagram.com/kirkkopuistonterassi">Instagram</a> |
+        <a href="https://www.facebook.com/kirkkopuistonterassi">Facebook</a>
+      </div>
+      <p>Kirkkopuiston Terassi, Turku</p>
+      <p>Tämä on automaattisesti generoitu uutiskirje.</p>
+      <p>Generoitu: ${new Date().toLocaleDateString('fi-FI')} ${new Date().toLocaleTimeString('fi-FI')}</p>
+    </div>
+  </div>
+</body>
+</html>
+    `
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -384,8 +735,16 @@ export default function NewsletterGenerator() {
                 📧 Uutiskirjegeneraattori
               </h1>
             </div>
-            <div className="text-sm text-gray-600">
-              {user?.email}
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setShowDraftsPanel(true)}
+                className="px-4 py-2 bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-lg transition flex items-center gap-2"
+              >
+                📁 Luonnokset ({drafts.length})
+              </button>
+              <div className="text-sm text-gray-600">
+                {user?.email}
+              </div>
             </div>
           </div>
         </div>
@@ -627,51 +986,135 @@ export default function NewsletterGenerator() {
 
             {/* Valitun variantin yksityiskohdat */}
             <div className="bg-gray-50 p-6 rounded-lg mb-4">
-              <h3 className="font-semibold text-lg mb-4">
-                Valittu: Versio {variants[selectedVariant]?.variant}
-              </h3>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-semibold text-lg">
+                  Valittu: Versio {variants[selectedVariant]?.variant}
+                </h3>
+                {!isEditing ? (
+                  <button
+                    onClick={startEditing}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition"
+                  >
+                    ✏️ Muokkaa
+                  </button>
+                ) : (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={cancelEditing}
+                      className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm rounded-lg transition"
+                    >
+                      Peruuta
+                    </button>
+                    <button
+                      onClick={saveEdits}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition"
+                    >
+                      💾 Tallenna muutokset
+                    </button>
+                  </div>
+                )}
+              </div>
 
               <div className="space-y-4">
+                {/* Otsikko */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     📧 Sähköpostin otsikko
                   </label>
-                  <p className="text-gray-900 font-semibold">
-                    {variants[selectedVariant]?.content.subject}
-                  </p>
+                  {!isEditing ? (
+                    <p className="text-gray-900 font-semibold">
+                      {variants[selectedVariant]?.content.subject}
+                    </p>
+                  ) : (
+                    <input
+                      type="text"
+                      value={editedContent?.subject || ''}
+                      onChange={(e) => updateEditedField('subject', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  )}
                 </div>
 
+                {/* Johdanto */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     📝 Johdanto
                   </label>
-                  <p className="text-gray-700 whitespace-pre-wrap">
-                    {variants[selectedVariant]?.content.intro}
-                  </p>
+                  {!isEditing ? (
+                    <p className="text-gray-700 whitespace-pre-wrap">
+                      {variants[selectedVariant]?.content.intro}
+                    </p>
+                  ) : (
+                    <textarea
+                      value={editedContent?.intro || ''}
+                      onChange={(e) => updateEditedField('intro', e.target.value)}
+                      rows={4}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  )}
                 </div>
 
+                {/* Korostetut tapahtumat */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    ⭐ Korostetut tapahtumat ({variants[selectedVariant]?.content.events?.length || 0})
+                    ⭐ Korostetut tapahtumat ({(isEditing ? editedContent?.events : variants[selectedVariant]?.content.events)?.length || 0})
                   </label>
                   <div className="space-y-3">
-                    {variants[selectedVariant]?.content.events?.map((event, i) => (
+                    {(isEditing ? editedContent?.events : variants[selectedVariant]?.content.events)?.map((event, i) => (
                       <div key={i} className="bg-white p-3 rounded border border-gray-200">
-                        <h4 className="font-semibold text-gray-900">{event.title}</h4>
-                        <p className="text-sm text-gray-600">{event.date}</p>
-                        <p className="text-sm text-gray-700 mt-2">{event.description}</p>
+                        {!isEditing ? (
+                          <>
+                            <h4 className="font-semibold text-gray-900">{event.title}</h4>
+                            <p className="text-sm text-gray-600">{event.date}</p>
+                            <p className="text-sm text-gray-700 mt-2">{event.description}</p>
+                          </>
+                        ) : (
+                          <>
+                            <input
+                              type="text"
+                              value={event.title}
+                              onChange={(e) => updateEditedEvent(i, 'title', e.target.value)}
+                              className="w-full px-2 py-1 mb-2 border border-gray-300 rounded font-semibold"
+                              placeholder="Tapahtuman nimi"
+                            />
+                            <input
+                              type="text"
+                              value={event.date}
+                              onChange={(e) => updateEditedEvent(i, 'date', e.target.value)}
+                              className="w-full px-2 py-1 mb-2 border border-gray-300 rounded text-sm"
+                              placeholder="Päivämäärä"
+                            />
+                            <textarea
+                              value={event.description}
+                              onChange={(e) => updateEditedEvent(i, 'description', e.target.value)}
+                              rows={3}
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                              placeholder="Kuvaus"
+                            />
+                          </>
+                        )}
                       </div>
                     ))}
                   </div>
                 </div>
 
+                {/* CTA */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     📢 Call-to-Action
                   </label>
-                  <p className="text-gray-700">
-                    {variants[selectedVariant]?.content.cta}
-                  </p>
+                  {!isEditing ? (
+                    <p className="text-gray-700">
+                      {variants[selectedVariant]?.content.cta}
+                    </p>
+                  ) : (
+                    <textarea
+                      value={editedContent?.cta || ''}
+                      onChange={(e) => updateEditedField('cta', e.target.value)}
+                      rows={2}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  )}
                 </div>
 
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
@@ -684,6 +1127,13 @@ export default function NewsletterGenerator() {
 
             {/* Toiminnot */}
             <div className="flex gap-4">
+              <button
+                onClick={() => setShowSaveDialog(true)}
+                className="py-3 px-6 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition"
+              >
+                💾 Tallenna luonnos
+              </button>
+
               <button
                 onClick={handlePreview}
                 className="flex-1 py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition"
@@ -712,6 +1162,120 @@ export default function NewsletterGenerator() {
           </div>
         )}
 
+        {/* Tallennus-dialogi */}
+        {showSaveDialog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+              <h3 className="text-lg font-semibold mb-4">💾 Tallenna luonnos</h3>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Anna luonnokselle nimi
+                </label>
+                <input
+                  type="text"
+                  value={draftName}
+                  onChange={(e) => setDraftName(e.target.value)}
+                  placeholder="esim. Tammikuun uutiskirje"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  onKeyDown={(e) => e.key === 'Enter' && saveDraft()}
+                />
+              </div>
+
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => {
+                    setShowSaveDialog(false)
+                    setDraftName('')
+                  }}
+                  className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition"
+                >
+                  Peruuta
+                </button>
+                <button
+                  onClick={saveDraft}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition"
+                >
+                  Tallenna
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Luonnosten lataus-paneeli */}
+        {showDraftsPanel && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+              <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+                <h3 className="text-lg font-semibold">📁 Tallennetut luonnokset</h3>
+                <button
+                  onClick={() => setShowDraftsPanel(false)}
+                  className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-auto p-6">
+                {loadingDrafts ? (
+                  <div className="text-center py-8 text-gray-500">Ladataan...</div>
+                ) : drafts.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    Ei tallennettuja luonnoksia
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {drafts.map((draft) => (
+                      <div
+                        key={draft.id}
+                        className="bg-gray-50 border border-gray-200 rounded-lg p-4 hover:border-purple-300 transition"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-gray-900 mb-1">
+                              {draft.name}
+                            </h4>
+                            <p className="text-sm text-gray-600 mb-2">
+                              Tallennettu: {new Date(draft.created_at).toLocaleString('fi-FI')}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              Otsikko: {draft.content?.subject}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => loadDraft(draft)}
+                              className="px-3 py-1 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition"
+                            >
+                              Lataa
+                            </button>
+                            <button
+                              onClick={() => deleteDraft(draft.id)}
+                              className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-700 text-sm rounded-lg transition"
+                            >
+                              Poista
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="p-4 border-t border-gray-200 flex justify-end">
+                <button
+                  onClick={() => setShowDraftsPanel(false)}
+                  className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition"
+                >
+                  Sulje
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* HTML-esikatselu */}
         {showPreview && previewHtml && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -734,20 +1298,32 @@ export default function NewsletterGenerator() {
                 />
               </div>
 
-              <div className="p-4 border-t border-gray-200 flex justify-end gap-3">
+              <div className="p-4 border-t border-gray-200 flex justify-between gap-3">
                 <button
-                  onClick={() => setShowPreview(false)}
-                  className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition"
+                  onClick={handleCopyHTML}
+                  className={`px-4 py-2 rounded-lg transition ${
+                    copySuccess
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                  }`}
                 >
-                  Sulje
+                  {copySuccess ? '✓ Kopioitu!' : '📋 Kopioi HTML'}
                 </button>
-                <button
-                  onClick={handleSend}
-                  disabled={sending}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition"
-                >
-                  {sending ? 'Lähetetään...' : 'Lähetä nyt'}
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowPreview(false)}
+                    className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition"
+                  >
+                    Sulje
+                  </button>
+                  <button
+                    onClick={handleSend}
+                    disabled={sending}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition"
+                  >
+                    {sending ? 'Lähetetään...' : 'Lähetä nyt'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

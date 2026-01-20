@@ -74,7 +74,7 @@ export default function Home() {
   const [newSocialPost, setNewSocialPost] = useState({
     title: '',
     date: '',
-    time: '',
+    time: '12:00',
     type: 'viikko-ohjelma',
     channels: [],
     assignee: '',
@@ -1688,7 +1688,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
     setNewSocialPost({
       title: '',
       date: '',
-      time: '',
+      time: '12:00',
       type: 'viikko-ohjelma',
       channels: [],
       assignee: '',
@@ -2068,7 +2068,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
               </Link>
               <Link href="/sisaltokalenteri">
                 <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
-                  📅 Sisältökalenteri
+                  SOME-AI
                 </button>
               </Link>
               <Link href="/copilot">

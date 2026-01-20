@@ -223,7 +223,7 @@ Pidä teksti napakkana ja helppolukuisena. Käytä emojeja säästeliäästi.`
 
       try {
         const response = await anthropic.messages.create({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-4-5-20250929',
           max_tokens: 2048,
           temperature: 0.7 + (index * 0.15), // Vähän eri temperature jokaiselle
           messages: [{

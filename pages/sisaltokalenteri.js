@@ -16,6 +16,8 @@ export default function ContentCalendar() {
   const [events, setEvents] = useState([])
   const [socialPosts, setSocialPosts] = useState([])
   const [savingSuggestion, setSavingSuggestion] = useState(null)
+  const [expandedSuggestion, setExpandedSuggestion] = useState(null)
+  const [editableCaption, setEditableCaption] = useState('')
 
   useEffect(() => {
     checkUser()
@@ -63,6 +65,15 @@ export default function ContentCalendar() {
         setAiSuggestions(data.aiSuggestions || [])
         setEvents(data.events || [])
         setSocialPosts(data.socialPosts || [])
+
+        // Näytä varoitus jos AI-ehdotuksia ei tullut
+        if (!data.aiSuggestions || data.aiSuggestions.length === 0) {
+          if (data.message) {
+            alert('⚠️ ' + data.message)
+          } else {
+            alert('⚠️ AI-ehdotuksia ei voitu generoida. Tarkista console-logi.')
+          }
+        }
       } else {
         alert('Virhe analyysissä: ' + (data.error || 'Tuntematon virhe'))
       }
@@ -100,7 +111,7 @@ export default function ContentCalendar() {
     }
   }
 
-  const addSuggestionToCalendar = async (suggestion) => {
+  const addSuggestionToCalendar = async (suggestion, customCaption = null) => {
     setSavingSuggestion(suggestion)
 
     try {
@@ -114,18 +125,37 @@ export default function ContentCalendar() {
 
       const channel = channelMap[suggestion.channel] || 'instagram'
 
+      // Käytä customCaption jos annettu, muuten reason
+      const captionText = customCaption || suggestion.reason
+
+      // Tallenna myös AI-ehdotukset notes-kenttään
+      let notesText = 'Luotu AI-ehdotuksesta'
+      if (suggestion.captions) {
+        notesText += '\n\n🤖 AI-EHDOTUKSET:\n\n'
+        notesText += '📝 LYHYT:\n' + suggestion.captions.short + '\n\n'
+        notesText += '📄 KESKIPITKÄ:\n' + suggestion.captions.medium + '\n\n'
+        notesText += '📜 PITKÄ:\n' + suggestion.captions.long
+      }
+
+      // Ekstraktoi vuosi päivämäärästä
+      const year = parseInt(suggestion.date.split('-')[0])
+
       // Luo uusi somepostaus
       const { data, error } = await supabase
         .from('social_media_posts')
         .insert({
           title: suggestion.type,
           date: suggestion.date,
+          time: '12:00',
+          year: year,
           type: suggestion.type.toLowerCase().replace(/\s+/g, '-'),
           channels: [channel],
           status: 'suunniteltu',
-          caption: suggestion.reason,
-          notes: 'Luotu AI-ehdotuksesta',
-          user_id: user.id
+          caption: captionText,
+          notes: notesText,
+          created_by_id: user.id,
+          created_by_email: user.email,
+          created_by_name: user.user_metadata?.full_name || user.email
         })
         .select()
 
@@ -133,8 +163,9 @@ export default function ContentCalendar() {
 
       alert('✅ Ehdotus lisätty kalenteriin!')
 
-      // Päivitä listaus poistamalla lisätty ehdotus
-      setAiSuggestions(prev => prev.filter((_, i) => _ !== suggestion))
+      // ÄLÄ poista ehdotusta listasta - käyttäjä haluaa että ne jäävät näkyviin
+      // Tyhjennä vain muokattava kenttä
+      setEditableCaption('')
 
     } catch (error) {
       console.error('Error saving suggestion:', error)
@@ -142,6 +173,22 @@ export default function ContentCalendar() {
     } finally {
       setSavingSuggestion(null)
     }
+  }
+
+  const toggleSuggestionExpansion = (suggestion) => {
+    if (expandedSuggestion === suggestion) {
+      setExpandedSuggestion(null)
+      setEditableCaption('')
+    } else {
+      setExpandedSuggestion(suggestion)
+      // Aseta oletuksena medium-versio muokattavaksi
+      setEditableCaption(suggestion.captions?.medium || suggestion.reason || '')
+    }
+  }
+
+  const saveAICaption = (suggestion, captionVersion) => {
+    const caption = suggestion.captions?.[captionVersion] || suggestion.reason
+    addSuggestionToCalendar(suggestion, caption)
   }
 
   if (loading) {
@@ -324,17 +371,107 @@ export default function ContentCalendar() {
                       </div>
                       <h4 className="font-semibold text-gray-900 mb-1">{suggestion.type}</h4>
                       <p className="text-sm text-gray-600 mb-3">{suggestion.reason}</p>
-                      <button
-                        onClick={() => addSuggestionToCalendar(suggestion)}
-                        disabled={savingSuggestion === suggestion}
-                        className={`w-full py-2 px-4 rounded-lg font-semibold transition ${
-                          savingSuggestion === suggestion
-                            ? 'bg-gray-400 text-white cursor-not-allowed'
-                            : 'bg-green-600 hover:bg-green-700 text-white'
-                        }`}
-                      >
-                        {savingSuggestion === suggestion ? '💾 Tallennetaan...' : '➕ Lisää kalenteriin'}
-                      </button>
+
+                      {/* AI-generoidut caption-versiot */}
+                      {suggestion.captions && (
+                        <div className="mb-3 bg-gradient-to-r from-purple-50 to-pink-50 p-3 rounded-lg border border-purple-200">
+                          <button
+                            onClick={() => toggleSuggestionExpansion(suggestion)}
+                            className="w-full text-left font-medium text-purple-900 flex items-center justify-between mb-2"
+                          >
+                            <span>✨ AI:n caption-ehdotukset</span>
+                            <span>{expandedSuggestion === suggestion ? '▼' : '▶'}</span>
+                          </button>
+
+                          {expandedSuggestion === suggestion && (
+                            <div className="space-y-3 mt-3">
+                              {/* Lyhyt versio */}
+                              <div className="bg-white p-3 rounded border border-gray-200">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-xs font-bold text-gray-600">📝 LYHYT</span>
+                                  <button
+                                    onClick={() => saveAICaption(suggestion, 'short')}
+                                    disabled={savingSuggestion === suggestion}
+                                    className="text-xs bg-green-100 hover:bg-green-200 text-green-800 px-2 py-1 rounded font-medium"
+                                  >
+                                    💾 Tallenna
+                                  </button>
+                                </div>
+                                <p className="text-sm text-gray-700">{suggestion.captions.short}</p>
+                              </div>
+
+                              {/* Keskipitkä versio */}
+                              <div className="bg-white p-3 rounded border border-gray-200">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-xs font-bold text-gray-600">📄 KESKIPITKÄ</span>
+                                  <button
+                                    onClick={() => saveAICaption(suggestion, 'medium')}
+                                    disabled={savingSuggestion === suggestion}
+                                    className="text-xs bg-green-100 hover:bg-green-200 text-green-800 px-2 py-1 rounded font-medium"
+                                  >
+                                    💾 Tallenna
+                                  </button>
+                                </div>
+                                <p className="text-sm text-gray-700">{suggestion.captions.medium}</p>
+                              </div>
+
+                              {/* Pitkä versio */}
+                              <div className="bg-white p-3 rounded border border-gray-200">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-xs font-bold text-gray-600">📜 PITKÄ</span>
+                                  <button
+                                    onClick={() => saveAICaption(suggestion, 'long')}
+                                    disabled={savingSuggestion === suggestion}
+                                    className="text-xs bg-green-100 hover:bg-green-200 text-green-800 px-2 py-1 rounded font-medium"
+                                  >
+                                    💾 Tallenna
+                                  </button>
+                                </div>
+                                <p className="text-sm text-gray-700">{suggestion.captions.long}</p>
+                              </div>
+
+                              {/* Muokattava versio */}
+                              <div className="bg-white p-3 rounded border-2 border-indigo-200">
+                                <label className="block text-xs font-bold text-indigo-900 mb-2">
+                                  ✏️ MUOKKAA JA TALLENNA
+                                </label>
+                                <textarea
+                                  value={editableCaption}
+                                  onChange={(e) => setEditableCaption(e.target.value)}
+                                  className="w-full p-2 border border-gray-300 rounded text-sm mb-2"
+                                  rows="4"
+                                />
+                                <button
+                                  onClick={() => addSuggestionToCalendar(suggestion, editableCaption)}
+                                  disabled={savingSuggestion === suggestion}
+                                  className={`w-full py-2 px-4 rounded font-semibold transition ${
+                                    savingSuggestion === suggestion
+                                      ? 'bg-gray-400 text-white cursor-not-allowed'
+                                      : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                                  }`}
+                                >
+                                  {savingSuggestion === suggestion ? '💾 Tallennetaan...' : '💾 Tallenna muokattu'}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Perus "Lisää kalenteriin" -nappi jos ei caption-versioita */}
+                      {!suggestion.captions && (
+                        <button
+                          onClick={() => addSuggestionToCalendar(suggestion)}
+                          disabled={savingSuggestion === suggestion}
+                          className={`w-full py-2 px-4 rounded-lg font-semibold transition ${
+                            savingSuggestion === suggestion
+                              ? 'bg-gray-400 text-white cursor-not-allowed'
+                              : 'bg-green-600 hover:bg-green-700 text-white'
+                          }`}
+                        >
+                          {savingSuggestion === suggestion ? '💾 Tallennetaan...' : '➕ Lisää kalenteriin'}
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>

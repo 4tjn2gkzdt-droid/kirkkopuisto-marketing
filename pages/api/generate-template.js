@@ -217,7 +217,7 @@ Max: 200 merkkiä`
     console.log(`Generating content for template: ${template.name}`)
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 1024,
       temperature: 0.8,
       messages: [{

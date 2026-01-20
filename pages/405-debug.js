@@ -52,8 +52,8 @@ export default function Debug405Page() {
       setResults(prev => ({
         ...prev,
         [name]: {
-          error: error.message,
-          stack: error.stack
+          error: String(error.message || error),
+          stack: String(error.stack || 'No stack trace available')
         }
       }))
     } finally {
@@ -91,9 +91,17 @@ export default function Debug405Page() {
               padding: '15px',
               background: results.simple.ok ? '#dcfce7' : '#fee2e2',
               borderRadius: '4px',
-              overflow: 'auto'
+              overflow: 'auto',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word'
             }}>
-              {JSON.stringify(results.simple, null, 2)}
+              {(() => {
+                try {
+                  return JSON.stringify(results.simple, null, 2)
+                } catch (e) {
+                  return `Error stringifying: ${e.message}`
+                }
+              })()}
             </pre>
           )}
         </div>
@@ -122,9 +130,17 @@ export default function Debug405Page() {
               padding: '15px',
               background: results.debug.ok ? '#dcfce7' : '#fee2e2',
               borderRadius: '4px',
-              overflow: 'auto'
+              overflow: 'auto',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word'
             }}>
-              {JSON.stringify(results.debug, null, 2)}
+              {(() => {
+                try {
+                  return JSON.stringify(results.debug, null, 2)
+                } catch (e) {
+                  return `Error stringifying: ${e.message}`
+                }
+              })()}
             </pre>
           )}
         </div>
@@ -156,9 +172,17 @@ export default function Debug405Page() {
               padding: '15px',
               background: results.newsletter.status === 405 ? '#fef3c7' : (results.newsletter.ok ? '#dcfce7' : '#fee2e2'),
               borderRadius: '4px',
-              overflow: 'auto'
+              overflow: 'auto',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word'
             }}>
-              {JSON.stringify(results.newsletter, null, 2)}
+              {(() => {
+                try {
+                  return JSON.stringify(results.newsletter, null, 2)
+                } catch (e) {
+                  return `Error stringifying: ${e.message}`
+                }
+              })()}
             </pre>
           )}
         </div>

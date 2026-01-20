@@ -37,6 +37,14 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Tarkista että Supabase on konfiguroitu
+    if (!supabaseAdmin) {
+      return res.status(500).json({
+        success: false,
+        error: 'Supabase ei ole konfiguroitu. Tarkista NEXT_PUBLIC_SUPABASE_URL ja SUPABASE_SERVICE_ROLE_KEY environment-muuttujat.'
+      })
+    }
+
     const {
       tone = 'casual',
       sendEmails = false,

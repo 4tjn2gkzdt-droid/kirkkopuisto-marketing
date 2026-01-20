@@ -216,7 +216,7 @@ export default function NewsletterGenerator() {
     setShowPreview(false)
 
     try {
-      const response = await fetch('/api/generate-newsletter', {
+      const response = await fetch('/api/newsletter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -307,7 +307,7 @@ export default function NewsletterGenerator() {
 
   const handlePreview = async () => {
     try {
-      const response = await fetch('/api/generate-newsletter', {
+      const response = await fetch('/api/newsletter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -336,7 +336,7 @@ export default function NewsletterGenerator() {
     setSending(true)
 
     try {
-      const response = await fetch('/api/generate-newsletter', {
+      const response = await fetch('/api/newsletter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

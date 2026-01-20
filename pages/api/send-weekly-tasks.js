@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase'
 import { Resend } from 'resend'
+import cors from '../../lib/cors'
 
 // Lazy-load Resend vain kun sitä tarvitaan
 function getResendClient() {
@@ -10,7 +11,7 @@ function getResendClient() {
   return new Resend(apiKey)
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -189,3 +190,5 @@ export default async function handler(req, res) {
     res.status(500).json({ error: error.message })
   }
 }
+
+export default cors(handler)

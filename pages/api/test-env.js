@@ -1,5 +1,7 @@
 // Testi-endpoint ympäristömuuttujien tarkistamiseen
-export default async function handler(req, res) {
+import cors from '../../lib/cors'
+
+async function handler(req, res) {
   const envVars = {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL ? 'SET' : 'MISSING',
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'MISSING',
@@ -21,3 +23,5 @@ export default async function handler(req, res) {
     message: 'Environment variables check'
   });
 }
+
+export default cors(handler)

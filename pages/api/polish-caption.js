@@ -60,8 +60,19 @@ Palauta vastaus JSON-muodossa:
     const textContent = response.content.find(block => block.type === 'text')
     let contentText = textContent?.text || '{}'
 
-    // Poista markdown-koodiblokki-merkinnät jos ne ovat mukana
-    contentText = contentText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+    console.log('AI response:', contentText.substring(0, 500)) // Debug log
+
+    // Poista kaikki markdown-koodiblokki-merkinnät (```json, ```, etc.)
+    contentText = contentText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim()
+
+    // Jos teksti alkaa tai päättyy välilyönneillä tai rivinvaihdoilla, puhdista
+    contentText = contentText.trim()
+
+    // Etsi JSON-objekti tekstistä (alkaa { ja päättyy })
+    const jsonMatch = contentText.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      contentText = jsonMatch[0]
+    }
 
     let versions
     try {
@@ -70,8 +81,8 @@ Palauta vastaus JSON-muodossa:
       console.error('Failed to parse AI response:', parseError)
       console.error('Raw response:', contentText)
       return res.status(500).json({
-        error: 'Failed to parse AI response',
-        details: contentText
+        error: 'AI palautti virheellisen JSON-muodon',
+        details: contentText.substring(0, 200)
       })
     }
 

@@ -123,16 +123,35 @@ Vastaa AINA JSON-muodossa.`
       const textContent = response.content.find(block => block.type === 'text')
       let contentText = textContent?.text || '{}'
 
-      console.log('AI response:', contentText.substring(0, 200)) // Debug log
+      console.log('AI response:', contentText.substring(0, 500)) // Debug log
 
-      contentText = contentText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+      // Poista kaikki markdown-koodiblokki-merkinnät (```json, ```, etc.)
+      contentText = contentText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim()
 
-      const parsed = JSON.parse(contentText)
+      // Jos teksti alkaa tai päättyy välilyönneillä tai rivinvaihdoilla, puhdista
+      contentText = contentText.trim()
+
+      // Etsi JSON-objekti tekstistä (alkaa { ja päättyy })
+      const jsonMatch = contentText.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        contentText = jsonMatch[0]
+      }
+
+      let parsed
+      try {
+        parsed = JSON.parse(contentText)
+      } catch (parseError) {
+        console.error('JSON parse failed:', parseError)
+        console.error('Attempted to parse:', contentText)
+        throw new Error('AI palautti virheellisen JSON-muodon')
+      }
+
       aiSuggestions = parsed.suggestions || []
 
       console.log(`AI generated ${aiSuggestions.length} suggestions`) // Debug log
     } catch (aiError) {
       console.error('AI suggestion generation failed:', aiError)
+      console.error('Error details:', aiError.message)
       // Palauta virhe käyttäjälle mutta älä kaada koko requestia
       aiSuggestions = []
     }

@@ -18,6 +18,8 @@ export default function ContentCalendar() {
   const [savingSuggestion, setSavingSuggestion] = useState(null)
   const [expandedSuggestion, setExpandedSuggestion] = useState(null)
   const [editableCaption, setEditableCaption] = useState('')
+  const [generatingContent, setGeneratingContent] = useState(null)
+  const [generatedCaptions, setGeneratedCaptions] = useState({})
 
   useEffect(() => {
     checkUser()
@@ -192,9 +194,44 @@ export default function ContentCalendar() {
     }
   }
 
-  const saveAICaption = (suggestion, captionVersion) => {
-    const caption = suggestion.captions?.[captionVersion] || suggestion.reason
+  const saveAICaption = (suggestion, captionVersion, index) => {
+    // Hae captions joko suggestion-objektista tai generoiduista
+    const captions = suggestion.captions || generatedCaptions[index]
+    const caption = captions?.[captionVersion] || suggestion.reason
     addSuggestionToCalendar(suggestion, caption)
+  }
+
+  const generatePostContent = async (suggestion, index) => {
+    setGeneratingContent(index)
+
+    try {
+      const response = await fetch('/api/generate-post-content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ suggestion })
+      })
+
+      const data = await response.json()
+
+      if (data.success && data.captions) {
+        // Tallenna generoidut captions
+        setGeneratedCaptions(prev => ({
+          ...prev,
+          [index]: data.captions
+        }))
+        // Laajenna automaattisesti
+        setExpandedSuggestion(suggestion)
+        // Aseta medium-versio muokattavaksi
+        setEditableCaption(data.captions.medium || '')
+      } else {
+        alert('Virhe sisällön generoinnissa: ' + (data.error || 'Tuntematon virhe'))
+      }
+    } catch (error) {
+      console.error('Error generating content:', error)
+      alert('Virhe sisällön generoinnissa: ' + error.message)
+    } finally {
+      setGeneratingContent(null)
+    }
   }
 
   if (loading) {
@@ -378,11 +415,13 @@ export default function ContentCalendar() {
                           {suggestion.channel}
                         </span>
                       </div>
-                      <h4 className="font-semibold text-gray-900 mb-1">{suggestion.type}</h4>
+                      <h4 className="font-semibold text-gray-900 mb-1">{suggestion.title || suggestion.type}</h4>
                       <p className="text-sm text-gray-600 mb-3">{suggestion.reason}</p>
 
                       {/* AI-generoidut caption-versiot */}
-                      {suggestion.captions && (
+                      {(suggestion.captions || generatedCaptions[index]) && (() => {
+                        const captions = suggestion.captions || generatedCaptions[index];
+                        return (
                         <div className="mb-3 bg-gradient-to-r from-purple-50 to-pink-50 p-3 rounded-lg border border-purple-200">
                           <button
                             onClick={() => toggleSuggestionExpansion(suggestion)}
@@ -397,14 +436,14 @@ export default function ContentCalendar() {
                               {/* Lyhyt versio */}
                               <div
                                 className="bg-white p-3 rounded border-2 border-gray-200 hover:border-purple-400 cursor-pointer transition"
-                                onClick={() => setEditableCaption(suggestion.captions.short)}
+                                onClick={() => setEditableCaption(captions.short)}
                               >
                                 <div className="flex items-center justify-between mb-1">
                                   <span className="text-xs font-bold text-gray-600">📝 LYHYT (klikkaa kopioidaksesi)</span>
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      saveAICaption(suggestion, 'short');
+                                      saveAICaption(suggestion, 'short', index);
                                     }}
                                     disabled={savingSuggestion === suggestion}
                                     className="text-xs bg-green-100 hover:bg-green-200 text-green-800 px-2 py-1 rounded font-medium"
@@ -412,20 +451,20 @@ export default function ContentCalendar() {
                                     💾 Tallenna
                                   </button>
                                 </div>
-                                <p className="text-sm text-gray-700">{suggestion.captions.short}</p>
+                                <p className="text-sm text-gray-700">{captions.short}</p>
                               </div>
 
                               {/* Keskipitkä versio */}
                               <div
                                 className="bg-white p-3 rounded border-2 border-gray-200 hover:border-purple-400 cursor-pointer transition"
-                                onClick={() => setEditableCaption(suggestion.captions.medium)}
+                                onClick={() => setEditableCaption(captions.medium)}
                               >
                                 <div className="flex items-center justify-between mb-1">
                                   <span className="text-xs font-bold text-gray-600">📄 KESKIPITKÄ (klikkaa kopioidaksesi)</span>
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      saveAICaption(suggestion, 'medium');
+                                      saveAICaption(suggestion, 'medium', index);
                                     }}
                                     disabled={savingSuggestion === suggestion}
                                     className="text-xs bg-green-100 hover:bg-green-200 text-green-800 px-2 py-1 rounded font-medium"
@@ -433,20 +472,20 @@ export default function ContentCalendar() {
                                     💾 Tallenna
                                   </button>
                                 </div>
-                                <p className="text-sm text-gray-700">{suggestion.captions.medium}</p>
+                                <p className="text-sm text-gray-700">{captions.medium}</p>
                               </div>
 
                               {/* Pitkä versio */}
                               <div
                                 className="bg-white p-3 rounded border-2 border-gray-200 hover:border-purple-400 cursor-pointer transition"
-                                onClick={() => setEditableCaption(suggestion.captions.long)}
+                                onClick={() => setEditableCaption(captions.long)}
                               >
                                 <div className="flex items-center justify-between mb-1">
                                   <span className="text-xs font-bold text-gray-600">📜 PITKÄ (klikkaa kopioidaksesi)</span>
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      saveAICaption(suggestion, 'long');
+                                      saveAICaption(suggestion, 'long', index);
                                     }}
                                     disabled={savingSuggestion === suggestion}
                                     className="text-xs bg-green-100 hover:bg-green-200 text-green-800 px-2 py-1 rounded font-medium"
@@ -454,7 +493,7 @@ export default function ContentCalendar() {
                                     💾 Tallenna
                                   </button>
                                 </div>
-                                <p className="text-sm text-gray-700">{suggestion.captions.long}</p>
+                                <p className="text-sm text-gray-700">{captions.long}</p>
                               </div>
 
                               {/* Muokattava versio */}
@@ -483,20 +522,21 @@ export default function ContentCalendar() {
                             </div>
                           )}
                         </div>
-                      )}
+                        );
+                      })()}
 
-                      {/* Perus "Lisää kalenteriin" -nappi jos ei caption-versioita */}
-                      {!suggestion.captions && (
+                      {/* "Lisää somepäivitys" -nappi jos ei caption-versioita */}
+                      {!suggestion.captions && !generatedCaptions[index] && (
                         <button
-                          onClick={() => addSuggestionToCalendar(suggestion)}
-                          disabled={savingSuggestion === suggestion}
+                          onClick={() => generatePostContent(suggestion, index)}
+                          disabled={generatingContent === index}
                           className={`w-full py-2 px-4 rounded-lg font-semibold transition ${
-                            savingSuggestion === suggestion
+                            generatingContent === index
                               ? 'bg-gray-400 text-white cursor-not-allowed'
                               : 'bg-green-600 hover:bg-green-700 text-white'
                           }`}
                         >
-                          {savingSuggestion === suggestion ? '💾 Tallennetaan...' : '➕ Lisää kalenteriin'}
+                          {generatingContent === index ? '🤖 Luodaan sisältöä...' : '➕ Lisää somepäivitys'}
                         </button>
                       )}
                     </div>

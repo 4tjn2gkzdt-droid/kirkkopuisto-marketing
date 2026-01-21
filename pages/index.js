@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabase';
-import { socialPostTypes, socialChannels } from '../lib/constants';
+import { socialPostTypes, socialChannels, years, channels, marketingOperations, imageFormats } from '../lib/constants';
+import { getDaysInMonth, getWeekDays, formatDateFI, formatDateISO, isToday, isFutureDate, getDaysDiff } from '../lib/dateUtils';
+import { filterPosts, getEventsForDate, filterSocialPosts, getSocialPostsForDate, getUpcomingDeadlines } from '../lib/filterUtils';
 import InstallPrompt from '../components/InstallPrompt';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -93,121 +95,6 @@ export default function Home() {
   const [polishingCaption, setPolishingCaption] = useState(false);
   const [polishedVersions, setPolishedVersions] = useState(null);
 
-  const years = [2021, 2022, 2023, 2024, 2025, 2026];
-  
-  const channels = [
-    { id: 'instagram', name: 'Instagram', color: 'bg-pink-500' },
-    { id: 'facebook', name: 'Facebook', color: 'bg-blue-500' },
-    { id: 'tiktok', name: 'TikTok', color: 'bg-black' },
-    { id: 'newsletter', name: 'Uutiskirje', color: 'bg-green-500' },
-    { id: 'print', name: 'Printit', color: 'bg-purple-500' },
-    { id: 'ts-meno', name: 'TS Menovinkit', color: 'bg-orange-500' },
-    { id: 'turku-calendar', name: 'Turun kalenteri', color: 'bg-blue-700' }
-  ];
-
-  // Markkinointitoimenpiteet joista voidaan valita
-  const marketingOperations = [
-    {
-      id: 'ig-feed',
-      name: 'Instagram Feed -postaus',
-      channel: 'instagram',
-      icon: '📸',
-      daysBeforeEvent: 7,
-      defaultTime: '12:00',
-      description: '1:1 kuva + caption'
-    },
-    {
-      id: 'ig-reel',
-      name: 'Instagram Reels',
-      channel: 'instagram',
-      icon: '🎬',
-      daysBeforeEvent: 5,
-      defaultTime: '14:00',
-      description: 'Lyhyt video 15-30s'
-    },
-    {
-      id: 'ig-story',
-      name: 'Instagram Story',
-      channel: 'instagram',
-      icon: '📱',
-      daysBeforeEvent: 1,
-      defaultTime: '18:00',
-      description: '9:16 stoory-päivitys'
-    },
-    {
-      id: 'fb-post',
-      name: 'Facebook -postaus',
-      channel: 'facebook',
-      icon: '📘',
-      daysBeforeEvent: 5,
-      defaultTime: '10:00',
-      description: 'Orgaaninen postaus'
-    },
-    {
-      id: 'fb-event',
-      name: 'Facebook Event',
-      channel: 'facebook',
-      icon: '🎫',
-      daysBeforeEvent: 14,
-      defaultTime: '11:00',
-      description: 'Tapahtuman luonti FB:ssä'
-    },
-    {
-      id: 'tiktok',
-      name: 'TikTok -video',
-      channel: 'tiktok',
-      icon: '🎵',
-      daysBeforeEvent: 4,
-      defaultTime: '16:00',
-      description: 'Lyhyt mukaansatempaava video'
-    },
-    {
-      id: 'newsletter',
-      name: 'Uutiskirje',
-      channel: 'newsletter',
-      icon: '📧',
-      daysBeforeEvent: 7,
-      defaultTime: '09:00',
-      description: 'Sähköpostiviesti tilaajille'
-    },
-    {
-      id: 'print',
-      name: 'Printit (julisteet)',
-      channel: 'print',
-      icon: '🖨️',
-      daysBeforeEvent: 21,
-      defaultTime: '10:00',
-      description: 'Fyysiset julisteet ja mainosmateriaalit'
-    },
-    {
-      id: 'ts-meno',
-      name: 'TS Menovinkit',
-      channel: 'ts-meno',
-      icon: '📰',
-      daysBeforeEvent: 10,
-      defaultTime: '10:00',
-      description: 'Turun Sanomien menolista'
-    },
-    {
-      id: 'turku-calendar',
-      name: 'Turun tapahtumakalenteri',
-      channel: 'turku-calendar',
-      icon: '📅',
-      daysBeforeEvent: 28,
-      defaultTime: '10:00',
-      description: 'Kaupungin virallinen kalenteri'
-    }
-  ];
-
-  const imageFormats = [
-    { id: 'ig-feed', name: 'Instagram Feed', ratio: '1:1 (1080x1080px)', icon: '📸' },
-    { id: 'ig-story', name: 'Instagram Story', ratio: '9:16 (1080x1920px)', icon: '📱' },
-    { id: 'fb-feed', name: 'Facebook Feed', ratio: '1.91:1 (1200x630px)', icon: '📘' },
-    { id: 'fb-event', name: 'Facebook Event', ratio: '16:9 (1920x1080px)', icon: '🎫' },
-    { id: 'tiktok', name: 'TikTok', ratio: '9:16 (1080x1920px)', icon: '🎵' },
-    { id: 'newsletter', name: 'Uutiskirje', ratio: '2:1 (800x400px)', icon: '📧' },
-    { id: 'calendar', name: 'Tapahtumakalenteri', ratio: '16:9 (1200x675px)', icon: '📅' }
-  ];
 
   // Tarkista autentikointi
   useEffect(() => {
@@ -1795,155 +1682,12 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
     setCurrentEventForImages(updatedPosts.find(p => p.id === currentEventForImages.id));
   };
 
-  // Laskee lähestyvät ja myöhässä olevat deadlinet
-  const getUpcomingDeadlines = () => {
-    const allPosts = posts[selectedYear] || [];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const deadlines = [];
-
-    allPosts.forEach(post => {
-      (post.tasks || []).forEach(task => {
-        if (!task.completed && task.dueDate) {
-          const dueDate = new Date(task.dueDate);
-          dueDate.setHours(0, 0, 0, 0);
-
-          const diffTime = dueDate - today;
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-          let urgency = 'normal';
-          if (diffDays < 0) {
-            urgency = 'overdue'; // Myöhässä
-          } else if (diffDays <= 3) {
-            urgency = 'urgent'; // Alle 3 päivää
-          } else if (diffDays <= 7) {
-            urgency = 'soon'; // Alle viikko
-          }
-
-          deadlines.push({
-            task,
-            event: post,
-            dueDate: task.dueDate,
-            dueTime: task.dueTime,
-            diffDays,
-            urgency
-          });
-        }
-      });
-    });
-
-    return deadlines.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
-  };
-
-  const filterPosts = () => {
-    let currentPosts = posts[selectedYear] || [];
-
-    // Suodata sisältötyypin mukaan
-    if (contentFilter === 'social') {
-      // Jos halutaan vain somepostaukset, palauta tyhjä (tapahtumat pois)
-      currentPosts = [];
-    }
-
-    // Piilota menneet tapahtumat jos showPastEvents = false
-    if (!showPastEvents) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      currentPosts = currentPosts.filter(post => {
-        const eventDate = new Date(post.date);
-        eventDate.setHours(0, 0, 0, 0);
-        return eventDate >= today;
-      });
-    }
-
-    // Hakusuodatus
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      currentPosts = currentPosts.filter(p =>
-        p.title.toLowerCase().includes(q) ||
-        (p.artist && p.artist.toLowerCase().includes(q))
-      );
-    }
-
-    return currentPosts;
-  };
-
-  // Apufunktiot kalenterinäkymiä varten
-  const getDaysInMonth = (year, month) => {
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-
-    const days = [];
-    // Lisää tyhjät päivät ennen kuukauden alkua
-    for (let i = 0; i < (startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1); i++) {
-      days.push(null);
-    }
-    // Lisää kuukauden päivät
-    for (let i = 1; i <= daysInMonth; i++) {
-      days.push(new Date(year, month, i));
-    }
-    return days;
-  };
-
-  const getWeekDays = (date) => {
-    const day = date.getDay();
-    const diff = date.getDate() - (day === 0 ? 6 : day - 1);
-    const monday = new Date(date);
-    monday.setDate(diff);
-
-    const days = [];
-    for (let i = 0; i < 7; i++) {
-      const day = new Date(monday);
-      day.setDate(monday.getDate() + i);
-      days.push(day);
-    }
-    return days;
-  };
-
-  const getEventsForDate = (date) => {
-    if (!date) return [];
-    const dateStr = date.toISOString().split('T')[0];
-    const allPosts = filterPosts();
-    return allPosts.filter(post => post.date === dateStr);
-  };
-
-  const getSocialPostsForDate = (date) => {
-    if (!date) return [];
-    const dateStr = date.toISOString().split('T')[0];
-    let filteredSocialPosts = [...socialPosts];
-
-    // Suodata contentFilterin mukaan
-    if (contentFilter === 'events') {
-      // Jos halutaan vain tapahtumat, palauta tyhjä
-      return [];
-    }
-
-    // Piilota menneet jos showPastEvents = false
-    if (!showPastEvents) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      filteredSocialPosts = filteredSocialPosts.filter(post => {
-        const postDate = new Date(post.date);
-        postDate.setHours(0, 0, 0, 0);
-        return postDate >= today;
-      });
-    }
-
-    // Vastuuhenkilön suodatus
-    if (assigneeFilter !== 'all') {
-      if (assigneeFilter === 'unassigned') {
-        filteredSocialPosts = filteredSocialPosts.filter(post => !post.assignee || !post.assignee.trim());
-      } else {
-        filteredSocialPosts = filteredSocialPosts.filter(post => post.assignee === assigneeFilter);
-      }
-    }
-
-    return filteredSocialPosts.filter(post => post.date === dateStr);
-  };
-
-  const currentYearPosts = filterPosts();
+  // Suodatetut tapahtumat
+  const currentYearPosts = filterPosts(posts[selectedYear] || [], {
+    searchQuery,
+    showPastEvents,
+    contentFilter
+  });
 
   // Näytä latausruutu autentikoinnin aikana
   if (loading) {
@@ -2109,7 +1853,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
         {/* Deadline-muistutukset */}
         {(() => {
-          const upcomingDeadlines = getUpcomingDeadlines();
+          const upcomingDeadlines = getUpcomingDeadlines(posts[selectedYear] || []);
           const overdue = upcomingDeadlines.filter(d => d.urgency === 'overdue');
           const urgent = upcomingDeadlines.filter(d => d.urgency === 'urgent');
           const soon = upcomingDeadlines.filter(d => d.urgency === 'soon');
@@ -3144,8 +2888,8 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   </div>
                 ))}
                 {getDaysInMonth(selectedYear, selectedMonth).map((date, idx) => {
-                  const dayEvents = date ? getEventsForDate(date) : [];
-                  const daySocialPosts = date ? getSocialPostsForDate(date) : [];
+                  const dayEvents = date ? getEventsForDate(date, currentYearPosts) : [];
+                  const daySocialPosts = date ? getSocialPostsForDate(date, socialPosts, { contentFilter, showPastEvents, assigneeFilter }) : [];
                   const isToday = date && date.toDateString() === new Date().toDateString();
 
                   return (
@@ -3261,8 +3005,8 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
               <div className="grid grid-cols-7 gap-2">
                 {getWeekDays(selectedWeek).map((date, idx) => {
-                  const dayEvents = getEventsForDate(date);
-                  const daySocialPosts = getSocialPostsForDate(date);
+                  const dayEvents = getEventsForDate(date, currentYearPosts);
+                  const daySocialPosts = getSocialPostsForDate(date, socialPosts, { contentFilter, showPastEvents, assigneeFilter });
                   const isToday = date.toDateString() === new Date().toDateString();
                   const dayName = ['Ma', 'Ti', 'Ke', 'To', 'Pe', 'La', 'Su'][idx];
 
@@ -3346,7 +3090,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
         {/* Deadline-modaali */}
         {showDeadlineModal && (() => {
-          const upcomingDeadlines = getUpcomingDeadlines();
+          const upcomingDeadlines = getUpcomingDeadlines(posts[selectedYear] || []);
           const overdue = upcomingDeadlines.filter(d => d.urgency === 'overdue');
           const urgent = upcomingDeadlines.filter(d => d.urgency === 'urgent');
           const soon = upcomingDeadlines.filter(d => d.urgency === 'soon');

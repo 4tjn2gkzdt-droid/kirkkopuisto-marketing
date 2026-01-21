@@ -68,14 +68,20 @@ export default function ContentCalendar() {
 
         // Näytä varoitus jos AI-ehdotuksia ei tullut
         if (!data.aiSuggestions || data.aiSuggestions.length === 0) {
-          if (data.message) {
-            alert('⚠️ ' + data.message)
-          } else {
-            alert('⚠️ AI-ehdotuksia ei voitu generoida. Tarkista console-logi.')
+          let errorMsg = '⚠️ AI-ehdotuksia ei voitu generoida.\n\n'
+          if (data.aiError) {
+            errorMsg += 'Virhe: ' + data.aiError + '\n\n'
+          } else if (data.message) {
+            errorMsg += data.message + '\n\n'
           }
+          errorMsg += 'Käy Debug-sivulla (🐛 Debug -nappi ylhäällä) saadaksesi lisätietoja.'
+          alert(errorMsg)
+        } else if (data.aiError) {
+          // AI-ehdotukset saatiin mutta oli virheitä
+          alert('⚠️ ' + data.aiError + '\n\nKäy Debug-sivulla saadaksesi lisätietoja.')
         }
       } else {
-        alert('Virhe analyysissä: ' + (data.error || 'Tuntematon virhe'))
+        alert('Virhe analyysissä: ' + (data.error || 'Tuntematon virhe') + '\n\nKäy Debug-sivulla saadaksesi lisätietoja.')
       }
     } catch (error) {
       console.error('Error analyzing calendar:', error)
@@ -212,6 +218,9 @@ export default function ContentCalendar() {
               <h1 className="text-2xl font-bold text-gray-900">
                 🤖 SOME-AI
               </h1>
+              <Link href="/some-ai-debug" className="text-xs bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full hover:bg-yellow-200 transition">
+                🐛 Debug
+              </Link>
             </div>
             <div className="text-sm text-gray-600">
               {user?.email}

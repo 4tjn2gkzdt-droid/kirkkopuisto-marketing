@@ -106,6 +106,7 @@ Muotoile JSON:
 }`
 
     let aiSuggestions = []
+    let aiErrorMessage = null
     try {
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-5-20250929',
@@ -123,10 +124,13 @@ Vastaa AINA JSON-muodossa.`
       const textContent = response.content.find(block => block.type === 'text')
       let contentText = textContent?.text || '{}'
 
-      console.log('AI response:', contentText.substring(0, 500)) // Debug log
+      console.log('AI response (full):', contentText) // Debug log - näytä koko vastaus
+      console.log('AI response (preview):', contentText.substring(0, 500)) // Debug log
 
       // Poista kaikki markdown-koodiblokki-merkinnät (```json, ```, etc.)
       contentText = contentText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim()
+
+      console.log('After markdown cleanup:', contentText.substring(0, 500)) // Debug log
 
       // Jos teksti alkaa tai päättyy välilyönneillä tai rivinvaihdoilla, puhdista
       contentText = contentText.trim()
@@ -135,23 +139,48 @@ Vastaa AINA JSON-muodossa.`
       const jsonMatch = contentText.match(/\{[\s\S]*\}/)
       if (jsonMatch) {
         contentText = jsonMatch[0]
+        console.log('JSON object found, length:', contentText.length) // Debug log
+      } else {
+        console.warn('No JSON object pattern found in text') // Debug log
       }
 
       let parsed
       try {
         parsed = JSON.parse(contentText)
+        console.log('JSON parsed successfully:', parsed) // Debug log
       } catch (parseError) {
         console.error('JSON parse failed:', parseError)
         console.error('Attempted to parse:', contentText)
-        throw new Error('AI palautti virheellisen JSON-muodon')
+        aiErrorMessage = `JSON-parsinta epäonnistui: ${parseError.message}. Tarkista Debug-sivulta lisätietoja.`
+        throw new Error('AI palautti virheellisen JSON-muodon: ' + parseError.message)
       }
 
       aiSuggestions = parsed.suggestions || []
+
+      if (!aiSuggestions || aiSuggestions.length === 0) {
+        console.warn('AI returned empty suggestions array')
+        aiErrorMessage = 'AI palautti tyhjän ehdotuslistan. Tarkista Debug-sivulta lisätietoja.'
+      }
 
       console.log(`AI generated ${aiSuggestions.length} suggestions`) // Debug log
     } catch (aiError) {
       console.error('AI suggestion generation failed:', aiError)
       console.error('Error details:', aiError.message)
+      console.error('Error stack:', aiError.stack)
+
+      // Tallenna virheviesti
+      if (!aiErrorMessage) {
+        if (aiError.status === 401) {
+          aiErrorMessage = 'API-avain on virheellinen tai vanhentunut'
+        } else if (aiError.status === 429) {
+          aiErrorMessage = 'API-rajat ylitetty, yritä hetken kuluttua uudelleen'
+        } else if (aiError.status === 500) {
+          aiErrorMessage = 'Anthropic API:ssa on sisäinen virhe'
+        } else {
+          aiErrorMessage = aiError.message || 'Tuntematon virhe AI-ehdotusten generoinnissa'
+        }
+      }
+
       // Palauta virhe käyttäjälle mutta älä kaada koko requestia
       aiSuggestions = []
     }
@@ -161,7 +190,8 @@ Vastaa AINA JSON-muodossa.`
       contentGaps,
       aiSuggestions,
       events,
-      socialPosts
+      socialPosts,
+      aiError: aiErrorMessage // Lisää virheviesti jos AI epäonnistui
     })
 
   } catch (error) {

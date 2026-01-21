@@ -115,7 +115,7 @@ Muotoile JSON:
     try {
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-5-20250929',
-        max_tokens: 2048, // Reduced from 4096 to speed up response
+        max_tokens: 8192, // Increased to allow for 5-8 suggestions with 3 caption versions each
         temperature: 0.7,
         messages: [{
           role: 'user',

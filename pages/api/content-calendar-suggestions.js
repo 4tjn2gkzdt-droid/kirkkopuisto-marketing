@@ -84,13 +84,10 @@ ${contentGaps.map(gap => `- ${gap.type}: ${gap.description}`).join('\n')}
 
 ANNA 5-8 KONKREETTISTA SISÄLTÖEHDOTUSTA:
 - Milloin julkaista
-- Mitä julkaista
+- Mitä julkaista (otsikko)
 - Mihin kanavaan
-- Miksi juuri nyt
-- Luo KOLME eri pituista caption-versiota jokaiselle ehdotukselle:
-  * short: Lyhyt, napakka versio (1-2 lausetta)
-  * medium: Keskipitkä versio (2-4 lausetta)
-  * long: Pitkä, yksityiskohtainen versio (5-8 lausetta)
+- Miksi juuri nyt (perustelu)
+- ÄLÄ luo caption-sisältöä vielä - se luodaan vasta kun käyttäjä valitsee ehdotuksen
 
 Muotoile JSON:
 {
@@ -99,13 +96,9 @@ Muotoile JSON:
       "date": "2024-01-15",
       "type": "Viikko-ohjelma",
       "channel": "Instagram",
-      "reason": "Maanantai-aamuna viikon avaus",
-      "priority": "high/medium/low",
-      "captions": {
-        "short": "Lyhyt caption-teksti tähän",
-        "medium": "Keskipitkä caption-teksti tähän",
-        "long": "Pitkä caption-teksti tähän"
-      }
+      "title": "Napakka otsikko ehdotukselle",
+      "reason": "Selkeä perustelu miksi tämä postaus olisi tärkeä juuri nyt",
+      "priority": "high/medium/low"
     }
   ]
 }`
@@ -115,7 +108,7 @@ Muotoile JSON:
     try {
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-5-20250929',
-        max_tokens: 2048, // Reduced from 4096 to speed up response
+        max_tokens: 8192, // Increased to allow for 5-8 suggestions with 3 caption versions each
         temperature: 0.7,
         messages: [{
           role: 'user',

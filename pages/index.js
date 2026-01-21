@@ -2050,6 +2050,11 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   </div>
                 )}
               </div>
+              <Link href="/perehdytys">
+                <button className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 font-medium">
+                  🎓 Perehdytys
+                </button>
+              </Link>
               <Link href="/materiaalit">
                 <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
                   📁 Materiaalit

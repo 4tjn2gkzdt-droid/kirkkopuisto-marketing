@@ -3,6 +3,24 @@ import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
 
+// Vakiot somepostauksille
+const socialPostTypes = [
+  { id: 'viikko-ohjelma', name: 'Viikko-ohjelma', icon: '📅' },
+  { id: 'last-minute', name: 'Last minute -markkinointi', icon: '⚡' },
+  { id: 'kiitos', name: 'Kiitos-postaus', icon: '🙏' },
+  { id: 'teaser', name: 'Teaser', icon: '🎬' },
+  { id: 'tiedote', name: 'Tiedote', icon: '📢' },
+  { id: 'tarinat', name: 'Tarinat', icon: '📖' },
+  { id: 'muu', name: 'Muu sisältö', icon: '📝' }
+]
+
+const socialChannels = [
+  { id: 'instagram', name: 'Instagram', icon: '📸' },
+  { id: 'facebook', name: 'Facebook', icon: '👥' },
+  { id: 'tiktok', name: 'TikTok', icon: '🎵' },
+  { id: 'newsletter', name: 'Uutiskirje', icon: '📧' }
+]
+
 export default function ContentTemplates() {
   const router = useRouter()
   const [user, setUser] = useState(null)
@@ -14,6 +32,24 @@ export default function ContentTemplates() {
   const [generatedContent, setGeneratedContent] = useState('')
   const [events, setEvents] = useState([])
   const [selectedEvents, setSelectedEvents] = useState([])
+
+  // Somepostauksen lisäysmodaali
+  const [showAddSocialPostModal, setShowAddSocialPostModal] = useState(false)
+  const [newSocialPost, setNewSocialPost] = useState({
+    title: '',
+    date: '',
+    time: '12:00',
+    type: 'viikko-ohjelma',
+    channels: [],
+    assignee: '',
+    linkedEventId: null,
+    status: 'suunniteltu',
+    caption: '',
+    notes: '',
+    mediaLinks: [],
+    recurrence: 'none',
+    recurrenceEndDate: ''
+  })
 
   // Template-määritykset
   const templates = [
@@ -135,6 +171,86 @@ export default function ContentTemplates() {
     if (!error && data) {
       setEvents(data)
     }
+  }
+
+  const saveSocialPost = async () => {
+    if (!newSocialPost.title || !newSocialPost.date) {
+      alert('Täytä vähintään otsikko ja päivämäärä')
+      return
+    }
+
+    try {
+      const year = parseInt(newSocialPost.date.split('-')[0])
+
+      const { data, error } = await supabase
+        .from('social_media_posts')
+        .insert({
+          title: newSocialPost.title,
+          date: newSocialPost.date,
+          time: newSocialPost.time,
+          year: year,
+          type: newSocialPost.type,
+          channels: newSocialPost.channels,
+          status: newSocialPost.status,
+          caption: newSocialPost.caption,
+          notes: newSocialPost.notes,
+          created_by_id: user.id,
+          created_by_email: user.email,
+          created_by_name: user.user_metadata?.full_name || user.email
+        })
+        .select()
+
+      if (error) throw error
+
+      alert('✅ Somepostaus lisätty!')
+
+      // Sulje modaali ja tyhjennä lomake
+      setShowAddSocialPostModal(false)
+      setNewSocialPost({
+        title: '',
+        date: '',
+        time: '12:00',
+        type: 'viikko-ohjelma',
+        channels: [],
+        assignee: '',
+        linkedEventId: null,
+        status: 'suunniteltu',
+        caption: '',
+        notes: '',
+        mediaLinks: [],
+        recurrence: 'none',
+        recurrenceEndDate: ''
+      })
+
+    } catch (error) {
+      console.error('Error saving social post:', error)
+      alert('Virhe tallennuksessa: ' + error.message)
+    }
+  }
+
+  const openAddPostModal = (content) => {
+    // Esitäytä lomake generoidulla sisällöllä
+    const today = new Date()
+    const defaultDate = today.toISOString().split('T')[0]
+
+    setNewSocialPost({
+      title: currentTemplate?.name || 'Uusi postaus',
+      date: defaultDate,
+      time: '12:00',
+      type: 'muu',
+      channels: ['instagram'],
+      assignee: '',
+      linkedEventId: null,
+      status: 'suunniteltu',
+      caption: content || generatedContent,
+      notes: `Luotu sisältömallista: ${currentTemplate?.name || ''}`,
+      mediaLinks: [],
+      recurrence: 'none',
+      recurrenceEndDate: ''
+    })
+
+    // Avaa modaali
+    setShowAddSocialPostModal(true)
   }
 
   const handleGenerate = async () => {
@@ -382,11 +498,181 @@ export default function ContentTemplates() {
                     🔄 Generoi uudelleen
                   </button>
                 </div>
+
+                {/* "Lisää somepäivitys" -nappi */}
+                <button
+                  onClick={() => openAddPostModal(generatedContent)}
+                  className="w-full py-3 px-4 rounded-lg font-semibold transition bg-green-600 hover:bg-green-700 text-white mt-3"
+                >
+                  ➕ Lisää somepäivitys
+                </button>
               </div>
             )}
           </div>
         )}
       </div>
+
+      {/* Somepostauksen lisäysmodaali */}
+      {showAddSocialPostModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-2xl font-bold mb-6">📱 Lisää somepostaus</h3>
+
+            <div className="space-y-4">
+              {/* Otsikko */}
+              <div>
+                <label className="block text-sm font-semibold mb-2">Otsikko *</label>
+                <input
+                  type="text"
+                  value={newSocialPost.title}
+                  onChange={(e) => setNewSocialPost({ ...newSocialPost, title: e.target.value })}
+                  className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                  placeholder="Esim. Viikon ohjelma vko 24"
+                />
+              </div>
+
+              {/* Päivämäärä ja aika */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-2">Julkaisupäivä *</label>
+                  <input
+                    type="date"
+                    value={newSocialPost.date}
+                    onChange={(e) => setNewSocialPost({ ...newSocialPost, date: e.target.value })}
+                    className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold mb-2">Julkaisuaika</label>
+                  <input
+                    type="time"
+                    value={newSocialPost.time}
+                    onChange={(e) => setNewSocialPost({ ...newSocialPost, time: e.target.value })}
+                    className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Tyyppi */}
+              <div>
+                <label className="block text-sm font-semibold mb-2">Postauksen tyyppi *</label>
+                <select
+                  value={newSocialPost.type}
+                  onChange={(e) => setNewSocialPost({ ...newSocialPost, type: e.target.value })}
+                  className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                >
+                  {socialPostTypes.map(type => (
+                    <option key={type.id} value={type.id}>
+                      {type.icon} {type.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Kanavat */}
+              <div>
+                <label className="block text-sm font-semibold mb-2">Somekanavat</label>
+                <div className="flex flex-wrap gap-2">
+                  {socialChannels.map(channel => (
+                    <button
+                      key={channel.id}
+                      type="button"
+                      onClick={() => {
+                        const isSelected = newSocialPost.channels.includes(channel.id);
+                        setNewSocialPost({
+                          ...newSocialPost,
+                          channels: isSelected
+                            ? newSocialPost.channels.filter(c => c !== channel.id)
+                            : [...newSocialPost.channels, channel.id]
+                        });
+                      }}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        newSocialPost.channels.includes(channel.id)
+                          ? 'bg-indigo-600 text-white shadow'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {channel.icon} {channel.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Status */}
+              <div>
+                <label className="block text-sm font-semibold mb-2">Status</label>
+                <select
+                  value={newSocialPost.status}
+                  onChange={(e) => setNewSocialPost({ ...newSocialPost, status: e.target.value })}
+                  className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                >
+                  <option value="suunniteltu">📋 Suunniteltu</option>
+                  <option value="työn alla">⏳ Työn alla</option>
+                  <option value="valmis">✅ Valmis</option>
+                  <option value="julkaistu">🎉 Julkaistu</option>
+                </select>
+              </div>
+
+              {/* Caption/Teksti */}
+              <div>
+                <label className="block text-sm font-semibold mb-2">Caption / Postauksen teksti</label>
+                <textarea
+                  value={newSocialPost.caption}
+                  onChange={(e) => setNewSocialPost({ ...newSocialPost, caption: e.target.value })}
+                  rows={4}
+                  className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                  placeholder="Kirjoita postauksen teksti..."
+                />
+              </div>
+
+              {/* Muistiinpanot */}
+              <div>
+                <label className="block text-sm font-semibold mb-2">Muistiinpanot</label>
+                <textarea
+                  value={newSocialPost.notes}
+                  onChange={(e) => setNewSocialPost({ ...newSocialPost, notes: e.target.value })}
+                  rows={3}
+                  className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                  placeholder="Sisäiset muistiinpanot..."
+                />
+              </div>
+            </div>
+
+            {/* Toimintonapit */}
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={saveSocialPost}
+                className="flex-1 bg-indigo-600 text-white py-3 rounded-lg hover:bg-indigo-700 font-bold"
+              >
+                💾 Tallenna
+              </button>
+              <button
+                onClick={() => {
+                  setShowAddSocialPostModal(false);
+                  setNewSocialPost({
+                    title: '',
+                    date: '',
+                    time: '12:00',
+                    type: 'viikko-ohjelma',
+                    channels: [],
+                    assignee: '',
+                    linkedEventId: null,
+                    status: 'suunniteltu',
+                    caption: '',
+                    notes: '',
+                    mediaLinks: [],
+                    recurrence: 'none',
+                    recurrenceEndDate: ''
+                  });
+                }}
+                className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-semibold"
+              >
+                Peruuta
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

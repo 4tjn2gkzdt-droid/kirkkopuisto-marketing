@@ -2,24 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
-
-// Vakiot somepostauksille
-const socialPostTypes = [
-  { id: 'viikko-ohjelma', name: 'Viikko-ohjelma', icon: '📅' },
-  { id: 'last-minute', name: 'Last minute -markkinointi', icon: '⚡' },
-  { id: 'kiitos', name: 'Kiitos-postaus', icon: '🙏' },
-  { id: 'teaser', name: 'Teaser', icon: '🎬' },
-  { id: 'tiedote', name: 'Tiedote', icon: '📢' },
-  { id: 'tarinat', name: 'Tarinat', icon: '📖' },
-  { id: 'muu', name: 'Muu sisältö', icon: '📝' }
-]
-
-const socialChannels = [
-  { id: 'instagram', name: 'Instagram', icon: '📸' },
-  { id: 'facebook', name: 'Facebook', icon: '👥' },
-  { id: 'tiktok', name: 'TikTok', icon: '🎵' },
-  { id: 'newsletter', name: 'Uutiskirje', icon: '📧' }
-]
+import { socialPostTypes, socialChannels } from '../lib/constants'
 
 export default function ContentTemplates() {
   const router = useRouter()

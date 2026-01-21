@@ -3,6 +3,21 @@ import { supabase } from '../lib/supabase';
 import Link from 'next/link';
 
 export default function PoistaDuplikaatit() {
+  // Estä pääsy production-ympäristössä
+  if (process.env.NODE_ENV === 'production') {
+    return (
+      <div className="min-h-screen bg-gray-100 p-8 flex items-center justify-center">
+        <div className="max-w-md bg-white rounded-lg shadow-lg p-6 text-center">
+          <h1 className="text-2xl font-bold text-red-600 mb-4">🚫 Ei käytettävissä</h1>
+          <p className="text-gray-600 mb-4">Tämä sivu ei ole käytettävissä production-ympäristössä.</p>
+          <a href="/" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 inline-block">
+            ← Takaisin etusivulle
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
 

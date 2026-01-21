@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabase';
+import { socialPostTypes, socialChannels } from '../lib/constants';
 import InstallPrompt from '../components/InstallPrompt';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -102,27 +103,6 @@ export default function Home() {
     { id: 'print', name: 'Printit', color: 'bg-purple-500' },
     { id: 'ts-meno', name: 'TS Menovinkit', color: 'bg-orange-500' },
     { id: 'turku-calendar', name: 'Turun kalenteri', color: 'bg-blue-700' }
-  ];
-
-  // Somepostausten tyypit
-  const socialPostTypes = [
-    { id: 'viikko-ohjelma', name: 'Viikko-ohjelma', icon: '📅', color: 'bg-blue-500' },
-    { id: 'kuukausiohjelma', name: 'Kuukausiohjelma', icon: '📆', color: 'bg-purple-500' },
-    { id: 'artisti-animaatio', name: 'Artisti-animaatio', icon: '🎬', color: 'bg-pink-500' },
-    { id: 'artisti-karuselli', name: 'Artisti-karuselli', icon: '📸', color: 'bg-orange-500' },
-    { id: 'fiilistelypostaus', name: 'Fiilistelypostaus', icon: '✨', color: 'bg-yellow-500' },
-    { id: 'reels', name: 'Reels', icon: '🎥', color: 'bg-red-500' },
-    { id: 'tapahtuma-mainospostaus', name: 'Tapahtuma-mainospostaus', icon: '🎉', color: 'bg-green-500' },
-    { id: 'muu', name: 'Muu', icon: '📝', color: 'bg-gray-500' }
-  ];
-
-  // Somekanavat (laajempi kuin markkinointikanavat)
-  const socialChannels = [
-    { id: 'FB', name: 'Facebook', icon: '📘' },
-    { id: 'IG', name: 'Instagram Feed', icon: '📸' },
-    { id: 'IG-Story', name: 'Instagram Story', icon: '📱' },
-    { id: 'IG-Reels', name: 'Instagram Reels', icon: '🎬' },
-    { id: 'TikTok', name: 'TikTok', icon: '🎵' }
   ];
 
   // Markkinointitoimenpiteet joista voidaan valita
@@ -2095,11 +2075,6 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   🔔 Muistutukset
                 </button>
               </Link>
-              <Link href="/poista-duplikaatit">
-                <button className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 text-sm">
-                  🗑️ Poista duplikaatit
-                </button>
-              </Link>
               <Link href="/tiimi">
                 <button className="bg-cyan-600 text-white px-4 py-2 rounded-lg hover:bg-cyan-700">
                   👥 Tiimi
@@ -2112,19 +2087,6 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   </button>
                 </Link>
               )}
-
-              {/* DEBUG: Näytä admin-status */}
-              <div className="flex gap-2 items-center">
-                <div className="bg-gray-800 text-white px-3 py-2 rounded text-xs font-mono">
-                  Admin: {userProfile?.is_admin ? '✅ TRUE' : '❌ FALSE'}
-                  {!userProfile && ' (profile ei ladattu)'}
-                </div>
-                <Link href="/profile-debug">
-                  <button className="bg-yellow-600 text-white px-3 py-2 rounded text-xs hover:bg-yellow-700">
-                    🔍 Debug
-                  </button>
-                </Link>
-              </div>
 
               <button
                 onClick={handleLogout}

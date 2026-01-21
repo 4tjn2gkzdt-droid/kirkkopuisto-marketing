@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase';
 import cors from '../../lib/cors';
+import { socialPostTypesMap } from '../../lib/constants';
 
 // Apufunktio: Parsii YYYY-MM-DD stringin paikalliseksi Date-objektiksi (ei UTC)
 function parseLocalDate(dateString) {
@@ -209,19 +210,7 @@ async function handler(req, res) {
         return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
       };
 
-      // Somepostauksen tyypit
-      const socialPostTypes = {
-        'viikko-ohjelma': '📅 Viikko-ohjelma',
-        'kuukausiohjelma': '📆 Kuukausiohjelma',
-        'artisti-animaatio': '🎬 Artisti-animaatio',
-        'artisti-karuselli': '📸 Artisti-karuselli',
-        'fiilistelypostaus': '✨ Fiilistelypostaus',
-        'tapahtuma-muistutus': '⏰ Tapahtuma-muistutus',
-        'kilpailu': '🎁 Kilpailu',
-        'muu': '📝 Muu'
-      };
-
-      const typeLabel = socialPostTypes[post.type] || '📝 Somepostaus';
+      const typeLabel = socialPostTypesMap[post.type] || '📝 Somepostaus';
 
       icalLines.push('BEGIN:VEVENT');
       icalLines.push(`UID:social-${post.id}@kirkkopuisto-marketing.vercel.app`);

@@ -1564,6 +1564,13 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
     if (supabase) {
       try {
+        // Jos AI-versioita on olemassa, lisää ne notes-kenttään
+        let notesText = newSocialPost.notes || '';
+        if (polishedVersions) {
+          const aiVersionsText = '\n\n🤖 AI-EHDOTUKSET:\n\n📝 LYHYT:\n' + polishedVersions.short + '\n\n📄 KESKIPITKÄ:\n' + polishedVersions.medium + '\n\n📜 PITKÄ:\n' + polishedVersions.long;
+          notesText = notesText ? notesText + aiVersionsText : aiVersionsText.trim();
+        }
+
         const dataToSave = {
           title: newSocialPost.title,
           date: newSocialPost.date,
@@ -1574,7 +1581,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
           linked_event_id: newSocialPost.linkedEventId || null,
           status: newSocialPost.status,
           caption: newSocialPost.caption || null,
-          notes: newSocialPost.notes || null,
+          notes: notesText || null,
           media_links: newSocialPost.mediaLinks || [],
           recurrence: newSocialPost.recurrence || 'none',
           recurrence_end_date: newSocialPost.recurrenceEndDate || null,
@@ -1781,8 +1788,10 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
   };
 
   const selectPolishedVersion = (version) => {
+    // Kopioi valittu versio caption-kenttään, mutta pidä kaikki versiot näkyvissä
     setNewSocialPost({ ...newSocialPost, caption: version });
-    setPolishedVersions(null);
+    // ÄLÄ nollaa polishedVersions - käyttäjä haluaa että ne jäävät näkyviin!
+    // setPolishedVersions(null); // POISTETTU
   };
 
   const toggleImage = (formatId) => {
@@ -5149,7 +5158,7 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
                     <div className="border-2 border-purple-200 rounded-lg p-3 hover:border-purple-400 cursor-pointer transition"
                          onClick={() => selectPolishedVersion(polishedVersions.short)}>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-purple-600">📱 LYHYT</span>
+                        <span className="text-xs font-bold text-purple-600">📱 LYHYT (klikkaa kopioidaksesi)</span>
                         <span className="text-xs text-gray-500">{polishedVersions.short.length} merkkiä</span>
                       </div>
                       <p className="text-sm text-gray-700">{polishedVersions.short}</p>
@@ -5159,7 +5168,7 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
                     <div className="border-2 border-purple-200 rounded-lg p-3 hover:border-purple-400 cursor-pointer transition"
                          onClick={() => selectPolishedVersion(polishedVersions.medium)}>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-purple-600">📸 KESKIPITKÄ</span>
+                        <span className="text-xs font-bold text-purple-600">📸 KESKIPITKÄ (klikkaa kopioidaksesi)</span>
                         <span className="text-xs text-gray-500">{polishedVersions.medium.length} merkkiä</span>
                       </div>
                       <p className="text-sm text-gray-700">{polishedVersions.medium}</p>
@@ -5169,7 +5178,7 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
                     <div className="border-2 border-purple-200 rounded-lg p-3 hover:border-purple-400 cursor-pointer transition"
                          onClick={() => selectPolishedVersion(polishedVersions.long)}>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-purple-600">📝 PITKÄ</span>
+                        <span className="text-xs font-bold text-purple-600">📝 PITKÄ (klikkaa kopioidaksesi)</span>
                         <span className="text-xs text-gray-500">{polishedVersions.long.length} merkkiä</span>
                       </div>
                       <p className="text-sm text-gray-700">{polishedVersions.long}</p>

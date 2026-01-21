@@ -68,14 +68,20 @@ export default function ContentCalendar() {
 
         // Näytä varoitus jos AI-ehdotuksia ei tullut
         if (!data.aiSuggestions || data.aiSuggestions.length === 0) {
-          if (data.message) {
-            alert('⚠️ ' + data.message)
-          } else {
-            alert('⚠️ AI-ehdotuksia ei voitu generoida. Tarkista console-logi.')
+          let errorMsg = '⚠️ AI-ehdotuksia ei voitu generoida.\n\n'
+          if (data.aiError) {
+            errorMsg += 'Virhe: ' + data.aiError + '\n\n'
+          } else if (data.message) {
+            errorMsg += data.message + '\n\n'
           }
+          errorMsg += 'Käy Debug-sivulla (🐛 Debug -nappi ylhäällä) saadaksesi lisätietoja.'
+          alert(errorMsg)
+        } else if (data.aiError) {
+          // AI-ehdotukset saatiin mutta oli virheitä
+          alert('⚠️ ' + data.aiError + '\n\nKäy Debug-sivulla saadaksesi lisätietoja.')
         }
       } else {
-        alert('Virhe analyysissä: ' + (data.error || 'Tuntematon virhe'))
+        alert('Virhe analyysissä: ' + (data.error || 'Tuntematon virhe') + '\n\nKäy Debug-sivulla saadaksesi lisätietoja.')
       }
     } catch (error) {
       console.error('Error analyzing calendar:', error)
@@ -212,6 +218,9 @@ export default function ContentCalendar() {
               <h1 className="text-2xl font-bold text-gray-900">
                 🤖 SOME-AI
               </h1>
+              <Link href="/some-ai-debug" className="text-xs bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full hover:bg-yellow-200 transition">
+                🐛 Debug
+              </Link>
             </div>
             <div className="text-sm text-gray-600">
               {user?.email}
@@ -386,11 +395,17 @@ export default function ContentCalendar() {
                           {expandedSuggestion === suggestion && (
                             <div className="space-y-3 mt-3">
                               {/* Lyhyt versio */}
-                              <div className="bg-white p-3 rounded border border-gray-200">
+                              <div
+                                className="bg-white p-3 rounded border-2 border-gray-200 hover:border-purple-400 cursor-pointer transition"
+                                onClick={() => setEditableCaption(suggestion.captions.short)}
+                              >
                                 <div className="flex items-center justify-between mb-1">
-                                  <span className="text-xs font-bold text-gray-600">📝 LYHYT</span>
+                                  <span className="text-xs font-bold text-gray-600">📝 LYHYT (klikkaa kopioidaksesi)</span>
                                   <button
-                                    onClick={() => saveAICaption(suggestion, 'short')}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      saveAICaption(suggestion, 'short');
+                                    }}
                                     disabled={savingSuggestion === suggestion}
                                     className="text-xs bg-green-100 hover:bg-green-200 text-green-800 px-2 py-1 rounded font-medium"
                                   >
@@ -401,11 +416,17 @@ export default function ContentCalendar() {
                               </div>
 
                               {/* Keskipitkä versio */}
-                              <div className="bg-white p-3 rounded border border-gray-200">
+                              <div
+                                className="bg-white p-3 rounded border-2 border-gray-200 hover:border-purple-400 cursor-pointer transition"
+                                onClick={() => setEditableCaption(suggestion.captions.medium)}
+                              >
                                 <div className="flex items-center justify-between mb-1">
-                                  <span className="text-xs font-bold text-gray-600">📄 KESKIPITKÄ</span>
+                                  <span className="text-xs font-bold text-gray-600">📄 KESKIPITKÄ (klikkaa kopioidaksesi)</span>
                                   <button
-                                    onClick={() => saveAICaption(suggestion, 'medium')}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      saveAICaption(suggestion, 'medium');
+                                    }}
                                     disabled={savingSuggestion === suggestion}
                                     className="text-xs bg-green-100 hover:bg-green-200 text-green-800 px-2 py-1 rounded font-medium"
                                   >
@@ -416,11 +437,17 @@ export default function ContentCalendar() {
                               </div>
 
                               {/* Pitkä versio */}
-                              <div className="bg-white p-3 rounded border border-gray-200">
+                              <div
+                                className="bg-white p-3 rounded border-2 border-gray-200 hover:border-purple-400 cursor-pointer transition"
+                                onClick={() => setEditableCaption(suggestion.captions.long)}
+                              >
                                 <div className="flex items-center justify-between mb-1">
-                                  <span className="text-xs font-bold text-gray-600">📜 PITKÄ</span>
+                                  <span className="text-xs font-bold text-gray-600">📜 PITKÄ (klikkaa kopioidaksesi)</span>
                                   <button
-                                    onClick={() => saveAICaption(suggestion, 'long')}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      saveAICaption(suggestion, 'long');
+                                    }}
                                     disabled={savingSuggestion === suggestion}
                                     className="text-xs bg-green-100 hover:bg-green-200 text-green-800 px-2 py-1 rounded font-medium"
                                   >

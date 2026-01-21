@@ -2,6 +2,11 @@ import { supabase } from '../../lib/supabase'
 import Anthropic from '@anthropic-ai/sdk'
 import cors from '../../lib/cors'
 
+// Increase timeout for this API route to 60 seconds
+export const config = {
+  maxDuration: 60, // Vercel Pro: 60s, Hobby: 10s (will use max available)
+}
+
 // Apufunktio: Parsii YYYY-MM-DD stringin paikalliseksi Date-objektiksi (ei UTC)
 function parseLocalDate(dateString) {
   if (!dateString) return new Date()
@@ -106,10 +111,11 @@ Muotoile JSON:
 }`
 
     let aiSuggestions = []
+    let aiErrorMessage = null
     try {
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-5-20250929',
-        max_tokens: 4096,
+        max_tokens: 2048, // Reduced from 4096 to speed up response
         temperature: 0.7,
         messages: [{
           role: 'user',
@@ -123,16 +129,63 @@ Vastaa AINA JSON-muodossa.`
       const textContent = response.content.find(block => block.type === 'text')
       let contentText = textContent?.text || '{}'
 
-      console.log('AI response:', contentText.substring(0, 200)) // Debug log
+      console.log('AI response (full):', contentText) // Debug log - näytä koko vastaus
+      console.log('AI response (preview):', contentText.substring(0, 500)) // Debug log
 
-      contentText = contentText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+      // Poista kaikki markdown-koodiblokki-merkinnät (```json, ```, etc.)
+      contentText = contentText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim()
 
-      const parsed = JSON.parse(contentText)
+      console.log('After markdown cleanup:', contentText.substring(0, 500)) // Debug log
+
+      // Jos teksti alkaa tai päättyy välilyönneillä tai rivinvaihdoilla, puhdista
+      contentText = contentText.trim()
+
+      // Etsi JSON-objekti tekstistä (alkaa { ja päättyy })
+      const jsonMatch = contentText.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        contentText = jsonMatch[0]
+        console.log('JSON object found, length:', contentText.length) // Debug log
+      } else {
+        console.warn('No JSON object pattern found in text') // Debug log
+      }
+
+      let parsed
+      try {
+        parsed = JSON.parse(contentText)
+        console.log('JSON parsed successfully:', parsed) // Debug log
+      } catch (parseError) {
+        console.error('JSON parse failed:', parseError)
+        console.error('Attempted to parse:', contentText)
+        aiErrorMessage = `JSON-parsinta epäonnistui: ${parseError.message}. Tarkista Debug-sivulta lisätietoja.`
+        throw new Error('AI palautti virheellisen JSON-muodon: ' + parseError.message)
+      }
+
       aiSuggestions = parsed.suggestions || []
+
+      if (!aiSuggestions || aiSuggestions.length === 0) {
+        console.warn('AI returned empty suggestions array')
+        aiErrorMessage = 'AI palautti tyhjän ehdotuslistan. Tarkista Debug-sivulta lisätietoja.'
+      }
 
       console.log(`AI generated ${aiSuggestions.length} suggestions`) // Debug log
     } catch (aiError) {
       console.error('AI suggestion generation failed:', aiError)
+      console.error('Error details:', aiError.message)
+      console.error('Error stack:', aiError.stack)
+
+      // Tallenna virheviesti
+      if (!aiErrorMessage) {
+        if (aiError.status === 401) {
+          aiErrorMessage = 'API-avain on virheellinen tai vanhentunut'
+        } else if (aiError.status === 429) {
+          aiErrorMessage = 'API-rajat ylitetty, yritä hetken kuluttua uudelleen'
+        } else if (aiError.status === 500) {
+          aiErrorMessage = 'Anthropic API:ssa on sisäinen virhe'
+        } else {
+          aiErrorMessage = aiError.message || 'Tuntematon virhe AI-ehdotusten generoinnissa'
+        }
+      }
+
       // Palauta virhe käyttäjälle mutta älä kaada koko requestia
       aiSuggestions = []
     }
@@ -142,7 +195,8 @@ Vastaa AINA JSON-muodossa.`
       contentGaps,
       aiSuggestions,
       events,
-      socialPosts
+      socialPosts,
+      aiError: aiErrorMessage // Lisää virheviesti jos AI epäonnistui
     })
 
   } catch (error) {

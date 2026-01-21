@@ -161,9 +161,12 @@ export default function SomeAIDebug() {
         {/* Ohjeet */}
         <div className="bg-yellow-900 border border-yellow-700 rounded-lg p-4 mb-6">
           <h3 className="font-semibold text-yellow-200 mb-2">🐛 Debug-tila</h3>
-          <p className="text-sm text-yellow-100">
+          <p className="text-sm text-yellow-100 mb-2">
             Tämä sivu näyttää yksityiskohtaisesti kaikki vaiheet joita SOME-AI käy läpi.
             Käytä tätä selvittääksesi miksi AI-ehdotukset eivät toimi.
+          </p>
+          <p className="text-xs text-yellow-200">
+            ⏱️ Huom: Analyysi voi kestää 30-60 sekuntia. Odota rauhassa!
           </p>
         </div>
 

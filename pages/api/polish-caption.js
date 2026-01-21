@@ -1,6 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk'
 import cors from '../../lib/cors'
 
+// Increase timeout for this API route
+export const config = {
+  maxDuration: 30, // 30 seconds should be enough for caption polishing
+}
+
 async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })

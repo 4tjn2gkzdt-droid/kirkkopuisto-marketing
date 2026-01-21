@@ -2,6 +2,11 @@ import { supabase } from '../../lib/supabase'
 import Anthropic from '@anthropic-ai/sdk'
 import cors from '../../lib/cors'
 
+// Increase timeout for this API route to 60 seconds
+export const config = {
+  maxDuration: 60, // Vercel Pro: 60s, Hobby: 10s (will use max available)
+}
+
 // Apufunktio: Parsii YYYY-MM-DD stringin paikalliseksi Date-objektiksi (ei UTC)
 function parseLocalDate(dateString) {
   if (!dateString) return new Date()
@@ -110,7 +115,7 @@ Muotoile JSON:
     try {
       const response = await anthropic.messages.create({
         model: 'claude-sonnet-4-5-20250929',
-        max_tokens: 4096,
+        max_tokens: 2048, // Reduced from 4096 to speed up response
         temperature: 0.7,
         messages: [{
           role: 'user',

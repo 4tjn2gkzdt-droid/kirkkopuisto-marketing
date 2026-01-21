@@ -52,16 +52,68 @@ export default function SomeAIDebug() {
         })
       })
 
-      const data = await response.json()
+      console.log('Response status:', response.status)
+      console.log('Response ok:', response.ok)
+      console.log('Response headers:', response.headers)
+
+      let data
+      const contentType = response.headers.get('content-type')
+
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json()
+      } else {
+        // Ei JSON, lue teksti
+        const text = await response.text()
+        console.error('Non-JSON response:', text)
+        data = {
+          success: false,
+          error: 'API palautti ei-JSON vastauksen',
+          debugInfo: {
+            errors: [{
+              location: 'response parsing',
+              error: {
+                status: response.status,
+                statusText: response.statusText,
+                contentType: contentType,
+                responseText: text.substring(0, 500)
+              }
+            }]
+          }
+        }
+      }
+
+      if (!response.ok && !data.debugInfo) {
+        // HTTP virhe mutta ei debug-infoa
+        data.debugInfo = {
+          errors: [{
+            location: 'HTTP response',
+            error: {
+              status: response.status,
+              statusText: response.statusText,
+              message: data.error || 'Unknown error'
+            }
+          }]
+        }
+      }
+
       setDebugData(data)
 
     } catch (error) {
       console.error('Error analyzing calendar:', error)
+      console.error('Error stack:', error.stack)
       setDebugData({
         success: false,
         error: error.message,
         debugInfo: {
-          errors: [{ location: 'fetch', error: error.message }]
+          errors: [{
+            location: 'fetch exception',
+            error: {
+              message: error.message,
+              name: error.name,
+              stack: error.stack,
+              toString: error.toString()
+            }
+          }]
         }
       })
     } finally {

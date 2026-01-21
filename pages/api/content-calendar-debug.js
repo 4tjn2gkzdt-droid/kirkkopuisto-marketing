@@ -18,6 +18,9 @@ function formatLocalDate(date) {
 }
 
 async function handler(req, res) {
+  // Ensure we always return JSON
+  res.setHeader('Content-Type', 'application/json')
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -30,6 +33,18 @@ async function handler(req, res) {
   }
 
   try {
+    debugInfo.steps.push({
+      step: 0,
+      name: 'Request received',
+      data: {
+        method: req.method,
+        body: req.body,
+        headers: {
+          contentType: req.headers['content-type'],
+          userAgent: req.headers['user-agent']
+        }
+      }
+    })
     debugInfo.steps.push({
       step: 1,
       name: 'Parsing dates',

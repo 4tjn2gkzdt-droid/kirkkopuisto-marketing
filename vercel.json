@@ -2,7 +2,8 @@
   "functions": {
     "pages/api/**/*.js": {
       "memory": 1024,
-      "maxDuration": 60
+      "maxDuration": 60,
+      "maxBodySize": "100mb"
     }
   }
 }

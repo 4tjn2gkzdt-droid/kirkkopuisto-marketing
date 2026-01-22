@@ -15,6 +15,11 @@ export default function AdminPanel() {
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserIsAdmin, setNewUserIsAdmin] = useState(false);
   const [stats, setStats] = useState({});
+  const [guidelines, setGuidelines] = useState([]);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadFile, setUploadFile] = useState(null);
+  const [uploadTitle, setUploadTitle] = useState('');
+  const [uploadLoading, setUploadLoading] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -55,6 +60,7 @@ export default function AdminPanel() {
     // Lataa käyttäjät
     loadUsers();
     loadStats();
+    loadGuidelines();
   };
 
   const loadUsers = async () => {
@@ -274,6 +280,147 @@ WHERE email = '${newUserEmail}';
     }
   };
 
+  const loadGuidelines = async () => {
+    if (!supabase) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const response = await fetch('/api/brand-guidelines/list', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        setGuidelines(result.guidelines || []);
+      }
+    } catch (err) {
+      console.error('Virhe ladattaessa dokumentteja:', err);
+    }
+  };
+
+  const handleUploadFile = async (e) => {
+    e.preventDefault();
+
+    if (!uploadFile || !uploadTitle) {
+      alert('Valitse tiedosto ja anna otsikko');
+      return;
+    }
+
+    setUploadLoading(true);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        alert('Kirjaudu sisään ensin');
+        return;
+      }
+
+      // Lue tiedosto base64-muotoon
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const fileData = event.target.result;
+
+        const response = await fetch('/api/brand-guidelines/upload', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            title: uploadTitle,
+            fileName: uploadFile.name,
+            fileData: fileData,
+            contentType: uploadFile.type
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          alert('✅ Dokumentti ladattu onnistuneesti! Käsittely käynnissä taustalla.');
+          setShowUploadModal(false);
+          setUploadFile(null);
+          setUploadTitle('');
+          loadGuidelines();
+        } else {
+          alert('Virhe: ' + (result.error || 'Tuntematon virhe'));
+        }
+
+        setUploadLoading(false);
+      };
+
+      reader.readAsDataURL(uploadFile);
+    } catch (err) {
+      console.error('Virhe ladattaessa tiedostoa:', err);
+      alert('Virhe: ' + err.message);
+      setUploadLoading(false);
+    }
+  };
+
+  const handleDeleteGuideline = async (id, title) => {
+    if (!confirm(`Haluatko varmasti poistaa dokumentin "${title}"?`)) {
+      return;
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const response = await fetch(`/api/brand-guidelines/delete?id=${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert('✅ Dokumentti poistettu');
+        loadGuidelines();
+      } else {
+        alert('Virhe: ' + (result.error || 'Tuntematon virhe'));
+      }
+    } catch (err) {
+      alert('Virhe: ' + err.message);
+    }
+  };
+
+  const handleProcessGuideline = async (id, title) => {
+    if (!confirm(`Prosessoi dokumentti "${title}" uudelleen? Tämä luo uuden tiivistelmän.`)) {
+      return;
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const response = await fetch('/api/brand-guidelines/process', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ id })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert('✅ Dokumentti prosessoitu onnistuneesti');
+        loadGuidelines();
+      } else {
+        alert('Virhe: ' + (result.error || 'Tuntematon virhe'));
+      }
+    } catch (err) {
+      alert('Virhe: ' + err.message);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center">
@@ -335,6 +482,85 @@ WHERE email = '${newUserEmail}';
               </tbody>
             </table>
           </div>
+        </div>
+
+        {/* Brändiohjedokumentit */}
+        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold text-gray-800">📄 Brändiohjedokumentit</h2>
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 font-medium"
+            >
+              + Lataa dokumentti
+            </button>
+          </div>
+
+          {guidelines.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <p>Ei dokumentteja. Lataa ensimmäinen brändiohjedokumentti!</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="px-4 py-2 text-left">Otsikko</th>
+                    <th className="px-4 py-2 text-left">Tiedosto</th>
+                    <th className="px-4 py-2 text-center">Status</th>
+                    <th className="px-4 py-2 text-center">Ladattu</th>
+                    <th className="px-4 py-2 text-center">Toiminnot</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {guidelines.map(g => (
+                    <tr key={g.id} className="border-b hover:bg-gray-50">
+                      <td className="px-4 py-3 font-semibold">{g.title}</td>
+                      <td className="px-4 py-3 text-gray-600 text-sm">{g.file_name}</td>
+                      <td className="px-4 py-3 text-center">
+                        {g.processed_at ? (
+                          <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-semibold">
+                            Prosessoitu
+                          </span>
+                        ) : (
+                          <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-semibold">
+                            Odottaa
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-600">
+                        {new Date(g.created_at).toLocaleDateString('fi-FI')}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-2 justify-center flex-wrap">
+                          <a
+                            href={g.file_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="bg-blue-500 text-white px-3 py-1 rounded text-xs hover:bg-blue-600"
+                          >
+                            👁️ Avaa
+                          </a>
+                          <button
+                            onClick={() => handleProcessGuideline(g.id, g.title)}
+                            className="bg-orange-500 text-white px-3 py-1 rounded text-xs hover:bg-orange-600"
+                          >
+                            🔄 Prosessoi
+                          </button>
+                          <button
+                            onClick={() => handleDeleteGuideline(g.id, g.title)}
+                            className="bg-red-500 text-white px-3 py-1 rounded text-xs hover:bg-red-600"
+                          >
+                            🗑️ Poista
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Käyttäjälista */}
@@ -410,6 +636,71 @@ WHERE email = '${newUserEmail}';
           </div>
         </div>
       </div>
+
+      {/* Lataa dokumentti -modaali */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-md p-6">
+            <h3 className="text-2xl font-bold text-gray-800 mb-4">📤 Lataa brändiohjedokumentti</h3>
+
+            <form onSubmit={handleUploadFile} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Otsikko
+                </label>
+                <input
+                  type="text"
+                  value={uploadTitle}
+                  onChange={(e) => setUploadTitle(e.target.value)}
+                  className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
+                  placeholder="Esim. Brändiohje 2024"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  PDF-tiedosto
+                </label>
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={(e) => setUploadFile(e.target.files[0])}
+                  className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">Vain PDF-tiedostot, max 10 MB</p>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="submit"
+                  disabled={uploadLoading}
+                  className="flex-1 bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 font-medium disabled:opacity-50"
+                >
+                  {uploadLoading ? '⏳ Ladataan...' : '✅ Lataa dokumentti'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowUploadModal(false)}
+                  disabled={uploadLoading}
+                  className="flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 font-medium disabled:opacity-50"
+                >
+                  Peruuta
+                </button>
+              </div>
+            </form>
+
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-xs">
+              <p className="font-semibold text-blue-800">💡 Huom:</p>
+              <p className="text-blue-700 mt-1">
+                Dokumentti prosessoidaan automaattisesti: PDF luetaan ja AI luo siitä tiivistelmän
+                joka lisätään automaattisesti kaikkiin markkinointisisällön luontiin.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Lisää käyttäjä -modaali */}
       {showAddUserModal && (

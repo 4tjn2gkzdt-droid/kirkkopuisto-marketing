@@ -70,7 +70,7 @@ export default async function handler(req, res) {
       contentType || 'application/pdf'
     )
 
-    // Luo tietokantaan entry
+    // Luo tietokantaan entry (status = 'uploaded' by default)
     const guideline = await createBrandGuideline({
       title,
       fileName,
@@ -80,19 +80,12 @@ export default async function handler(req, res) {
       userEmail: user.email
     })
 
-    // Prosessoi dokumentti taustalla (älä odota)
-    processBrandGuideline(guideline.id)
-      .then(() => {
-        console.log(`[upload] Successfully processed guideline: ${guideline.id}`)
-      })
-      .catch(err => {
-        console.error(`[upload] Error processing guideline: ${guideline.id}`, err)
-      })
+    // EI prosessoida automaattisesti - käyttäjä prosessoi manuaalisesti
 
     return res.status(200).json({
       success: true,
       guideline,
-      message: 'Dokumentti ladattu onnistuneesti. Käsittely käynnissä taustalla.'
+      message: 'Dokumentti ladattu onnistuneesti! Prosessoi se nyt AI:lla.'
     })
 
   } catch (error) {

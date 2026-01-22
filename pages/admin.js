@@ -20,10 +20,23 @@ export default function AdminPanel() {
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadTitle, setUploadTitle] = useState('');
   const [uploadLoading, setUploadLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   useEffect(() => {
     checkAuth();
   }, []);
+
+  // Auto-refresh kun on dokumentteja 'processing' tilassa
+  useEffect(() => {
+    const hasProcessing = guidelines.some(g => g.status === 'processing');
+    if (!hasProcessing) return;
+
+    const interval = setInterval(() => {
+      loadGuidelines();
+    }, 5000); // Päivitä 5 sekunnin välein
+
+    return () => clearInterval(interval);
+  }, [guidelines]);
 
   const checkAuth = async () => {
     if (!supabase) {
@@ -311,11 +324,13 @@ WHERE email = '${newUserEmail}';
     }
 
     setUploadLoading(true);
+    setUploadProgress(0);
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         alert('Kirjaudu sisään ensin');
+        setUploadLoading(false);
         return;
       }
 
@@ -324,33 +339,53 @@ WHERE email = '${newUserEmail}';
       reader.onload = async (event) => {
         const fileData = event.target.result;
 
-        const response = await fetch('/api/brand-guidelines/upload', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            title: uploadTitle,
-            fileName: uploadFile.name,
-            fileData: fileData,
-            contentType: uploadFile.type
-          })
+        // Käytä XMLHttpRequest jotta saadaan upload progress
+        const xhr = new XMLHttpRequest();
+
+        // Progress tracking
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percentComplete = Math.round((e.loaded / e.total) * 100);
+            setUploadProgress(percentComplete);
+          }
         });
 
-        const result = await response.json();
+        // Success/Error handling
+        xhr.addEventListener('load', () => {
+          if (xhr.status === 200) {
+            const result = JSON.parse(xhr.responseText);
+            if (result.success) {
+              alert('✅ Dokumentti ladattu onnistuneesti! Prosessoi se nyt AI:lla.');
+              setShowUploadModal(false);
+              setUploadFile(null);
+              setUploadTitle('');
+              setUploadProgress(0);
+              loadGuidelines();
+            } else {
+              alert('Virhe: ' + (result.error || 'Tuntematon virhe'));
+            }
+          } else {
+            alert('Virhe: ' + xhr.statusText);
+          }
+          setUploadLoading(false);
+        });
 
-        if (result.success) {
-          alert('✅ Dokumentti ladattu onnistuneesti! Käsittely käynnissä taustalla.');
-          setShowUploadModal(false);
-          setUploadFile(null);
-          setUploadTitle('');
-          loadGuidelines();
-        } else {
-          alert('Virhe: ' + (result.error || 'Tuntematon virhe'));
-        }
+        xhr.addEventListener('error', () => {
+          alert('Verkkovirhe dokumentin latauksessa');
+          setUploadLoading(false);
+          setUploadProgress(0);
+        });
 
-        setUploadLoading(false);
+        // Send request
+        xhr.open('POST', '/api/brand-guidelines/upload');
+        xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.send(JSON.stringify({
+          title: uploadTitle,
+          fileName: uploadFile.name,
+          fileData: fileData,
+          contentType: uploadFile.type
+        }));
       };
 
       reader.readAsDataURL(uploadFile);
@@ -358,6 +393,7 @@ WHERE email = '${newUserEmail}';
       console.error('Virhe ladattaessa tiedostoa:', err);
       alert('Virhe: ' + err.message);
       setUploadLoading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -517,16 +553,34 @@ WHERE email = '${newUserEmail}';
                     <tr key={g.id} className="border-b hover:bg-gray-50">
                       <td className="px-4 py-3 font-semibold">{g.title}</td>
                       <td className="px-4 py-3 text-gray-600 text-sm">{g.file_name}</td>
-                      <td className="px-4 py-3 text-center">
-                        {g.processed_at ? (
-                          <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-semibold">
-                            Prosessoitu
-                          </span>
-                        ) : (
-                          <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-semibold">
-                            Odottaa
-                          </span>
-                        )}
+                      <td className="px-4 py-3">
+                        <div className="flex flex-col items-center gap-1">
+                          {g.status === 'processed' && (
+                            <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-semibold">
+                              ✅ Prosessoitu
+                            </span>
+                          )}
+                          {g.status === 'processing' && (
+                            <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-semibold animate-pulse">
+                              ⏳ Prosessoidaan...
+                            </span>
+                          )}
+                          {g.status === 'uploaded' && (
+                            <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-semibold">
+                              📄 Ladattu
+                            </span>
+                          )}
+                          {g.status === 'error' && (
+                            <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-semibold">
+                              ❌ Virhe
+                            </span>
+                          )}
+                          {g.error_message && (
+                            <span className="text-xs text-red-600 text-center max-w-xs">
+                              {g.error_message}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-center text-sm text-gray-600">
                         {new Date(g.created_at).toLocaleDateString('fi-FI')}
@@ -541,12 +595,22 @@ WHERE email = '${newUserEmail}';
                           >
                             👁️ Avaa
                           </a>
-                          <button
-                            onClick={() => handleProcessGuideline(g.id, g.title)}
-                            className="bg-orange-500 text-white px-3 py-1 rounded text-xs hover:bg-orange-600"
-                          >
-                            🔄 Prosessoi
-                          </button>
+                          {(g.status === 'uploaded' || g.status === 'error') && (
+                            <button
+                              onClick={() => handleProcessGuideline(g.id, g.title)}
+                              className="bg-purple-600 text-white px-3 py-1 rounded text-xs hover:bg-purple-700 font-semibold"
+                            >
+                              🤖 Prosessoi AI:lla
+                            </button>
+                          )}
+                          {g.status === 'processed' && (
+                            <button
+                              onClick={() => handleProcessGuideline(g.id, g.title)}
+                              className="bg-orange-500 text-white px-3 py-1 rounded text-xs hover:bg-orange-600"
+                            >
+                              🔄 Prosessoi uudelleen
+                            </button>
+                          )}
                           <button
                             onClick={() => handleDeleteGuideline(g.id, g.title)}
                             className="bg-red-500 text-white px-3 py-1 rounded text-xs hover:bg-red-600"
@@ -672,6 +736,21 @@ WHERE email = '${newUserEmail}';
                 <p className="text-xs text-gray-500 mt-1">Vain PDF-tiedostot, max 50 MB</p>
               </div>
 
+              {uploadLoading && (
+                <div className="mt-4">
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-gray-700 font-semibold">Ladataan...</span>
+                    <span className="text-gray-600">{uploadProgress}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                    <div
+                      className="bg-purple-600 h-full transition-all duration-300 ease-out"
+                      style={{ width: `${uploadProgress}%` }}
+                    ></div>
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-3 mt-6">
                 <button
                   type="submit"
@@ -692,11 +771,13 @@ WHERE email = '${newUserEmail}';
             </form>
 
             <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-xs">
-              <p className="font-semibold text-blue-800">💡 Huom:</p>
-              <p className="text-blue-700 mt-1">
-                Dokumentti prosessoidaan automaattisesti: PDF luetaan ja AI luo siitä tiivistelmän
-                joka lisätään automaattisesti kaikkiin markkinointisisällön luontiin.
-              </p>
+              <p className="font-semibold text-blue-800">💡 Ohjeet:</p>
+              <ol className="text-blue-700 mt-1 list-decimal list-inside space-y-1">
+                <li>Lataa ensin PDF-dokumentti palvelimelle</li>
+                <li>Kun lataus valmis, klikkaa "Prosessoi AI:lla"</li>
+                <li>AI lukee PDF:n ja luo tiivistelmän brändiohjeista</li>
+                <li>Tiivistelmä lisätään automaattisesti kaikkiin AI-sisältöihin</li>
+              </ol>
             </div>
           </div>
         </div>

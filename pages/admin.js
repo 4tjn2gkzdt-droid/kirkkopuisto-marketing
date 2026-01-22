@@ -669,7 +669,7 @@ WHERE email = '${newUserEmail}';
                   className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
                   required
                 />
-                <p className="text-xs text-gray-500 mt-1">Vain PDF-tiedostot, max 10 MB</p>
+                <p className="text-xs text-gray-500 mt-1">Vain PDF-tiedostot, max 50 MB</p>
               </div>
 
               <div className="flex gap-3 mt-6">

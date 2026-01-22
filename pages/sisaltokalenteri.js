@@ -40,6 +40,10 @@ export default function ContentCalendar() {
     recurrenceEndDate: ''
   })
 
+  // AI caption viimeistely
+  const [polishingCaption, setPolishingCaption] = useState(false)
+  const [polishedVersions, setPolishedVersions] = useState(null)
+
   useEffect(() => {
     checkUser()
     // Aseta oletusaikavä li: tästä päivästä 30 päivää eteenpäin
@@ -218,6 +222,43 @@ export default function ContentCalendar() {
     const captions = suggestion.captions || generatedCaptions[index]
     const caption = captions?.[captionVersion] || suggestion.reason
     addSuggestionToCalendar(suggestion, caption)
+  }
+
+  const polishCaptionWithAI = async () => {
+    if (!newSocialPost.caption || newSocialPost.caption.trim().length === 0) {
+      alert('Kirjoita ensin teksti ennen AI-viimeistelyä')
+      return
+    }
+
+    setPolishingCaption(true)
+    setPolishedVersions(null)
+
+    try {
+      const response = await fetch('/api/polish-caption', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          caption: newSocialPost.caption
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setPolishedVersions(data.versions)
+      } else {
+        alert('Virhe AI-viimeistelyss\u00e4: ' + (data.error || 'Tuntematon virhe'))
+      }
+    } catch (error) {
+      console.error('Error polishing caption:', error)
+      alert('Virhe AI-viimeistelyss\u00e4: ' + error.message)
+    } finally {
+      setPolishingCaption(false)
+    }
+  }
+
+  const selectPolishedVersion = (version) => {
+    setNewSocialPost({ ...newSocialPost, caption: version })
   }
 
   const saveSocialPost = async () => {
@@ -741,11 +782,73 @@ export default function ContentCalendar() {
                 <label className="block text-sm font-semibold mb-2">Caption / Postauksen teksti</label>
                 <textarea
                   value={newSocialPost.caption}
-                  onChange={(e) => setNewSocialPost({ ...newSocialPost, caption: e.target.value })}
+                  onChange={(e) => {
+                    setNewSocialPost({ ...newSocialPost, caption: e.target.value })
+                    setPolishedVersions(null)
+                  }}
                   rows={4}
                   className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
                   placeholder="Kirjoita postauksen teksti..."
                 />
+
+                {/* AI-viimeistely nappi */}
+                <button
+                  type="button"
+                  onClick={polishCaptionWithAI}
+                  disabled={polishingCaption || !newSocialPost.caption}
+                  className={`mt-2 px-4 py-2 rounded-lg font-semibold transition ${
+                    polishingCaption || !newSocialPost.caption
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-purple-600 hover:bg-purple-700 text-white'
+                  }`}
+                >
+                  {polishingCaption ? '🤖 Viimeistellään...' : '✨ Viimeistele AI:lla'}
+                </button>
+
+                {/* Viimeistellyt versiot */}
+                {polishedVersions && (
+                  <div className="mt-4 space-y-3">
+                    <p className="text-sm font-semibold text-gray-700">Valitse versio:</p>
+
+                    {/* Lyhyt versio */}
+                    <div className="border-2 border-purple-200 rounded-lg p-3 hover:border-purple-400 cursor-pointer transition"
+                         onClick={() => selectPolishedVersion(polishedVersions.short)}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-purple-600">📱 LYHYT (klikkaa kopioidaksesi)</span>
+                        <span className="text-xs text-gray-500">{polishedVersions.short.length} merkkiä</span>
+                      </div>
+                      <p className="text-sm text-gray-700">{polishedVersions.short}</p>
+                    </div>
+
+                    {/* Keskipitkä versio */}
+                    <div className="border-2 border-purple-200 rounded-lg p-3 hover:border-purple-400 cursor-pointer transition"
+                         onClick={() => selectPolishedVersion(polishedVersions.medium)}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-purple-600">📸 KESKIPITKÄ (klikkaa kopioidaksesi)</span>
+                        <span className="text-xs text-gray-500">{polishedVersions.medium.length} merkkiä</span>
+                      </div>
+                      <p className="text-sm text-gray-700">{polishedVersions.medium}</p>
+                    </div>
+
+                    {/* Pitkä versio */}
+                    <div className="border-2 border-purple-200 rounded-lg p-3 hover:border-purple-400 cursor-pointer transition"
+                         onClick={() => selectPolishedVersion(polishedVersions.long)}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-purple-600">📝 PITKÄ (klikkaa kopioidaksesi)</span>
+                        <span className="text-xs text-gray-500">{polishedVersions.long.length} merkkiä</span>
+                      </div>
+                      <p className="text-sm text-gray-700">{polishedVersions.long}</p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setPolishedVersions(null)}
+                      className="text-sm text-gray-600 hover:text-gray-800 underline"
+                    >
+                      Sulje versiot
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Muistiinpanot */}

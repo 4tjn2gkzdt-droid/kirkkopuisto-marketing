@@ -318,80 +318,188 @@ WHERE email = '${newUserEmail}';
   const handleUploadFile = async (e) => {
     e.preventDefault();
 
+    console.log('=== ALOITETAAN TIEDOSTON LATAUS ===');
+
     if (!uploadFile || !uploadTitle) {
+      console.error('❌ Virhe: Tiedosto tai otsikko puuttuu');
       alert('Valitse tiedosto ja anna otsikko');
       return;
     }
+
+    console.log('📋 Tiedoston tiedot:', {
+      nimi: uploadFile.name,
+      koko: `${(uploadFile.size / 1024 / 1024).toFixed(2)} MB`,
+      tyyppi: uploadFile.type,
+      otsikko: uploadTitle
+    });
+
+    // Validoi tiedoston koko (50 MB = 52428800 bytes)
+    const maxSize = 50 * 1024 * 1024; // 50 MB
+    if (uploadFile.size > maxSize) {
+      console.error(`❌ Virhe: Tiedosto liian suuri (${(uploadFile.size / 1024 / 1024).toFixed(2)} MB)`);
+      alert(`❌ Tiedosto on liian suuri!\n\nTiedoston koko: ${(uploadFile.size / 1024 / 1024).toFixed(2)} MB\nMaksimi koko: 50 MB\n\nValitse pienempi tiedosto.`);
+      return;
+    }
+
+    // Validoi tiedostotyyppi
+    if (uploadFile.type !== 'application/pdf' && !uploadFile.name.endsWith('.pdf')) {
+      console.error(`❌ Virhe: Väärä tiedostotyyppi (${uploadFile.type})`);
+      alert('❌ Vain PDF-tiedostot ovat sallittuja!\n\nValittu tiedostotyyppi: ' + (uploadFile.type || 'tuntematon'));
+      return;
+    }
+
+    console.log('✅ Validointi onnistui');
 
     setUploadLoading(true);
     setUploadProgress(0);
 
     try {
+      console.log('🔐 Haetaan session...');
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
+        console.error('❌ Virhe: Session puuttuu');
         alert('Kirjaudu sisään ensin');
         setUploadLoading(false);
         return;
       }
 
+      console.log('✅ Session löytyi:', session.user.email);
+
       // Lue tiedosto base64-muotoon
+      console.log('📖 Luetaan tiedostoa...');
       const reader = new FileReader();
+
+      reader.onerror = (error) => {
+        console.error('❌ FileReader virhe:', error);
+        alert('❌ Virhe luettaessa tiedostoa:\n\n' + error);
+        setUploadLoading(false);
+        setUploadProgress(0);
+      };
+
       reader.onload = async (event) => {
         const fileData = event.target.result;
 
+        if (!fileData) {
+          console.error('❌ Virhe: Tiedostodata on tyhjä');
+          alert('❌ Tiedoston lukeminen epäonnistui - data on tyhjä');
+          setUploadLoading(false);
+          setUploadProgress(0);
+          return;
+        }
+
+        console.log(`✅ Tiedosto luettu onnistuneesti (${(fileData.length / 1024).toFixed(2)} KB base64)`);
+
         // Käytä XMLHttpRequest jotta saadaan upload progress
+        console.log('🚀 Luodaan XHR-pyyntö...');
         const xhr = new XMLHttpRequest();
 
         // Progress tracking
         xhr.upload.addEventListener('progress', (e) => {
           if (e.lengthComputable) {
             const percentComplete = Math.round((e.loaded / e.total) * 100);
+            console.log(`⏳ Upload progress: ${percentComplete}%`);
             setUploadProgress(percentComplete);
           }
         });
 
         // Success/Error handling
         xhr.addEventListener('load', () => {
-          if (xhr.status === 200) {
-            const result = JSON.parse(xhr.responseText);
-            if (result.success) {
-              alert('✅ Dokumentti ladattu onnistuneesti! Prosessoi se nyt AI:lla.');
-              setShowUploadModal(false);
-              setUploadFile(null);
-              setUploadTitle('');
-              setUploadProgress(0);
-              loadGuidelines();
+          console.log(`📥 Vastaus vastaanotettu. Status: ${xhr.status}`);
+          try {
+            if (xhr.status === 200) {
+              console.log('✅ HTTP 200 OK');
+              const result = JSON.parse(xhr.responseText);
+              console.log('📄 Response:', result);
+
+              if (result.success) {
+                console.log('✅ Upload onnistui!');
+                alert('✅ Dokumentti ladattu onnistuneesti! Prosessoi se nyt AI:lla.');
+                setShowUploadModal(false);
+                setUploadFile(null);
+                setUploadTitle('');
+                setUploadProgress(0);
+                loadGuidelines();
+              } else {
+                const errorMsg = result.error || result.details || 'Tuntematon virhe';
+                console.error('❌ Upload epäonnistui:', result);
+                console.error('Virhe:', errorMsg);
+                if (result.details) {
+                  console.error('Lisätiedot:', result.details);
+                }
+                alert('❌ Lataus epäonnistui:\n\n' + errorMsg + (result.details ? '\n\nLisätiedot:\n' + result.details : ''));
+              }
             } else {
-              alert('Virhe: ' + (result.error || 'Tuntematon virhe'));
+              // Yritä parsea virheviesti responsesta
+              console.error(`❌ HTTP ${xhr.status}: ${xhr.statusText}`);
+              let errorMsg = `HTTP ${xhr.status}: ${xhr.statusText}`;
+              try {
+                const result = JSON.parse(xhr.responseText);
+                console.error('❌ Error response:', result);
+                if (result.error) {
+                  errorMsg = result.error;
+                }
+                if (result.details) {
+                  errorMsg += '\n\nLisätiedot:\n' + result.details;
+                }
+              } catch (e) {
+                // Jos JSON parse epäonnistuu, näytä raaka response
+                console.error('❌ Ei voitu parsea JSON-vastausta');
+                if (xhr.responseText) {
+                  console.error('Raw response:', xhr.responseText);
+                  errorMsg += '\n\nRaw response:\n' + xhr.responseText.substring(0, 200);
+                }
+              }
+              alert('❌ Lataus epäonnistui:\n\n' + errorMsg);
             }
-          } else {
-            alert('Virhe: ' + xhr.statusText);
+          } catch (err) {
+            console.error('❌ Virhe käsiteltäessä vastausta:', err);
+            console.error('Stack:', err.stack);
+            alert('❌ Virhe käsiteltäessä vastausta:\n\n' + err.message);
           }
           setUploadLoading(false);
         });
 
-        xhr.addEventListener('error', () => {
-          alert('Verkkovirhe dokumentin latauksessa');
+        xhr.addEventListener('error', (e) => {
+          console.error('❌ XHR verkkovirhe:', e);
+          console.error('XHR status:', xhr.status);
+          console.error('XHR statusText:', xhr.statusText);
+          console.error('XHR response:', xhr.responseText);
+          console.error('XHR readyState:', xhr.readyState);
+          alert('❌ Verkkovirhe dokumentin latauksessa.\n\nTarkista:\n- Internet-yhteys\n- Palvelimen tila\n- Selaimen console (F12) lisätiedoille\n\nVirhe: ' + xhr.statusText);
           setUploadLoading(false);
           setUploadProgress(0);
         });
 
         // Send request
+        console.log('📤 Lähetetään pyyntö API:lle...');
         xhr.open('POST', '/api/brand-guidelines/upload');
         xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`);
         xhr.setRequestHeader('Content-Type', 'application/json');
-        xhr.send(JSON.stringify({
+
+        const payload = {
           title: uploadTitle,
           fileName: uploadFile.name,
           fileData: fileData,
           contentType: uploadFile.type
-        }));
+        };
+
+        console.log('📦 Payload:', {
+          title: payload.title,
+          fileName: payload.fileName,
+          contentType: payload.contentType,
+          dataSize: `${(payload.fileData.length / 1024).toFixed(2)} KB`
+        });
+
+        xhr.send(JSON.stringify(payload));
       };
 
       reader.readAsDataURL(uploadFile);
     } catch (err) {
-      console.error('Virhe ladattaessa tiedostoa:', err);
-      alert('Virhe: ' + err.message);
+      console.error('❌ Kriittinen virhe tiedoston latauksessa:', err);
+      console.error('Error name:', err.name);
+      console.error('Error message:', err.message);
+      console.error('Error stack:', err.stack);
+      alert('❌ Kriittinen virhe:\n\n' + err.message + '\n\nKatso selaimen console (F12) lisätiedoille');
       setUploadLoading(false);
       setUploadProgress(0);
     }

@@ -296,11 +296,20 @@ WHERE email = '${newUserEmail}';
   };
 
   const loadGuidelines = async () => {
-    if (!supabase) return;
+    console.log('[FRONTEND] loadGuidelines aloitetaan...');
+    if (!supabase) {
+      console.error('[FRONTEND] ❌ Supabase client puuttuu!');
+      return;
+    }
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      if (!session) {
+        console.error('[FRONTEND] ❌ Session puuttuu!');
+        return;
+      }
+
+      console.log('[FRONTEND] ✅ Session OK, kutsutaan API...');
 
       const response = await fetch('/api/brand-guidelines/list', {
         headers: {
@@ -308,12 +317,19 @@ WHERE email = '${newUserEmail}';
         }
       });
 
+      console.log('[FRONTEND] API response status:', response.status);
+
       const result = await response.json();
+      console.log('[FRONTEND] API result:', result);
+
       if (result.success) {
+        console.log(`[FRONTEND] ✅ Asetetaan ${result.guidelines?.length || 0} dokumenttia`);
         setGuidelines(result.guidelines || []);
+      } else {
+        console.error('[FRONTEND] ❌ API palautti success=false:', result);
       }
     } catch (err) {
-      console.error('Virhe ladattaessa dokumentteja:', err);
+      console.error('[FRONTEND] ❌ Virhe ladattaessa dokumentteja:', err);
     }
   };
 

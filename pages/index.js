@@ -34,8 +34,7 @@ export default function Home() {
   const [showAddEventModal, setShowAddEventModal] = useState(false);
   const [newEvent, setNewEvent] = useState({
     title: '',
-    date: '',
-    time: '',
+    dates: [{ date: '', startTime: '', endTime: '' }], // Monipäiväiset tapahtumat
     artist: '',
     eventType: 'artist', // 'artist', 'dj', 'other'
     summary: '', // Tapahtuman yhteenveto 100-300 merkkiä
@@ -196,10 +195,10 @@ export default function Home() {
           .from('events')
           .select(`
             *,
+            event_instances (*),
             tasks (*)
           `)
-          .eq('year', selectedYear)
-          .order('date', { ascending: true });
+          .eq('year', selectedYear);
 
         if (error) {
           console.error('Virhe ladattaessa Supabasesta:', error);
@@ -211,11 +210,20 @@ export default function Home() {
           const formattedEvents = events.map(event => ({
             id: event.id,
             title: event.title,
-            date: event.date,
-            time: event.time,
             artist: event.artist,
             summary: event.summary,
             images: event.images || {},
+            // Monipäiväiset tapahtumat
+            dates: (event.event_instances || [])
+              .sort((a, b) => new Date(a.date) - new Date(b.date))
+              .map(inst => ({
+                date: inst.date,
+                startTime: inst.start_time,
+                endTime: inst.end_time
+              })),
+            // Backward compatibility: käytä ensimmäistä päivää
+            date: event.event_instances?.[0]?.date || event.date,
+            time: event.event_instances?.[0]?.start_time || event.time,
             tasks: (event.tasks || []).map(task => ({
               id: task.id,
               title: task.title,
@@ -227,7 +235,9 @@ export default function Home() {
               assignee: task.assignee,
               notes: task.notes
             }))
-          }));
+          }))
+          // Järjestä ensimmäisen päivän mukaan
+          .sort((a, b) => new Date(a.date) - new Date(b.date));
           setPosts(prev => ({ ...prev, [selectedYear]: formattedEvents }));
         }
       } else {
@@ -1265,8 +1275,17 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
       alert('Anna tapahtumalle nimi');
       return;
     }
-    if (!newEvent.date) {
-      alert('Valitse tapahtuman päivämäärä');
+
+    // Tarkista että vähintään yksi päivä on annettu
+    if (!newEvent.dates || newEvent.dates.length === 0) {
+      alert('Lisää vähintään yksi päivämäärä');
+      return;
+    }
+
+    // Tarkista että kaikilla päivillä on päivämäärä
+    const hasEmptyDate = newEvent.dates.some(d => !d.date);
+    if (hasEmptyDate) {
+      alert('Täytä kaikki päivämäärät');
       return;
     }
 
@@ -1282,18 +1301,18 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
       }
     }
 
-    const eventYear = new Date(newEvent.date).getFullYear();
+    // Käytä ensimmäistä päivää vuoden määrittämiseen
+    const eventYear = new Date(newEvent.dates[0].date).getFullYear();
     const currentPosts = posts[eventYear] || [];
 
     if (supabase) {
       // Tallenna Supabaseen
       try {
+        // Tallenna tapahtuma (master event)
         const { data: savedEvent, error: eventError } = await supabase
           .from('events')
           .insert({
             title: newEvent.title,
-            date: newEvent.date,
-            time: newEvent.time || null,
             artist: newEvent.artist || null,
             summary: newEvent.summary || null,
             year: eventYear,
@@ -1306,6 +1325,20 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
           .single();
 
         if (eventError) throw eventError;
+
+        // Tallenna tapahtuman päivät (event instances)
+        const instancesToInsert = newEvent.dates.map(dateEntry => ({
+          event_id: savedEvent.id,
+          date: dateEntry.date,
+          start_time: dateEntry.startTime || null,
+          end_time: dateEntry.endTime || null
+        }));
+
+        const { error: instancesError } = await supabase
+          .from('event_instances')
+          .insert(instancesToInsert);
+
+        if (instancesError) throw instancesError;
 
         // Tallenna tehtävät
         if (newEvent.tasks.length > 0) {
@@ -1334,19 +1367,27 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
         // Päivitä UI
         const { data: events, error } = await supabase
           .from('events')
-          .select(`*, tasks (*)`)
-          .eq('year', eventYear)
-          .order('date', { ascending: true });
+          .select(`*, event_instances (*), tasks (*)`)
+          .eq('year', eventYear);
 
         if (!error) {
           const formattedEvents = events.map(event => ({
             id: event.id,
             title: event.title,
-            date: event.date,
-            time: event.time,
             artist: event.artist,
             summary: event.summary,
             images: event.images || {},
+            // Monipäiväiset tapahtumat
+            dates: (event.event_instances || [])
+              .sort((a, b) => new Date(a.date) - new Date(b.date))
+              .map(inst => ({
+                date: inst.date,
+                startTime: inst.start_time,
+                endTime: inst.end_time
+              })),
+            // Backward compatibility
+            date: event.event_instances?.[0]?.date || event.date,
+            time: event.event_instances?.[0]?.start_time || event.time,
             tasks: (event.tasks || []).map(task => ({
               id: task.id,
               title: task.title,
@@ -1358,7 +1399,8 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
               assignee: task.assignee,
               notes: task.notes
             }))
-          }));
+          }))
+          .sort((a, b) => new Date(a.date) - new Date(b.date));
           setPosts(prev => ({ ...prev, [eventYear]: formattedEvents }));
 
           // Generoi sisältö automaattisesti jos valittu
@@ -1391,10 +1433,10 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
     // Tyhjennä lomake ja sulje modaali
     setNewEvent({
       title: '',
-      date: '',
-      time: '',
+      dates: [{ date: '', startTime: '', endTime: '' }],
       artist: '',
       eventType: 'artist',
+      summary: '',
       tasks: []
     });
     setSelectedMarketingChannels([]);
@@ -3325,38 +3367,109 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-bold mb-2 text-gray-800">Päivämäärä *</label>
-                    <input
-                      type="date"
-                      value={newEvent.date}
-                      onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
-                      className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold mb-2 text-gray-800">Kellonaika</label>
-                    <input
-                      type="time"
-                      value={newEvent.time}
-                      onChange={(e) => setNewEvent({ ...newEvent, time: e.target.value })}
-                      className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold mb-2 text-gray-800">Tapahtuman tyyppi *</label>
-                    <select
-                      value={newEvent.eventType}
-                      onChange={(e) => setNewEvent({ ...newEvent, eventType: e.target.value })}
-                      className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                {/* Tapahtuman tyyppi */}
+                <div>
+                  <label className="block text-sm font-bold mb-2 text-gray-800">Tapahtuman tyyppi *</label>
+                  <select
+                    value={newEvent.eventType}
+                    onChange={(e) => setNewEvent({ ...newEvent, eventType: e.target.value })}
+                    className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                  >
+                    <option value="artist">🎤 Artisti / Bändi</option>
+                    <option value="dj">🎧 DJ</option>
+                    <option value="market">🛍️ Kirppis / Markkinat</option>
+                    <option value="other">✨ Muu tapahtuma</option>
+                  </select>
+                </div>
+
+                {/* Tapahtuman päivämäärät ja kellonajat */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="block text-sm font-bold text-gray-800">📅 Päivämäärät ja ajat *</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewEvent({
+                          ...newEvent,
+                          dates: [...newEvent.dates, { date: '', startTime: '', endTime: '' }]
+                        });
+                      }}
+                      className="bg-green-500 text-white px-3 py-1 rounded-lg text-sm font-medium hover:bg-green-600 transition-colors"
                     >
-                      <option value="artist">🎤 Artisti / Bändi</option>
-                      <option value="dj">🎧 DJ</option>
-                      <option value="market">🛍️ Kirppis / Markkinat</option>
-                      <option value="other">✨ Muu tapahtuma</option>
-                    </select>
+                      ➕ Lisää päivä
+                    </button>
                   </div>
+                  <div className="space-y-3">
+                    {newEvent.dates.map((dateEntry, index) => (
+                      <div key={index} className="bg-gray-50 p-4 rounded-lg border-2 border-gray-200">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div>
+                              <label className="block text-xs font-semibold mb-1 text-gray-700">
+                                Päivämäärä {newEvent.dates.length > 1 ? `${index + 1}` : ''}
+                              </label>
+                              <input
+                                type="date"
+                                value={dateEntry.date}
+                                onChange={(e) => {
+                                  const newDates = [...newEvent.dates];
+                                  newDates[index].date = e.target.value;
+                                  setNewEvent({ ...newEvent, dates: newDates });
+                                }}
+                                className="w-full p-2 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold mb-1 text-gray-700">
+                                Aloitusaika
+                              </label>
+                              <input
+                                type="time"
+                                value={dateEntry.startTime}
+                                onChange={(e) => {
+                                  const newDates = [...newEvent.dates];
+                                  newDates[index].startTime = e.target.value;
+                                  setNewEvent({ ...newEvent, dates: newDates });
+                                }}
+                                className="w-full p-2 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold mb-1 text-gray-700">
+                                Lopetusaika <span className="text-gray-400 font-normal">(valinnainen)</span>
+                              </label>
+                              <input
+                                type="time"
+                                value={dateEntry.endTime}
+                                onChange={(e) => {
+                                  const newDates = [...newEvent.dates];
+                                  newDates[index].endTime = e.target.value;
+                                  setNewEvent({ ...newEvent, dates: newDates });
+                                }}
+                                className="w-full p-2 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                              />
+                            </div>
+                          </div>
+                          {newEvent.dates.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newDates = newEvent.dates.filter((_, i) => i !== index);
+                                setNewEvent({ ...newEvent, dates: newDates });
+                              }}
+                              className="mt-6 bg-red-100 text-red-600 px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors"
+                              title="Poista päivä"
+                            >
+                              🗑️
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    💡 Vinkki: Voit lisätä useita päiviä monipäiväisille tapahtumille. Lopetusaika on valinnainen.
+                  </p>
                 </div>
 
                 <div>
@@ -3460,8 +3573,9 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
                     // Laske deadline jos tapahtuman päivämäärä on valittu
                     let deadlineText = '';
-                    if (newEvent.date) {
-                      const eventDate = new Date(newEvent.date);
+                    const firstDate = newEvent.dates?.[0]?.date;
+                    if (firstDate) {
+                      const eventDate = new Date(firstDate);
                       const deadline = new Date(eventDate);
                       deadline.setDate(eventDate.getDate() - op.daysBeforeEvent);
                       deadlineText = `📅 ${deadline.toLocaleDateString('fi-FI', { day: 'numeric', month: 'short' })}`;
@@ -3591,7 +3705,12 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                     }
 
                     // Luo tehtävät valittujen kanavien perusteella
-                    const eventDate = new Date(newEvent.date);
+                    const firstDate = newEvent.dates?.[0]?.date;
+                    if (!firstDate) {
+                      alert('Lisää vähintään yksi päivämäärä');
+                      return;
+                    }
+                    const eventDate = new Date(firstDate);
                     const tasks = selectedMarketingChannels.map(opId => {
                       const op = marketingOperations.find(o => o.id === opId);
                       const deadline = new Date(eventDate);
@@ -3621,10 +3740,10 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                     setShowAddEventModal(false);
                     setNewEvent({
                       title: '',
-                      date: '',
-                      time: '',
+                      dates: [{ date: '', startTime: '', endTime: '' }],
                       artist: '',
                       eventType: 'artist',
+                      summary: '',
                       tasks: []
                     });
                     setSelectedMarketingChannels([]);
@@ -3649,17 +3768,30 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
               {/* Tapahtuman tiedot */}
               <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-5 mb-6 border-2 border-green-200">
                 <h4 className="text-xl font-bold text-gray-900 mb-3">{newEvent.title}</h4>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <span className="text-gray-600">📅 Päivämäärä:</span>
-                    <p className="font-semibold">{new Date(newEvent.date).toLocaleDateString('fi-FI', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+
+                {/* Päivämäärät */}
+                <div className="mb-4">
+                  <span className="text-gray-600 text-sm font-semibold">📅 Päivämäärät:</span>
+                  <div className="mt-2 space-y-2">
+                    {newEvent.dates?.map((dateEntry, index) => (
+                      <div key={index} className="bg-white bg-opacity-60 rounded-lg p-3 border border-green-200">
+                        <div className="flex items-center gap-4 flex-wrap">
+                          <div className="font-semibold text-gray-900">
+                            {new Date(dateEntry.date).toLocaleDateString('fi-FI', { weekday: 'short', day: 'numeric', month: 'numeric', year: 'numeric' })}
+                          </div>
+                          {(dateEntry.startTime || dateEntry.endTime) && (
+                            <div className="text-gray-700">
+                              🕐 {dateEntry.startTime || ''}
+                              {dateEntry.endTime && ` - ${dateEntry.endTime}`}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  {newEvent.time && (
-                    <div>
-                      <span className="text-gray-600">🕐 Kellonaika:</span>
-                      <p className="font-semibold">{newEvent.time}</p>
-                    </div>
-                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
                     <span className="text-gray-600">🎭 Tyyppi:</span>
                     <p className="font-semibold">
@@ -3796,39 +3928,112 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-bold mb-2 text-gray-800">Päivämäärä *</label>
-                    <input
-                      type="date"
-                      value={editingEvent.date}
-                      onChange={(e) => setEditingEvent({ ...editingEvent, date: e.target.value })}
-                      className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
-                    />
-                    <p className="text-xs text-orange-600 mt-1">⚠️ Päivämäärän muutos ei päivitä tehtävien deadlineja automaattisesti</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold mb-2 text-gray-800">Kellonaika</label>
-                    <input
-                      type="time"
-                      value={editingEvent.time || ''}
-                      onChange={(e) => setEditingEvent({ ...editingEvent, time: e.target.value })}
-                      className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold mb-2 text-gray-800">Tapahtuman tyyppi</label>
-                    <select
-                      value={editingEvent.eventType || 'artist'}
-                      onChange={(e) => setEditingEvent({ ...editingEvent, eventType: e.target.value })}
-                      className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                {/* Tapahtuman tyyppi */}
+                <div>
+                  <label className="block text-sm font-bold mb-2 text-gray-800">Tapahtuman tyyppi</label>
+                  <select
+                    value={editingEvent.eventType || 'artist'}
+                    onChange={(e) => setEditingEvent({ ...editingEvent, eventType: e.target.value })}
+                    className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                  >
+                    <option value="artist">🎤 Artisti / Bändi</option>
+                    <option value="dj">🎧 DJ</option>
+                    <option value="market">🛍️ Kirppis / Markkinat</option>
+                    <option value="other">✨ Muu tapahtuma</option>
+                  </select>
+                </div>
+
+                {/* Tapahtuman päivämäärät ja kellonajat */}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="block text-sm font-bold text-gray-800">📅 Päivämäärät ja ajat *</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const currentDates = editingEvent.dates || [{ date: editingEvent.date || '', startTime: editingEvent.time || '', endTime: '' }];
+                        setEditingEvent({
+                          ...editingEvent,
+                          dates: [...currentDates, { date: '', startTime: '', endTime: '' }]
+                        });
+                      }}
+                      className="bg-green-500 text-white px-3 py-1 rounded-lg text-sm font-medium hover:bg-green-600 transition-colors"
                     >
-                      <option value="artist">🎤 Artisti / Bändi</option>
-                      <option value="dj">🎧 DJ</option>
-                      <option value="market">🛍️ Kirppis / Markkinat</option>
-                      <option value="other">✨ Muu tapahtuma</option>
-                    </select>
+                      ➕ Lisää päivä
+                    </button>
                   </div>
+                  <div className="space-y-3">
+                    {(editingEvent.dates || [{ date: editingEvent.date || '', startTime: editingEvent.time || '', endTime: '' }]).map((dateEntry, index) => (
+                      <div key={index} className="bg-gray-50 p-4 rounded-lg border-2 border-gray-200">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div>
+                              <label className="block text-xs font-semibold mb-1 text-gray-700">
+                                Päivämäärä {(editingEvent.dates || []).length > 1 ? `${index + 1}` : ''}
+                              </label>
+                              <input
+                                type="date"
+                                value={dateEntry.date}
+                                onChange={(e) => {
+                                  const currentDates = editingEvent.dates || [{ date: editingEvent.date || '', startTime: editingEvent.time || '', endTime: '' }];
+                                  const newDates = [...currentDates];
+                                  newDates[index].date = e.target.value;
+                                  setEditingEvent({ ...editingEvent, dates: newDates });
+                                }}
+                                className="w-full p-2 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold mb-1 text-gray-700">
+                                Aloitusaika
+                              </label>
+                              <input
+                                type="time"
+                                value={dateEntry.startTime || ''}
+                                onChange={(e) => {
+                                  const currentDates = editingEvent.dates || [{ date: editingEvent.date || '', startTime: editingEvent.time || '', endTime: '' }];
+                                  const newDates = [...currentDates];
+                                  newDates[index].startTime = e.target.value;
+                                  setEditingEvent({ ...editingEvent, dates: newDates });
+                                }}
+                                className="w-full p-2 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold mb-1 text-gray-700">
+                                Lopetusaika <span className="text-gray-400 font-normal">(valinnainen)</span>
+                              </label>
+                              <input
+                                type="time"
+                                value={dateEntry.endTime || ''}
+                                onChange={(e) => {
+                                  const currentDates = editingEvent.dates || [{ date: editingEvent.date || '', startTime: editingEvent.time || '', endTime: '' }];
+                                  const newDates = [...currentDates];
+                                  newDates[index].endTime = e.target.value;
+                                  setEditingEvent({ ...editingEvent, dates: newDates });
+                                }}
+                                className="w-full p-2 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                              />
+                            </div>
+                          </div>
+                          {(editingEvent.dates || []).length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const currentDates = editingEvent.dates || [];
+                                const newDates = currentDates.filter((_, i) => i !== index);
+                                setEditingEvent({ ...editingEvent, dates: newDates });
+                              }}
+                              className="mt-6 bg-red-100 text-red-600 px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors"
+                              title="Poista päivä"
+                            >
+                              🗑️
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-orange-600 mt-2">⚠️ Päivämäärän muutos ei päivitä tehtävien deadlineja automaattisesti</p>
                 </div>
 
                 <div>
@@ -3896,22 +4101,29 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                       alert('Anna tapahtumalle nimi');
                       return;
                     }
-                    if (!editingEvent.date) {
-                      alert('Valitse tapahtuman päivämäärä');
+
+                    // Validoi dates-array
+                    const dates = editingEvent.dates || [];
+                    if (dates.length === 0) {
+                      alert('Lisää vähintään yksi päivämäärä');
+                      return;
+                    }
+                    const hasEmptyDate = dates.some(d => !d.date);
+                    if (hasEmptyDate) {
+                      alert('Täytä kaikki päivämäärät');
                       return;
                     }
 
-                    const eventYear = new Date(editingEvent.date).getFullYear();
+                    const eventYear = new Date(dates[0].date).getFullYear();
                     const currentPosts = posts[eventYear] || [];
 
                     if (supabase && typeof editingEvent.id === 'number') {
                       try {
+                        // Päivitä tapahtuma
                         const { error: updateError } = await supabase
                           .from('events')
                           .update({
                             title: editingEvent.title,
-                            date: editingEvent.date,
-                            time: editingEvent.time || null,
                             artist: editingEvent.artist || null,
                             summary: editingEvent.summary || null,
                             images: editingEvent.images || {}
@@ -3920,23 +4132,53 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
                         if (updateError) throw updateError;
 
+                        // Poista vanhat event_instances
+                        const { error: deleteError } = await supabase
+                          .from('event_instances')
+                          .delete()
+                          .eq('event_id', editingEvent.id);
+
+                        if (deleteError) throw deleteError;
+
+                        // Lisää uudet event_instances
+                        const instancesToInsert = dates.map(dateEntry => ({
+                          event_id: editingEvent.id,
+                          date: dateEntry.date,
+                          start_time: dateEntry.startTime || null,
+                          end_time: dateEntry.endTime || null
+                        }));
+
+                        const { error: insertError } = await supabase
+                          .from('event_instances')
+                          .insert(instancesToInsert);
+
+                        if (insertError) throw insertError;
+
                         // Päivitä UI
                         const { data: events, error } = await supabase
                           .from('events')
-                          .select(`*, tasks (*)`)
-                          .eq('year', eventYear)
-                          .order('date', { ascending: true });
+                          .select(`*, event_instances (*), tasks (*)`)
+                          .eq('year', eventYear);
 
                         if (!error) {
                           const formattedEvents = events.map(event => ({
                             id: event.id,
                             title: event.title,
-                            date: event.date,
-                            time: event.time,
                             artist: event.artist,
                             summary: event.summary,
                             eventType: event.event_type || 'artist',
                             images: event.images || {},
+                            // Monipäiväiset tapahtumat
+                            dates: (event.event_instances || [])
+                              .sort((a, b) => new Date(a.date) - new Date(b.date))
+                              .map(inst => ({
+                                date: inst.date,
+                                startTime: inst.start_time,
+                                endTime: inst.end_time
+                              })),
+                            // Backward compatibility
+                            date: event.event_instances?.[0]?.date || event.date,
+                            time: event.event_instances?.[0]?.start_time || event.time,
                             tasks: (event.tasks || []).map(task => ({
                               id: task.id,
                               title: task.title,
@@ -3947,7 +4189,8 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                               content: task.content,
                               assignee: task.assignee
                             }))
-                          }));
+                          }))
+                          .sort((a, b) => new Date(a.date) - new Date(b.date));
                           setPosts(prev => ({ ...prev, [eventYear]: formattedEvents }));
                         }
                       } catch (error) {
@@ -4359,15 +4602,38 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
                               )}
                             </div>
                             <div className="text-right">
-                              <p className="font-semibold text-gray-900">
-                                {new Date(event.date).toLocaleDateString('fi-FI', {
-                                  weekday: 'long',
-                                  day: 'numeric',
-                                  month: 'long'
-                                })}
-                              </p>
-                              {event.time && (
-                                <p className="text-sm text-gray-600">Klo {event.time}</p>
+                              {event.dates && event.dates.length > 0 ? (
+                                <div className="space-y-1">
+                                  {event.dates.map((dateEntry, idx) => (
+                                    <div key={idx}>
+                                      <p className="font-semibold text-gray-900 text-sm">
+                                        {new Date(dateEntry.date).toLocaleDateString('fi-FI', {
+                                          weekday: 'short',
+                                          day: 'numeric',
+                                          month: 'numeric'
+                                        })}
+                                      </p>
+                                      {(dateEntry.startTime || dateEntry.endTime) && (
+                                        <p className="text-xs text-gray-600">
+                                          Klo {dateEntry.startTime || ''}{dateEntry.endTime ? ` - ${dateEntry.endTime}` : ''}
+                                        </p>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <>
+                                  <p className="font-semibold text-gray-900">
+                                    {new Date(event.date).toLocaleDateString('fi-FI', {
+                                      weekday: 'long',
+                                      day: 'numeric',
+                                      month: 'long'
+                                    })}
+                                  </p>
+                                  {event.time && (
+                                    <p className="text-sm text-gray-600">Klo {event.time}</p>
+                                  )}
+                                </>
                               )}
                             </div>
                           </div>

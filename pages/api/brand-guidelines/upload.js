@@ -4,19 +4,11 @@
 
 import { supabaseAdmin } from '../../../lib/supabase-admin'
 import {
-  uploadToStorage,
-  createBrandGuideline,
-  processBrandGuideline
+  createBrandGuideline
 } from '../../../lib/api/brandGuidelineService'
 
-// Konfiguraatio: Salli suuret tiedostot
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '50mb'
-    }
-  }
-}
+// Huom: Tiedosto ladataan suoraan Supabase Storageen frontend-puolella,
+// joten API vastaanottaa vain metatiedot. Tämä ohittaa Vercel payload-rajoitukset.
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -83,8 +75,8 @@ export default async function handler(req, res) {
 
     console.log('[upload] Admin-oikeudet vahvistettu')
 
-    // Odotetaan että frontend lähettää JSON-datan
-    const { title, fileData, fileName, contentType } = req.body
+    // Frontend lähettää tiedoston metatiedot (tiedosto on jo Supabase Storagessa)
+    const { title, fileName, filePath, fileUrl } = req.body
 
     if (!title) {
       return res.status(400).json({
@@ -102,90 +94,45 @@ export default async function handler(req, res) {
       })
     }
 
-    if (!fileData) {
+    if (!filePath) {
       return res.status(400).json({
         success: false,
-        error: 'Puuttuva tieto: Tiedostodata',
-        details: 'Tiedoston sisältö puuttuu'
+        error: 'Puuttuva tieto: Tiedostopolku',
+        details: 'Tiedostopolku puuttuu'
       })
     }
 
-    console.log(`[upload] Ladataan dokumenttia: "${title}" (${fileName})`)
-
-    // Validoi tiedostotyyppi
-    const finalContentType = contentType || 'application/pdf'
-    if (finalContentType !== 'application/pdf') {
+    if (!fileUrl) {
       return res.status(400).json({
         success: false,
-        error: 'Virheellinen tiedostotyyppi',
-        details: `Vain PDF-tiedostot sallittuja. Annettu tyyppi: ${finalContentType}`
+        error: 'Puuttuva tieto: Tiedoston URL',
+        details: 'Tiedoston URL puuttuu'
       })
     }
 
-    // Dekoodaa base64 fileData -> Buffer
-    try {
-      const base64Data = fileData.split(',')[1] || fileData
-      const fileBuffer = Buffer.from(base64Data, 'base64')
+    console.log(`[upload] Rekisteröidään dokumentti: "${title}" (${fileName})`)
+    console.log(`[upload] Tiedostopolku: ${filePath}`)
 
-      if (fileBuffer.length === 0) {
-        return res.status(400).json({
-          success: false,
-          error: 'Tiedosto on tyhjä',
-          details: 'Tiedoston dekoodaus tuotti tyhjän bufferin'
-        })
-      }
+    // Luo tietokantaan entry (status = 'uploaded' by default)
+    console.log('[upload] Luodaan tietokantaan merkintä...')
+    const guideline = await createBrandGuideline({
+      title,
+      fileName,
+      fileUrl,
+      filePath,
+      userId: user.id,
+      userEmail: user.email
+    })
 
-      console.log(`[upload] Tiedosto dekoodattu: ${(fileBuffer.length / 1024 / 1024).toFixed(2)} MB`)
+    console.log(`[upload] Dokumentti luotu ID:llä: ${guideline.id}`)
 
-      // Tarkista tiedoston koko (50 MB)
-      const maxSize = 50 * 1024 * 1024
-      if (fileBuffer.length > maxSize) {
-        return res.status(400).json({
-          success: false,
-          error: 'Tiedosto on liian suuri',
-          details: `Tiedoston koko: ${(fileBuffer.length / 1024 / 1024).toFixed(2)} MB. Maksimi: 50 MB`
-        })
-      }
+    // EI prosessoida automaattisesti - käyttäjä prosessoi manuaalisesti
 
-      // Lataa tiedosto Supabase Storageen
-      console.log('[upload] Ladataan tiedostoa Storageen...')
-      const { filePath, fileUrl } = await uploadToStorage(
-        fileBuffer,
-        fileName,
-        finalContentType
-      )
-
-      console.log(`[upload] Tiedosto ladattu Storageen: ${filePath}`)
-
-      // Luo tietokantaan entry (status = 'uploaded' by default)
-      console.log('[upload] Luodaan tietokantaan merkintä...')
-      const guideline = await createBrandGuideline({
-        title,
-        fileName,
-        fileUrl,
-        filePath,
-        userId: user.id,
-        userEmail: user.email
-      })
-
-      console.log(`[upload] Dokumentti luotu ID:llä: ${guideline.id}`)
-
-      // EI prosessoida automaattisesti - käyttäjä prosessoi manuaalisesti
-
-      return res.status(200).json({
-        success: true,
-        guideline,
-        message: 'Dokumentti ladattu onnistuneesti! Prosessoi se nyt AI:lla.'
-      })
-
-    } catch (decodeError) {
-      console.error('[upload] Base64 dekoodausvirhe:', decodeError)
-      return res.status(400).json({
-        success: false,
-        error: 'Tiedoston dekoodaus epäonnistui',
-        details: decodeError.message
-      })
-    }
+    return res.status(200).json({
+      success: true,
+      guideline,
+      message: 'Dokumentti ladattu onnistuneesti! Prosessoi se nyt AI:lla.'
+    })
 
   } catch (error) {
     console.error('[upload] Virhe dokumentin latauksessa:', error)

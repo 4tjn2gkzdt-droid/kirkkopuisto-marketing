@@ -107,15 +107,18 @@ Muutokset:
 
 ### POST `/api/brand-guidelines/upload`
 
-Lataa uusi brändiohjedokumentti.
+Rekisteröi uusi brändiohjedokumentti (tiedosto on jo ladattu Supabase Storageen frontend-puolella).
+
+**HUOM:** Tiedosto ladataan suoraan Supabase Storageen frontend-puolella, ei API:n kautta.
+Tämä ohittaa Vercel payload-rajoitukset (4.5 MB).
 
 **Pyyntö:**
 ```json
 {
   "title": "Brändiohje 2024",
   "fileName": "brandguide.pdf",
-  "fileData": "base64-encoded-pdf-data",
-  "contentType": "application/pdf"
+  "filePath": "1234567890-brandguide.pdf",
+  "fileUrl": "https://xxx.supabase.co/storage/v1/object/public/brand-guidelines/..."
 }
 ```
 
@@ -191,10 +194,21 @@ Prosessoi dokumentti uudelleen (luo uusi tiivistelmä).
 
 ## Rajoitukset
 
-- Maksimi tiedostokoko: 10 MB
+- Maksimi tiedostokoko: 50 MB (Supabase Storage -raja)
 - Tuettu tiedostomuoto: PDF
 - PDF:n sisältö rajoitettu 50 000 merkkiin tietokannassa
 - Tiivistelmä maksimissaan 1024 tokenia (~300 sanaa)
+
+## Tekninen toteutus: Suora Supabase Storage -lataus
+
+Tiedostot ladataan **suoraan Supabase Storageen frontend-puolelta**, ei Vercel-funktion kautta.
+Tämä ohittaa Vercelin 4.5 MB payload-rajoituksen ja mahdollistaa suurempien tiedostojen latauksen.
+
+### Kulku:
+1. Frontend lataa PDF:n suoraan Supabase Storageen (`supabase.storage.from('brand-guidelines').upload()`)
+2. Frontend lähettää API:lle vain metatiedot (title, fileName, filePath, fileUrl)
+3. API tallentaa metatiedot tietokantaan
+4. Prosessointi lataa PDF:n Storagesta ja käsittelee sen
 
 ## Vianetsintä
 

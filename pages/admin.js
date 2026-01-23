@@ -21,6 +21,7 @@ export default function AdminPanel() {
   const [uploadTitle, setUploadTitle] = useState('');
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [syncLoading, setSyncLoading] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -312,6 +313,46 @@ WHERE email = '${newUserEmail}';
       }
     } catch (err) {
       console.error('Virhe ladattaessa dokumentteja:', err);
+    }
+  };
+
+  const syncStorage = async () => {
+    if (!supabase) return;
+
+    setSyncLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        alert('Sessio puuttuu - kirjaudu uudelleen');
+        return;
+      }
+
+      const response = await fetch('/api/brand-guidelines/sync-storage', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        const created = result.results?.created?.length || 0;
+        const message = created > 0
+          ? `✅ Synkronointi onnistui! Luotiin ${created} uutta dokumenttia.`
+          : '✅ Kaikki tiedostot ovat jo synkronoitu.';
+        alert(message);
+
+        // Päivitä dokumenttilista
+        await loadGuidelines();
+      } else {
+        alert(`❌ Synkronointi epäonnistui: ${result.error || 'Tuntematon virhe'}`);
+      }
+    } catch (err) {
+      console.error('Virhe synkronoinnissa:', err);
+      alert(`❌ Virhe synkronoinnissa: ${err.message}`);
+    } finally {
+      setSyncLoading(false);
     }
   };
 
@@ -609,12 +650,21 @@ WHERE email = '${newUserEmail}';
         <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-2xl font-bold text-gray-800">📄 Brändiohjedokumentit</h2>
-            <button
-              onClick={() => setShowUploadModal(true)}
-              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 font-medium"
-            >
-              + Lataa dokumentti
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={syncStorage}
+                disabled={syncLoading}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {syncLoading ? '⏳ Synkronoidaan...' : '🔄 Synkronoi Storage'}
+              </button>
+              <button
+                onClick={() => setShowUploadModal(true)}
+                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 font-medium"
+              >
+                + Lataa dokumentti
+              </button>
+            </div>
           </div>
 
           {guidelines.length === 0 ? (

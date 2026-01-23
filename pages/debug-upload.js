@@ -9,6 +9,7 @@ export default function DebugUpload() {
   const [uploadFile, setUploadFile] = useState(null);
   const [logs, setLogs] = useState([]);
   const [testResults, setTestResults] = useState({});
+  const [storageFiles, setStorageFiles] = useState([]);
 
   useEffect(() => {
     checkAuth();
@@ -259,6 +260,80 @@ export default function DebugUpload() {
     setLogs([]);
   };
 
+  const testStorageBucket = async () => {
+    addLog('info', '=== TESTATAAN STORAGE BUCKET ===');
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        addLog('error', 'Session puuttuu!');
+        return;
+      }
+
+      addLog('info', 'Haetaan tiedostot bucketista...');
+
+      const response = await fetch('/api/brand-guidelines/storage-test', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        addLog('success', 'Storage bucket -testi onnistui!', result.results);
+        setStorageFiles(result.results.files || []);
+      } else {
+        addLog('error', 'Storage bucket -testi epäonnistui!', result);
+      }
+    } catch (error) {
+      addLog('error', 'Kriittinen virhe Storage bucket -testissä!', {
+        name: error.name,
+        message: error.message
+      });
+    }
+  };
+
+  const testReadFile = async (filePath, fileName) => {
+    addLog('info', `=== TESTATAAN TIEDOSTON LUKEMISTA: ${fileName} ===`);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        addLog('error', 'Session puuttuu!');
+        return;
+      }
+
+      addLog('info', `Ladataan ja luetaan tiedostoa: ${filePath}`);
+
+      const response = await fetch('/api/brand-guidelines/test-download', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ filePath })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        addLog('success', 'Tiedoston lukeminen onnistui!', {
+          fileType: result.fileType,
+          contentLength: result.contentLength,
+          preview: result.contentPreview
+        });
+      } else {
+        addLog('error', 'Tiedoston lukeminen epäonnistui!', result);
+      }
+    } catch (error) {
+      addLog('error', 'Kriittinen virhe tiedoston lukemisessa!', {
+        name: error.name,
+        message: error.message
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 text-white p-8 flex items-center justify-center">
@@ -318,6 +393,51 @@ export default function DebugUpload() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Storage Bucket Test */}
+        <div className="bg-gray-800 rounded-lg p-6 mb-6">
+          <h2 className="text-xl font-bold text-blue-400 mb-4">🗂️ Storage Bucket -testi</h2>
+          <p className="text-gray-400 mb-4">
+            Testaa että ohjelma näkee Supabase Storage bucketin ja sen tiedostot
+          </p>
+          <button
+            onClick={testStorageBucket}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded font-bold"
+          >
+            🔍 Testaa Storage Bucket
+          </button>
+
+          {storageFiles.length > 0 && (
+            <div className="mt-4">
+              <h3 className="text-lg font-bold text-green-400 mb-2">
+                ✅ Löytyi {storageFiles.length} tiedostoa:
+              </h3>
+              <div className="bg-gray-900 rounded p-4 space-y-2">
+                {storageFiles.map((file, i) => (
+                  <div key={i} className="border-l-4 border-green-500 pl-3 py-2">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="text-white font-semibold">{file.name}</div>
+                        <div className="text-sm text-gray-400">
+                          Koko: {file.sizeKB} KB | Luotu: {new Date(file.created_at).toLocaleString('fi-FI')}
+                        </div>
+                        <div className="text-xs text-gray-500 break-all mt-1">
+                          {file.publicUrl}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => testReadFile(file.name, file.name)}
+                        className="ml-4 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm whitespace-nowrap"
+                      >
+                        📖 Lue
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Upload Test */}
@@ -391,10 +511,10 @@ export default function DebugUpload() {
           <h3 className="text-lg font-bold text-blue-300 mb-2">💡 Ohjeet</h3>
           <ul className="text-blue-200 space-y-1 text-sm">
             <li>1. Tarkista että kaikki automaattiset testit ovat OK (vihreä)</li>
-            <li>2. Jos RLS Policies on keltainen/punainen, tarkista Supabase Storage policies</li>
-            <li>3. Valitse testtiedosto ja klikkaa "Testaa lataus"</li>
-            <li>4. Seuraa lokeja - ne näyttävät tarkalleen missä kohtaa virhe tapahtuu</li>
-            <li>5. Kopioi virheloki ja lähetä se eteenpäin jos ongelma jatkuu</li>
+            <li>2. Testaa Storage Bucket -napista että ohjelma näkee tiedostot</li>
+            <li>3. Jos RLS Policies on keltainen/punainen, tarkista Supabase Storage policies</li>
+            <li>4. Valitse testtiedosto ja klikkaa "Testaa lataus"</li>
+            <li>5. Seuraa lokeja - ne näyttävät tarkalleen missä kohtaa virhe tapahtuu</li>
           </ul>
         </div>
       </div>

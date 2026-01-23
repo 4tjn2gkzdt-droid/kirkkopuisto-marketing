@@ -225,12 +225,24 @@ export default function DebugUpload() {
         })
       });
 
+      // Tarkista HTTP status ensin
+      addLog('info', 'HTTP Status:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+
       const result = await response.json();
 
       if (result.success) {
         addLog('success', 'API-kutsu onnistui!', result);
       } else {
-        addLog('error', 'API-kutsu epäonnistui!', result);
+        addLog('error', 'API-kutsu epäonnistui!', {
+          success: result.success,
+          error: result.error,
+          details: result.details,
+          fullResponse: result
+        });
       }
 
       addLog('info', '=== LATAUS VALMIS ===');

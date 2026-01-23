@@ -60,22 +60,28 @@ export default function DebugUpload() {
       addLog('error', 'Testi 1/4: Autentikointi epäonnistui', error.message);
     }
 
-    // Testi 2: Storage bucket listaus
+    // Testi 2: Storage bucket - tarkista listaamalla tiedostoja
     try {
-      const { data, error } = await supabase.storage.listBuckets();
-      if (error) throw error;
+      // Yritä listata tiedostoja (parempi testi kuin bucketin listaus)
+      const { data, error } = await supabase.storage
+        .from('brand-guidelines')
+        .list('', { limit: 1 });
 
-      const hasBrandGuidelines = data?.some(b => b.name === 'brand-guidelines');
-      setTestResults(prev => ({...prev, bucket: hasBrandGuidelines ? 'OK' : 'MISSING'}));
-
-      if (hasBrandGuidelines) {
-        addLog('success', 'Testi 2/4: Storage bucket "brand-guidelines" löytyi');
+      if (error) {
+        // Jos virhe sisältää "not found" tai "does not exist", bucket puuttuu
+        if (error.message.includes('not found') || error.message.includes('does not exist')) {
+          setTestResults(prev => ({...prev, bucket: 'MISSING'}));
+          addLog('error', 'Testi 2/4: Storage bucket "brand-guidelines" puuttuu!', error.message);
+        } else {
+          throw error;
+        }
       } else {
-        addLog('error', 'Testi 2/4: Storage bucket "brand-guidelines" puuttuu!', data);
+        setTestResults(prev => ({...prev, bucket: 'OK'}));
+        addLog('success', 'Testi 2/4: Storage bucket "brand-guidelines" löytyi');
       }
     } catch (error) {
       setTestResults(prev => ({...prev, bucket: 'FAIL'}));
-      addLog('error', 'Testi 2/4: Storage bucket listaus epäonnistui', error.message);
+      addLog('error', 'Testi 2/4: Storage bucket tarkistus epäonnistui', error.message);
     }
 
     // Testi 3: Storage policies

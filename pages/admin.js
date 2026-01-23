@@ -22,6 +22,7 @@ export default function AdminPanel() {
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [syncLoading, setSyncLoading] = useState(false);
+  const [debugInfo, setDebugInfo] = useState(null);
 
   useEffect(() => {
     checkAuth();
@@ -356,6 +357,36 @@ WHERE email = '${newUserEmail}';
     }
   };
 
+  const debugDocuments = async () => {
+    if (!supabase) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        alert('Sessio puuttuu - kirjaudu uudelleen');
+        return;
+      }
+
+      const response = await fetch('/api/brand-guidelines/debug-list', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setDebugInfo(result);
+        console.log('📋 Debug info:', result);
+      } else {
+        alert(`❌ Debug epäonnistui: ${result.error || 'Tuntematon virhe'}`);
+      }
+    } catch (err) {
+      console.error('Virhe debugissa:', err);
+      alert(`❌ Virhe debugissa: ${err.message}`);
+    }
+  };
+
   const handleUploadFile = async (e) => {
     e.preventDefault();
 
@@ -652,6 +683,12 @@ WHERE email = '${newUserEmail}';
             <h2 className="text-2xl font-bold text-gray-800">📄 Brändiohjedokumentit</h2>
             <div className="flex gap-2">
               <button
+                onClick={debugDocuments}
+                className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 font-medium text-sm"
+              >
+                🔍 Debug
+              </button>
+              <button
                 onClick={syncStorage}
                 disabled={syncLoading}
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
@@ -666,6 +703,35 @@ WHERE email = '${newUserEmail}';
               </button>
             </div>
           </div>
+
+          {debugInfo && (
+            <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded p-4">
+              <div className="flex justify-between items-start mb-2">
+                <h3 className="text-lg font-bold text-yellow-800">🔍 Debug Info</h3>
+                <button
+                  onClick={() => setDebugInfo(null)}
+                  className="text-yellow-600 hover:text-yellow-800 text-sm"
+                >
+                  ✕ Sulje
+                </button>
+              </div>
+              <div className="text-sm text-yellow-900">
+                <p><strong>Tietokannassa yhteensä:</strong> {debugInfo.count} dokumenttia</p>
+                <p><strong>Näkyvissä admin-sivulla:</strong> {guidelines.length} dokumenttia</p>
+                {debugInfo.count > guidelines.length && (
+                  <p className="text-red-600 font-bold mt-2">
+                    ⚠️ {debugInfo.count - guidelines.length} dokumenttia puuttuu näkyvistä! Syy: is_active = false
+                  </p>
+                )}
+              </div>
+              <details className="mt-3">
+                <summary className="cursor-pointer text-yellow-800 font-semibold">Näytä kaikki rivit</summary>
+                <pre className="mt-2 bg-yellow-100 p-2 rounded text-xs overflow-x-auto">
+                  {JSON.stringify(debugInfo.guidelines, null, 2)}
+                </pre>
+              </details>
+            </div>
+          )}
 
           {guidelines.length === 0 ? (
             <div className="text-center py-8 text-gray-500">

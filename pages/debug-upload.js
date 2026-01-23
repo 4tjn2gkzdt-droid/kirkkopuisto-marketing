@@ -10,6 +10,7 @@ export default function DebugUpload() {
   const [logs, setLogs] = useState([]);
   const [testResults, setTestResults] = useState({});
   const [storageFiles, setStorageFiles] = useState([]);
+  const [syncResults, setSyncResults] = useState(null);
 
   useEffect(() => {
     checkAuth();
@@ -294,6 +295,45 @@ export default function DebugUpload() {
     }
   };
 
+  const syncStorage = async () => {
+    addLog('info', '=== SYNKRONOIDAAN STORAGE JA TIETOKANTA ===');
+    setSyncResults(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        addLog('error', 'Session puuttuu!');
+        return;
+      }
+
+      addLog('info', 'Käynnistetään synkronointi...');
+
+      const response = await fetch('/api/brand-guidelines/sync-storage', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        addLog('success', 'Synkronointi onnistui!', result.results);
+        setSyncResults(result.results);
+
+        // Päivitä Storage-tiedostolista
+        await testStorageBucket();
+      } else {
+        addLog('error', 'Synkronointi epäonnistui!', result);
+      }
+    } catch (error) {
+      addLog('error', 'Kriittinen virhe synkronoinnissa!', {
+        name: error.name,
+        message: error.message
+      });
+    }
+  };
+
   const testReadFile = async (filePath, fileName) => {
     addLog('info', `=== TESTATAAN TIEDOSTON LUKEMISTA: ${fileName} ===`);
 
@@ -401,12 +441,44 @@ export default function DebugUpload() {
           <p className="text-gray-400 mb-4">
             Testaa että ohjelma näkee Supabase Storage bucketin ja sen tiedostot
           </p>
-          <button
-            onClick={testStorageBucket}
-            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded font-bold"
-          >
-            🔍 Testaa Storage Bucket
-          </button>
+          <div className="flex gap-4">
+            <button
+              onClick={testStorageBucket}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded font-bold"
+            >
+              🔍 Testaa Storage Bucket
+            </button>
+            <button
+              onClick={syncStorage}
+              className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded font-bold"
+            >
+              🔄 Synkronoi Storage → Tietokanta
+            </button>
+          </div>
+
+          {syncResults && (
+            <div className="mt-4 bg-green-900 border border-green-700 rounded p-4">
+              <h3 className="text-lg font-bold text-green-400 mb-2">
+                ✅ Synkronointi valmis!
+              </h3>
+              <div className="text-green-200 space-y-1 text-sm">
+                <p>• Storage-tiedostoja: {syncResults.storageFilesCount}</p>
+                <p>• Tietokannan rivejä (ennen): {syncResults.dbRowsCount}</p>
+                <p>• Puuttuvia tiedostoja: {syncResults.missingCount}</p>
+                <p>• Luotiin uusia rivejä: {syncResults.created?.length || 0}</p>
+              </div>
+              {syncResults.created && syncResults.created.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-green-300 font-semibold mb-1">Luodut rivit:</p>
+                  <ul className="list-disc list-inside text-green-200 text-xs">
+                    {syncResults.created.map((row, i) => (
+                      <li key={i}>{row.title} ({row.file_name})</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
 
           {storageFiles.length > 0 && (
             <div className="mt-4">

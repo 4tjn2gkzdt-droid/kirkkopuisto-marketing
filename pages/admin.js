@@ -371,9 +371,24 @@ WHERE email = '${newUserEmail}';
 
       console.log('✅ Session löytyi:', session.user.email);
 
+      // Sanitoi tiedostonimi: poista erikoismerkit, ääkköset ja välilyönnit
+      const sanitizeFileName = (filename) => {
+        return filename
+          .toLowerCase()
+          .replace(/ä/g, 'a')
+          .replace(/ö/g, 'o')
+          .replace(/å/g, 'a')
+          .replace(/[^a-z0-9.-]/g, '-') // Korvaa kaikki muut merkit kuin a-z, 0-9, . ja - viivalla
+          .replace(/-+/g, '-') // Yhdistä peräkkäiset viivat yhdeksi
+          .replace(/^-+|-+$/g, ''); // Poista viivat alusta ja lopusta
+      };
+
       // Lataa tiedosto suoraan Supabase Storageen (ohittaa Vercel payload-rajoitukset)
       console.log('📤 Ladataan tiedostoa suoraan Supabase Storageen...');
-      const filePath = `${Date.now()}-${uploadFile.name}`;
+      const sanitizedFileName = sanitizeFileName(uploadFile.name);
+      const filePath = `${Date.now()}-${sanitizedFileName}`;
+      console.log(`📝 Alkuperäinen nimi: ${uploadFile.name}`);
+      console.log(`📝 Sanitoitu nimi: ${filePath}`);
 
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('brand-guidelines')

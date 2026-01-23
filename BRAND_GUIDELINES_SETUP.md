@@ -1,11 +1,14 @@
 # Brändiohjedokumenttien hallinta
 
-Tämä järjestelmä mahdollistaa brändiohjedokumenttien (PDF) lataamisen, lukemisen ja automaattisen integroinnin kaikkiin AI-generoituihin markkinointisisältöihin.
+Tämä järjestelmä mahdollistaa brändiohjedokumenttien lataamisen, lukemisen ja automaattisen integroinnin kaikkiin AI-generoituihin markkinointisisältöihin.
+
+**Tuetut tiedostomuodot:** PDF (.pdf), Markdown (.md), JSON (.json)
 
 ## Ominaisuudet
 
-- PDF-dokumenttien lataus Supabase Storageen
-- Automaattinen PDF:n lukeminen ja tekstin poimiminen
+- Usean tiedostomuodon tuki: PDF, Markdown, JSON
+- Dokumenttien lataus suoraan Supabase Storageen (ohittaa Vercel payload-rajoitukset)
+- Automaattinen tiedoston lukeminen ja tekstin poimiminen
 - AI-generoitu tiivistelmä dokumenteista
 - Automaattinen integrointi kaikkiin Claude API -kutsuihin
 - Admin-käyttöliittymä dokumenttien hallintaan
@@ -52,15 +55,19 @@ npm install
 2. Mene osoitteeseen `/admin`
 3. Näet "Brändiohjedokumentit" -osion
 4. Klikkaa "Lataa dokumentti"
-5. Valitse PDF-tiedosto ja anna sille otsikko
+5. Valitse tiedosto (PDF, Markdown tai JSON) ja anna sille otsikko
 6. Klikkaa "Lataa dokumentti"
+7. Kun lataus valmis, klikkaa "Prosessoi AI:lla" luodaksesi tiivistelmän
 
 ### Mitä tapahtuu taustalla?
 
-1. **Lataus**: PDF-tiedosto ladataan Supabase Storageen
+1. **Lataus**: Tiedosto ladataan suoraan Supabase Storageen frontend-puolelta
 2. **Metadata**: Dokumentin metatiedot tallennetaan `brand_guidelines` -tauluun
-3. **Prosessointi** (taustalla):
-   - PDF:n sisältö luetaan `pdf-parse` -kirjastolla
+3. **Prosessointi** (manuaalinen):
+   - Tiedoston sisältö luetaan tiedostotyypin mukaan:
+     - **PDF**: `pdf-parse` -kirjastolla
+     - **Markdown**: Suoraan UTF-8 tekstinä
+     - **JSON**: Parsitaan ja muotoillaan luettavaksi
    - Claude API luo tiivistelmän dokumentista (max 300 sanaa)
    - Sisältö ja tiivistelmä tallennetaan tietokantaan
 4. **Integrointi**: Jatkossa kaikki Claude API -kutsut sisältävät automaattisesti brändiohjedokumenttien tiivistelmän system promptissa
@@ -92,7 +99,10 @@ Pääfunktiot:
 - `loadBrandGuidelines()` - Lataa kaikki aktiiviset dokumentit
 - `createBrandGuideline()` - Luo uusi dokumentti
 - `deleteBrandGuideline()` - Poistaa dokumentin (soft delete)
-- `downloadAndReadPDF()` - Lataa ja lue PDF Supabasesta
+- `downloadAndReadFile()` - Lataa ja lue tiedosto Supabasesta (PDF/MD/JSON)
+- `readPDFContent()` - Lue PDF-tiedosto
+- `readMarkdownContent()` - Lue Markdown-tiedosto
+- `readJSONContent()` - Lue ja formatoi JSON-tiedosto
 - `summarizeBrandGuideline()` - Luo AI-tiivistelmä dokumentista
 - `processBrandGuideline()` - Prosessoi dokumentti kokonaisuudessaan
 - `getBrandGuidelinesContext()` - Palauttaa brändiohjedokumenttien kontekstin system promptiin
@@ -195,8 +205,8 @@ Prosessoi dokumentti uudelleen (luo uusi tiivistelmä).
 ## Rajoitukset
 
 - Maksimi tiedostokoko: 50 MB (Supabase Storage -raja)
-- Tuettu tiedostomuoto: PDF
-- PDF:n sisältö rajoitettu 50 000 merkkiin tietokannassa
+- Tuetut tiedostomuodot: PDF (.pdf), Markdown (.md), JSON (.json)
+- Tiedoston sisältö rajoitettu 50 000 merkkiin tietokannassa
 - Tiivistelmä maksimissaan 1024 tokenia (~300 sanaa)
 
 ## Tekninen toteutus: Suora Supabase Storage -lataus
@@ -232,7 +242,8 @@ Tämä ohittaa Vercelin 4.5 MB payload-rajoituksen ja mahdollistaa suurempien ti
 
 ## Kehitysideat
 
-- [ ] Tuki muille tiedostoformaateille (Word, Markdown)
+- [x] Tuki Markdown ja JSON tiedostoille
+- [ ] Tuki muille tiedostoformaateille (Word, TXT)
 - [ ] Dokumenttien versiointi
 - [ ] Manuaalinen tiivistelmän muokkaus
 - [ ] Dokumenttien ryhmittely kategorioittain

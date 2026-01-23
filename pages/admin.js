@@ -341,10 +341,16 @@ WHERE email = '${newUserEmail}';
       return;
     }
 
-    // Validoi tiedostotyyppi
-    if (uploadFile.type !== 'application/pdf' && !uploadFile.name.endsWith('.pdf')) {
-      console.error(`❌ Virhe: Väärä tiedostotyyppi (${uploadFile.type})`);
-      alert('❌ Vain PDF-tiedostot ovat sallittuja!\n\nValittu tiedostotyyppi: ' + (uploadFile.type || 'tuntematon'));
+    // Validoi tiedostotyyppi (PDF, Markdown, JSON)
+    const allowedTypes = ['application/pdf', 'text/markdown', 'text/plain', 'application/json'];
+    const allowedExtensions = ['.pdf', '.md', '.json'];
+    const fileExtension = uploadFile.name.toLowerCase().substring(uploadFile.name.lastIndexOf('.'));
+
+    const isValidType = allowedTypes.includes(uploadFile.type) || allowedExtensions.includes(fileExtension);
+
+    if (!isValidType) {
+      console.error(`❌ Virhe: Väärä tiedostotyyppi (${uploadFile.type}, ${fileExtension})`);
+      alert('❌ Vain PDF, Markdown (.md) ja JSON (.json) tiedostot ovat sallittuja!\n\nValittu tiedostotyyppi: ' + (uploadFile.type || 'tuntematon') + '\nTiedostopääte: ' + fileExtension);
       return;
     }
 
@@ -788,16 +794,16 @@ WHERE email = '${newUserEmail}';
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  PDF-tiedosto
+                  Brändiaineisto
                 </label>
                 <input
                   type="file"
-                  accept=".pdf"
+                  accept=".pdf,.md,.json"
                   onChange={(e) => setUploadFile(e.target.files[0])}
                   className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none"
                   required
                 />
-                <p className="text-xs text-gray-500 mt-1">Vain PDF-tiedostot, max 50 MB</p>
+                <p className="text-xs text-gray-500 mt-1">PDF, Markdown (.md) tai JSON (.json), max 50 MB</p>
               </div>
 
               {uploadLoading && (

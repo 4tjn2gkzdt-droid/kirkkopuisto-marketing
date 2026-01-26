@@ -3695,8 +3695,10 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                       alert('Anna tapahtumalle nimi');
                       return;
                     }
-                    if (!newEvent.date) {
-                      alert('Valitse tapahtuman päivämäärä');
+                    // Tarkista dates-taulukko monipäiväisille tapahtumille
+                    const firstDate = newEvent.dates?.[0]?.date;
+                    if (!firstDate) {
+                      alert('Lisää vähintään yksi päivämäärä');
                       return;
                     }
                     if (selectedMarketingChannels.length === 0) {
@@ -3705,14 +3707,13 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                     }
 
                     // Luo tehtävät valittujen kanavien perusteella
-                    const firstDate = newEvent.dates?.[0]?.date;
-                    if (!firstDate) {
-                      alert('Lisää vähintään yksi päivämäärä');
-                      return;
-                    }
                     const eventDate = new Date(firstDate);
                     const tasks = selectedMarketingChannels.map(opId => {
                       const op = marketingOperations.find(o => o.id === opId);
+                      if (!op) {
+                        console.error(`Markkinointitoimenpidettä ei löytynyt: ${opId}`);
+                        return null;
+                      }
                       const deadline = new Date(eventDate);
                       deadline.setDate(eventDate.getDate() - op.daysBeforeEvent);
 
@@ -3726,7 +3727,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                         content: '',
                         completed: false
                       };
-                    });
+                    }).filter(task => task !== null);
 
                     setNewEvent({ ...newEvent, tasks });
                     setShowPreview(true);

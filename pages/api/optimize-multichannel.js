@@ -1,5 +1,6 @@
 import { withCorsAndErrorHandling, AppError, ErrorTypes } from '../../lib/errorHandler'
 import { createClaudeMessage } from '../../lib/api/claudeService'
+import { getHistoricalContent } from '../../lib/api/brainstormService'
 
 async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -73,6 +74,31 @@ async function handler(req, res) {
 
     const eventTime = event.time || ''
 
+    // Hae historiallista dataa kontekstiksi
+    let historicalContext = ''
+    try {
+      const historicalData = await getHistoricalContent({
+        types: ['news', 'newsletter', 'social_post'],
+        limit: 10,
+        isActive: true
+      })
+
+      if (historicalData && historicalData.length > 0) {
+        historicalContext = `\n\nHISTORIALLISTA SISÄLTÖÄ INSPIRAATIOKSI (aikaisempia postauksia ja uutisia):
+
+${historicalData.map((item, index) => `
+${index + 1}. ${item.title} (${item.type}, ${item.year || 'ei vuotta'})
+${item.summary || item.content.substring(0, 200)}...
+`).join('\n')}
+
+Käytä näitä esimerkkejä inspiraationa sävylle ja tyylille, mutta luo täysin uusi sisältö nykyiselle tapahtumalle.
+`
+      }
+    } catch (error) {
+      console.error('Failed to fetch historical content:', error)
+      // Jatka ilman historiallista dataa
+    }
+
     const prompt = `Luo markkinointisisältöä Kirkkopuiston Terassin tapahtumalle eri kanaviin.
 
 TAPAHTUMAN TIEDOT:
@@ -81,7 +107,7 @@ TAPAHTUMAN TIEDOT:
 - Päivämäärä: ${eventDate}
 - Kellonaika: ${eventTime}
 - Kuvaus: ${event.summary || 'Ei kuvausta'}
-
+${historicalContext}
 LUO OPTIMOITU SISÄLTÖ SEURAAVILLE KANAVILLE:
 
 ${selectedChannels.map(channel => {

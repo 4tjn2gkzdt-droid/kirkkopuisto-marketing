@@ -11,6 +11,7 @@
     "@anthropic-ai/sdk": "^0.71.2",
     "@supabase/supabase-js": "^2.90.1",
     "autoprefixer": "^10.4.16",
+    "cheerio": "^1.0.0-rc.12",
     "dotenv": "^17.2.3",
     "jspdf": "^4.0.0",
     "jspdf-autotable": "^5.0.7",

@@ -40,6 +40,62 @@ export default async function handler(req, res) {
 
     // POST - Lisää uusi historiallinen sisältö
     if (req.method === 'POST') {
+      const validTypes = ['news', 'newsletter', 'article', 'social_post', 'campaign']
+
+      // Bulk-lisäys
+      if (req.body.bulk && req.body.items) {
+        const items = req.body.items
+
+        if (!Array.isArray(items) || items.length === 0) {
+          return res.status(400).json({
+            error: 'Items array is required for bulk insert'
+          })
+        }
+
+        // Validoi jokainen item
+        for (const item of items) {
+          if (!item.type || !item.title || !item.content) {
+            return res.status(400).json({
+              error: 'Each item must have type, title and content'
+            })
+          }
+          if (!validTypes.includes(item.type)) {
+            return res.status(400).json({
+              error: `Invalid type "${item.type}". Must be one of: ${validTypes.join(', ')}`
+            })
+          }
+        }
+
+        // Lisää kaikki itemit
+        const dataToInsert = items.map(item => ({
+          type: item.type,
+          title: item.title,
+          content: item.content,
+          summary: item.summary || '',
+          publish_date: item.publish_date || null,
+          year: item.year || null,
+          url: item.url || null,
+          metadata: item.metadata || {},
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }))
+
+        const { data, error } = await supabase
+          .from('historical_content')
+          .insert(dataToInsert)
+          .select()
+
+        if (error) throw error
+
+        return res.status(201).json({
+          success: true,
+          count: data.length,
+          content: data
+        })
+      }
+
+      // Yksittäinen lisäys
       const {
         type,
         title,
@@ -59,7 +115,6 @@ export default async function handler(req, res) {
       }
 
       // Tarkista että type on validi
-      const validTypes = ['news', 'newsletter', 'article', 'social_post', 'campaign']
       if (!validTypes.includes(type)) {
         return res.status(400).json({
           error: `Invalid type. Must be one of: ${validTypes.join(', ')}`

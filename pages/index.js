@@ -1848,17 +1848,12 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
               </Link>
               <Link href="/sisaltokalenteri">
                 <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
-                  SOME-AI
+                  📱 SOME-AI
                 </button>
               </Link>
               <Link href="/copilot">
                 <button className="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700">
-                  🤖 Co-Pilot
-                </button>
-              </Link>
-              <Link href="/brainstorming">
-                <button className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
-                  💡 Ideointi
+                  🤖 Pikasisältö
                 </button>
               </Link>
               <Link href="/muistutukset">

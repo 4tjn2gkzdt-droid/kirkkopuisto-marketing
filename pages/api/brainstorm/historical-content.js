@@ -7,6 +7,7 @@ import {
   getHistoricalContent
 } from '../../../lib/api/brainstormService'
 import { supabase } from '../../../lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 
 export default async function handler(req, res) {
   try {
@@ -23,6 +24,20 @@ export default async function handler(req, res) {
       console.error('Auth error:', authError)
       return res.status(401).json({ error: 'Unauthorized' })
     }
+
+    // Luo käyttäjäkohtainen Supabase client tokenilla
+    // Tämä varmistaa että RLS-politiikat toimivat oikein
+    const userSupabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      {
+        global: {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      }
+    )
 
     // GET - Hae historiallista sisältöä
     if (req.method === 'GET') {
@@ -96,7 +111,8 @@ export default async function handler(req, res) {
           };
         })
 
-        const { data, error } = await supabase
+        // Käytä käyttäjäkohtaista clientia RLS-politiikoiden läpäisemiseksi
+        const { data, error } = await userSupabase
           .from('historical_content')
           .insert(dataToInsert)
           .select()
@@ -174,7 +190,8 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Content ID is required' })
       }
 
-      const { data, error } = await supabase
+      // Käytä käyttäjäkohtaista clientia RLS-politiikoiden läpäisemiseksi
+      const { data, error } = await userSupabase
         .from('historical_content')
         .update({
           type,
@@ -208,7 +225,8 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Content ID is required' })
       }
 
-      const { error } = await supabase
+      // Käytä käyttäjäkohtaista clientia RLS-politiikoiden läpäisemiseksi
+      const { error } = await userSupabase
         .from('historical_content')
         .delete()
         .eq('id', id)

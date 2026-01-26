@@ -1831,7 +1831,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   📋 Kaikki tehtävät
                 </button>
               </Link>
-              <Link href="/ideoi">
+              <Link href="/brainstorming">
                 <button className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
                   💡 Ideoi sisältöä
                 </button>

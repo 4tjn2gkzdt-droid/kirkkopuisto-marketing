@@ -31,6 +31,11 @@ export default function AdminHistoricalContent() {
   const [isFetching, setIsFetching] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
+  // JSON import state
+  const [showJsonImport, setShowJsonImport] = useState(false)
+  const [jsonContent, setJsonContent] = useState([])
+  const [isImportingJson, setIsImportingJson] = useState(false)
+
   // Meta sync state - DISABLED (Meta Graph API not working)
   // const [isSyncing, setIsSyncing] = useState(false)
   // const [syncResult, setSyncResult] = useState(null)
@@ -359,6 +364,112 @@ export default function AdminHistoricalContent() {
   }
   */
 
+  // JSON-tiedoston tuonti
+  const handleJsonFileUpload = (event) => {
+    const file = event.target.files[0]
+    if (!file) return
+
+    if (file.type !== 'application/json' && !file.name.endsWith('.json')) {
+      alert('Valitse JSON-tiedosto')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const json = JSON.parse(e.target.result)
+
+        // Tarkista että JSON on array
+        if (!Array.isArray(json)) {
+          alert('JSON-tiedoston pitää sisältää lista postauksia')
+          return
+        }
+
+        // Validoi ja muunna formaattiin
+        const validated = json.map((item, index) => {
+          // Varmista että pakolliset kentät ovat olemassa
+          if (!item.title || !item.content) {
+            throw new Error(`Kohde ${index + 1}: Puuttuu title tai content`)
+          }
+
+          return {
+            type: item.type || 'social_post',
+            title: item.title,
+            content: item.content,
+            summary: item.summary || '',
+            publish_date: item.publish_date || item.date || null,
+            year: item.year || (item.publish_date ? new Date(item.publish_date).getFullYear() : new Date().getFullYear()),
+            url: item.url || null,
+            metadata: item.metadata || {}
+          }
+        })
+
+        setJsonContent(validated)
+        setShowJsonImport(true)
+        alert(`Ladattu ${validated.length} kohdetta JSON-tiedostosta!`)
+      } catch (error) {
+        console.error('JSON parse error:', error)
+        alert('Virhe JSON-tiedoston lukemisessa: ' + error.message)
+      }
+    }
+
+    reader.readAsText(file)
+    // Tyhjennä input jotta sama tiedosto voidaan ladata uudelleen
+    event.target.value = ''
+  }
+
+  const handleSaveJsonContent = async () => {
+    if (jsonContent.length === 0) {
+      alert('Ei sisältöä tallennettavaksi')
+      return
+    }
+
+    setIsImportingJson(true)
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+
+      const response = await fetch('/api/brainstorm/historical-content', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          bulk: true,
+          items: jsonContent
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        alert(`Tallennettu ${jsonContent.length} kohdetta tietokantaan!`)
+        setShowJsonImport(false)
+        setJsonContent([])
+        loadContents()
+      } else {
+        alert('Virhe tallennuksessa: ' + (data.error || 'Tuntematon virhe'))
+      }
+    } catch (error) {
+      console.error('Error saving JSON content:', error)
+      alert('Virhe: ' + error.message)
+    } finally {
+      setIsImportingJson(false)
+    }
+  }
+
+  const handleRemoveJsonItem = (index) => {
+    setJsonContent(jsonContent.filter((_, i) => i !== index))
+  }
+
+  const handleEditJsonItem = (index, field, value) => {
+    const updated = [...jsonContent]
+    updated[index] = { ...updated[index], [field]: value }
+    setJsonContent(updated)
+  }
+
   const typeLabels = {
     news: 'Uutinen',
     newsletter: 'Uutiskirje',
@@ -409,6 +520,15 @@ export default function AdminHistoricalContent() {
               >
                 🔗 Lisää URL-linkeistä
               </button>
+              <label className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg cursor-pointer">
+                📄 Tuo JSON-tiedosto
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={handleJsonFileUpload}
+                  className="hidden"
+                />
+              </label>
               {/* Meta sync disabled - API not working
               <button
                 onClick={() => setShowSyncModal(true)}
@@ -843,6 +963,169 @@ export default function AdminHistoricalContent() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* JSON Import Modal */}
+      {showJsonImport && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 max-w-5xl w-full my-8 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-bold mb-4">
+              📄 Tuo JSON-tiedostosta
+            </h3>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-sm text-blue-800">
+                <strong>Ladattu {jsonContent.length} kohdetta.</strong> Voit muokata niitä ennen tallentamista.
+              </p>
+            </div>
+
+            <div className="mb-4">
+              <div className="flex justify-between items-center mb-3">
+                <h4 className="font-semibold text-gray-900">
+                  Tuodut kohteet ({jsonContent.length})
+                </h4>
+              </div>
+
+              <div className="space-y-4 max-h-96 overflow-y-auto">
+                {jsonContent.map((item, index) => (
+                  <div key={index} className="border border-gray-300 rounded-lg p-4 bg-gray-50">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex gap-2">
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                          {typeLabels[item.type] || item.type}
+                        </span>
+                        {item.year && (
+                          <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                            {item.year}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleRemoveJsonItem(index)}
+                        className="text-red-600 hover:text-red-700 text-sm"
+                      >
+                        🗑️ Poista
+                      </button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                          Otsikko
+                        </label>
+                        <input
+                          type="text"
+                          value={item.title}
+                          onChange={(e) => handleEditJsonItem(index, 'title', e.target.value)}
+                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                          Yhteenveto
+                        </label>
+                        <textarea
+                          value={item.summary}
+                          onChange={(e) => handleEditJsonItem(index, 'summary', e.target.value)}
+                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                          rows={2}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                          Sisältö (pituus: {item.content.length} merkkiä)
+                        </label>
+                        <textarea
+                          value={item.content}
+                          onChange={(e) => handleEditJsonItem(index, 'content', e.target.value)}
+                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm font-mono"
+                          rows={4}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">
+                            Tyyppi
+                          </label>
+                          <select
+                            value={item.type}
+                            onChange={(e) => handleEditJsonItem(index, 'type', e.target.value)}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                          >
+                            {Object.entries(typeLabels).map(([type, label]) => (
+                              <option key={type} value={type}>{label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">
+                            Vuosi
+                          </label>
+                          <input
+                            type="number"
+                            value={item.year || ''}
+                            onChange={(e) => handleEditJsonItem(index, 'year', parseInt(e.target.value) || null)}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                            min="2000"
+                            max="2030"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">
+                            Julkaisupäivä
+                          </label>
+                          <input
+                            type="date"
+                            value={item.publish_date || ''}
+                            onChange={(e) => handleEditJsonItem(index, 'publish_date', e.target.value)}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      {item.url && (
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">
+                            URL
+                          </label>
+                          <input
+                            type="text"
+                            value={item.url}
+                            onChange={(e) => handleEditJsonItem(index, 'url', e.target.value)}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleSaveJsonContent}
+                disabled={isImportingJson || jsonContent.length === 0}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {isImportingJson ? '⏳ Tallennetaan...' : `💾 Tallenna kaikki (${jsonContent.length})`}
+              </button>
+              <button
+                onClick={() => {
+                  setShowJsonImport(false)
+                  setJsonContent([])
+                }}
+                disabled={isImportingJson}
+                className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-lg font-semibold disabled:bg-gray-200 disabled:cursor-not-allowed"
+              >
+                Peruuta
+              </button>
+            </div>
           </div>
         </div>
       )}

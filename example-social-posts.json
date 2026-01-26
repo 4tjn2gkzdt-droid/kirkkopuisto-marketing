@@ -1,0 +1,98 @@
+[
+  {
+    "type": "social_post",
+    "title": "Kesän jazzfestivaali 2024 - Upea menestys",
+    "content": "Upea ilta Kirkkopuiston kesäjazzissa! 🎷 Tunnelma oli mahtava ja yleisö innostunut. Kiitos kaikille jotka tulitte paikalle ja tekivät tästä illasta unohtumattoman. Ensi kesänä tavataan taas! #kirkkopuistojazz #kesä2024 #jazz #livemusic",
+    "summary": "Jazzfestivaali oli menestys, yleisö oli innoissaan",
+    "publish_date": "2024-06-15",
+    "year": 2024,
+    "url": "https://instagram.com/p/example123",
+    "metadata": {
+      "platform": "instagram",
+      "likes": 245,
+      "comments": 18,
+      "shares": 5,
+      "engagement_score": 299
+    }
+  },
+  {
+    "type": "social_post",
+    "title": "Syksyn konserttisarja starttaa ensi viikolla",
+    "content": "Syyskuun konsertit starttaa ensi viikolla! 🎵 Liput nyt myynnissä verkossa ja paikan päällä. Tervetuloa nauttimaan hienoa musiikkia ja tunnelmallista iltaa Kirkkopuistossa. Katso täydellinen ohjelma verkkosivuiltamme!",
+    "summary": "Konserttisarjan aloitus syyskuussa",
+    "publish_date": "2024-08-25",
+    "year": 2024,
+    "url": "https://facebook.com/kirkkopuisto/posts/123456",
+    "metadata": {
+      "platform": "facebook",
+      "likes": 89,
+      "comments": 12,
+      "shares": 7,
+      "engagement_score": 120
+    }
+  },
+  {
+    "type": "social_post",
+    "title": "Joulukonsertti loppuunmyyty - lisänäytös tulossa",
+    "content": "🎄 WOW! Joulukonserttimme on loppuunmyyty alle viikossa! Suuren kysynnän vuoksi järjestämme LISÄNÄYTÖKSEN 20.12. Liput myynnissä huomenna klo 10 alkaen. Ole nopea! 🎅🎶",
+    "summary": "Joulukonsertti loppuunmyyty, lisänäytös järjestetään",
+    "publish_date": "2024-12-05",
+    "year": 2024,
+    "url": "https://instagram.com/p/example456",
+    "metadata": {
+      "platform": "instagram",
+      "likes": 412,
+      "comments": 67,
+      "shares": 23,
+      "engagement_score": 595
+    }
+  },
+  {
+    "type": "social_post",
+    "title": "Kulisseissa valmistautumassa illan konserttiin",
+    "content": "Kulisseissa valmistautumassa illan konserttiin! 🎸 Artistit virittävät soittimia ja tekniikka on huippukunnossa. Tervetuloa jo klo 18 alkaen nauttimaan illan annista! #backstage #livemusic #kirkkopuisto",
+    "summary": "Kulissikuva konsertin valmistelusta",
+    "publish_date": "2024-09-14",
+    "year": 2024,
+    "url": "https://facebook.com/kirkkopuisto/posts/789012",
+    "metadata": {
+      "platform": "facebook",
+      "likes": 156,
+      "comments": 24,
+      "shares": 8,
+      "engagement_score": 220
+    }
+  },
+  {
+    "type": "social_post",
+    "title": "Kiitos upeasta kesästä 2024",
+    "content": "Kiitos upeasta kesästä 2024! ☀️ Kävimme läpi 12 konserttia, 2 500+ kävijää ja lukemattomia unohtumattomia hetkiä. Ilman teitä tämä ei olisi mahdollista. Talvitauko on nyt ja palataan keväällä uusin voimin! 💙 #kiitos #kirkkopuisto #kesä2024",
+    "summary": "Kiitosviesti kesän tapahtumista",
+    "publish_date": "2024-08-31",
+    "year": 2024,
+    "url": "https://instagram.com/p/example789",
+    "metadata": {
+      "platform": "instagram",
+      "likes": 567,
+      "comments": 89,
+      "shares": 34,
+      "engagement_score": 857
+    }
+  },
+  {
+    "type": "social_post",
+    "title": "Uusi kevätkausi julkaistu - Varaa paikkasi",
+    "content": "🌸 UUSI KEVÄTKAUSI JULKAISTU! Huhtikuu-toukokuussa tarjolla monipuolista ohjelmaa klassisesta musiikista jazziin. Kausiliput nyt -20% alennettuun hintaan! Katso ohjelma ja varaa paikkasi: [linkki] #kevät2024 #konserttisarja",
+    "summary": "Kevätkauden ohjelma julkaistu, kausiliput alennuksessa",
+    "publish_date": "2024-02-10",
+    "year": 2024,
+    "url": "https://facebook.com/kirkkopuisto/posts/345678",
+    "metadata": {
+      "platform": "facebook",
+      "likes": 203,
+      "comments": 45,
+      "shares": 67,
+      "engagement_score": 450
+    }
+  }
+]

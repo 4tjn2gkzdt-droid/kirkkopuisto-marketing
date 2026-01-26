@@ -67,19 +67,34 @@ export default async function handler(req, res) {
         }
 
         // Lisää kaikki itemit
-        const dataToInsert = items.map(item => ({
-          type: item.type,
-          title: item.title,
-          content: item.content,
-          summary: item.summary || '',
-          publish_date: item.publish_date || null,
-          year: item.year || null,
-          url: item.url || null,
-          metadata: item.metadata || {},
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }))
+        const dataToInsert = items.map(item => {
+          // Validoi päivämäärä
+          let validPublishDate = null;
+          if (item.publish_date) {
+            try {
+              const date = new Date(item.publish_date);
+              if (!isNaN(date.getTime())) {
+                validPublishDate = date.toISOString();
+              }
+            } catch (error) {
+              console.log(`Invalid publish_date for item: ${item.title}`, error);
+            }
+          }
+
+          return {
+            type: item.type,
+            title: item.title,
+            content: item.content,
+            summary: item.summary || '',
+            publish_date: validPublishDate,
+            year: item.year || null,
+            url: item.url || null,
+            metadata: item.metadata || {},
+            is_active: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+        })
 
         const { data, error } = await supabase
           .from('historical_content')

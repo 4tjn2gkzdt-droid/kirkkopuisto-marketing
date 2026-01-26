@@ -11,7 +11,7 @@ export default function Brainstorming() {
 
   const [messages, setMessages] = useState([{
     role: 'assistant',
-    content: '💡 Tervetuloa ideointiin! Olen luova assistenttisi markkinointi-ideoiden kehittämiseen.\n\nMinulla on pääsy:\n✅ Aikaisempien vuosien uutisiin ja uutiskirjeisiin\n✅ Historiallisiin tapahtumiin\n✅ Brändidokumentteihin\n\nKerro mitä ideoit, niin lähdetään yhdessä liikkeelle!'
+    content: '💡 Tervetuloa ideointiin! Olen luova assistenttisi markkinointi-ideoiden kehittämiseen.\n\nMinulla on pääsy:\n✅ Aikaisempien vuosien uutisiin ja uutiskirjeisiin\n✅ Instagram & Facebook -postauksiin (menestyneimmät ensin!)\n✅ Historiallisiin tapahtumiin\n✅ Brändidokumentteihin\n\nKerro mitä ideoit, niin lähdetään yhdessä liikkeelle! Voin analysoida mikä sisältö on toiminut parhaiten ja luoda vastaavia postauksia.'
   }])
   const [inputMessage, setInputMessage] = useState('')
   const [sessionId, setSessionId] = useState(null)
@@ -129,6 +129,7 @@ export default function Brainstorming() {
           sessionId,
           sessionTitle,
           includeHistoricalContent: true,
+          includeSocialPosts: true,
           includeEvents: true,
           includeBrandGuidelines: true
         })

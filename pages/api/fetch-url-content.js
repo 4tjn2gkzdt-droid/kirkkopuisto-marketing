@@ -47,6 +47,24 @@ async function fetchAndParseUrl(url) {
                       $('time').attr('datetime') ||
                       null;
 
+    // Validoi ja normalisoi päivämäärä
+    if (publishDate) {
+      try {
+        const date = new Date(publishDate);
+        // Tarkista että päivämäärä on validi
+        if (isNaN(date.getTime())) {
+          console.log(`Invalid date format: ${publishDate}`);
+          publishDate = null;
+        } else {
+          // Muunna ISO-muotoon
+          publishDate = date.toISOString();
+        }
+      } catch (error) {
+        console.log(`Error parsing date: ${publishDate}`, error);
+        publishDate = null;
+      }
+    }
+
     // Hae pääsisältö
     // Kokeile yleisiä sisältö-selektoreita
     let content = '';

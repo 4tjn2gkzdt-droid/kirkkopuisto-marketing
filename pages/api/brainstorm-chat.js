@@ -38,6 +38,7 @@ export default async function handler(req, res) {
       sessionId,
       sessionTitle,
       includeHistoricalContent = true,
+      includeSocialPosts = true,
       includeEvents = true,
       includeBrandGuidelines = true,
       attachmentContext = null
@@ -61,6 +62,7 @@ export default async function handler(req, res) {
     console.log('Building brainstorm context...')
     const contextString = await buildBrainstormContext({
       includeHistoricalContent,
+      includeSocialPosts,
       includeEvents,
       includeBrandGuidelines
     })

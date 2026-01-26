@@ -1856,6 +1856,11 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   🤖 Co-Pilot
                 </button>
               </Link>
+              <Link href="/brainstorming">
+                <button className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
+                  💡 Ideointi
+                </button>
+              </Link>
               <Link href="/muistutukset">
                 <button className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">
                   🔔 Muistutukset

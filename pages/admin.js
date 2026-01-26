@@ -651,11 +651,18 @@ WHERE email = '${newUserEmail}';
               <h1 className="text-3xl font-bold text-purple-800">⚙️ Admin-paneeli</h1>
               <p className="text-gray-600">Käyttäjien hallinta</p>
             </div>
-            <Link href="/">
-              <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
-                ← Takaisin etusivulle
-              </button>
-            </Link>
+            <div className="flex gap-2">
+              <Link href="/admin-historical-content">
+                <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                  📚 Historiallinen sisältö
+                </button>
+              </Link>
+              <Link href="/">
+                <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                  ← Takaisin etusivulle
+                </button>
+              </Link>
+            </div>
           </div>
         </div>
 

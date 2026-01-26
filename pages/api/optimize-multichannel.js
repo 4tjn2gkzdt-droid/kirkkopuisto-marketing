@@ -1,11 +1,41 @@
 import { withCorsAndErrorHandling, AppError, ErrorTypes } from '../../lib/errorHandler'
 import { createClaudeMessage } from '../../lib/api/claudeService'
 import { getHistoricalContent } from '../../lib/api/brainstormService'
+import { supabase } from '../../lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 
 async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
+
+  // Tarkista autentikointi
+  const authHeader = req.headers.authorization
+  if (!authHeader) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  const token = authHeader.replace('Bearer ', '')
+  const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+
+  if (authError || !user) {
+    console.error('Auth error:', authError)
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  // Luo käyttäjäkohtainen Supabase client tokenilla
+  // Tämä varmistaa että RLS-politiikat toimivat oikein
+  const userSupabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    }
+  )
 
   const { event, channels = [] } = req.body
 
@@ -80,7 +110,8 @@ async function handler(req, res) {
       const historicalData = await getHistoricalContent({
         types: ['news', 'newsletter', 'social_post'],
         limit: 10,
-        isActive: true
+        isActive: true,
+        client: userSupabase
       })
 
       if (historicalData && historicalData.length > 0) {

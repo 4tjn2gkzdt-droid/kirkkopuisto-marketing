@@ -11,6 +11,7 @@ import {
   createBrainstormSession
 } from '../../lib/api/brainstormService'
 import { supabase } from '../../lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 
 export default async function handler(req, res) {
   // Salli vain POST-pyynnöt
@@ -32,6 +33,20 @@ export default async function handler(req, res) {
       console.error('Auth error:', authError)
       return res.status(401).json({ error: 'Unauthorized' })
     }
+
+    // Luo käyttäjäkohtainen Supabase client tokenilla
+    // Tämä varmistaa että RLS-politiikat toimivat oikein
+    const userSupabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      {
+        global: {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      }
+    )
 
     const {
       messages,
@@ -64,7 +79,8 @@ export default async function handler(req, res) {
       includeHistoricalContent,
       includeSocialPosts,
       includeEvents,
-      includeBrandGuidelines
+      includeBrandGuidelines,
+      client: userSupabase
     })
 
     // Lisää liitetiedostojen konteksti jos saatavilla

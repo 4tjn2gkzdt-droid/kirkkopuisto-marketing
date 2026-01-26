@@ -47,7 +47,8 @@ export default async function handler(req, res) {
         types: types ? types.split(',') : ['news', 'newsletter', 'article'],
         year: year ? parseInt(year) : null,
         limit: limit ? parseInt(limit) : 50,
-        isActive: isActive === 'false' ? false : true
+        isActive: isActive === 'false' ? false : true,
+        client: userSupabase
       })
 
       return res.status(200).json({ content })

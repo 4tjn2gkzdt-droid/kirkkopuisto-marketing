@@ -31,10 +31,10 @@ export default function AdminHistoricalContent() {
   const [isFetching, setIsFetching] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
-  // Meta sync state
-  const [isSyncing, setIsSyncing] = useState(false)
-  const [syncResult, setSyncResult] = useState(null)
-  const [showSyncModal, setShowSyncModal] = useState(false)
+  // Meta sync state - DISABLED (Meta Graph API not working)
+  // const [isSyncing, setIsSyncing] = useState(false)
+  // const [syncResult, setSyncResult] = useState(null)
+  // const [showSyncModal, setShowSyncModal] = useState(false)
 
   useEffect(() => {
     checkUser()
@@ -317,6 +317,8 @@ export default function AdminHistoricalContent() {
     setFetchedContent(updated)
   }
 
+  // DISABLED: Meta sync not working - Meta Graph API setup failed
+  /*
   const handleMetaSync = async (sources = ['instagram', 'facebook']) => {
     setIsSyncing(true)
     setSyncResult(null)
@@ -355,6 +357,7 @@ export default function AdminHistoricalContent() {
       setIsSyncing(false)
     }
   }
+  */
 
   const typeLabels = {
     news: 'Uutinen',
@@ -406,6 +409,7 @@ export default function AdminHistoricalContent() {
               >
                 🔗 Lisää URL-linkeistä
               </button>
+              {/* Meta sync disabled - API not working
               <button
                 onClick={() => setShowSyncModal(true)}
                 disabled={isSyncing}
@@ -413,6 +417,7 @@ export default function AdminHistoricalContent() {
               >
                 {isSyncing ? '⏳ Synkronoi...' : '📱 Synkronoi Meta'}
               </button>
+              */}
               <div className="text-sm text-gray-600">
                 {user?.email}
               </div>
@@ -842,114 +847,7 @@ export default function AdminHistoricalContent() {
         </div>
       )}
 
-      {/* Meta Sync Modal */}
-      {showSyncModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full">
-            <h3 className="text-lg font-bold mb-4">
-              📱 Synkronoi Instagram & Facebook
-            </h3>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-              <p className="text-sm text-blue-800">
-                <strong>Tämä toiminto hakee:</strong>
-              </p>
-              <ul className="text-sm text-blue-800 list-disc list-inside mt-2">
-                <li>Instagram Business -tilin 50 viimeisintä postausta</li>
-                <li>Facebook-sivun 50 viimeisintä postausta</li>
-                <li>Tallentaa ne automaattisesti historialliseen sisältöön</li>
-                <li>Ei tallenna duplikaatteja (tarkistaa ID:n perusteella)</li>
-              </ul>
-            </div>
-
-            {syncResult && (
-              <div className={`border rounded-lg p-4 mb-4 ${
-                syncResult.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'
-              }`}>
-                <p className={`text-sm font-semibold mb-2 ${
-                  syncResult.success ? 'text-green-900' : 'text-red-900'
-                }`}>
-                  {syncResult.success ? '✅ Synkronointi onnistui!' : '❌ Virhe synkronoinnissa'}
-                </p>
-                {syncResult.fetched && (
-                  <div className="text-sm text-gray-700 space-y-1">
-                    <p>Haettu yhteensä: {syncResult.fetched.total} postausta</p>
-                    <p>- Instagram: {syncResult.fetched.instagram}</p>
-                    <p>- Facebook: {syncResult.fetched.facebook}</p>
-                    {syncResult.saved && (
-                      <p className="font-semibold mt-2">
-                        Tallennettu: {syncResult.saved.count} uutta postausta
-                      </p>
-                    )}
-                    {syncResult.saved?.message && (
-                      <p className="text-xs text-gray-600 mt-1">{syncResult.saved.message}</p>
-                    )}
-                  </div>
-                )}
-                {syncResult.errors && (
-                  <div className="text-sm text-red-700 mt-2">
-                    <p className="font-semibold">Virheet:</p>
-                    {syncResult.errors.map((err, i) => (
-                      <p key={i}>- {err.source}: {err.error}</p>
-                    ))}
-                  </div>
-                )}
-                {syncResult.error && (
-                  <p className="text-sm text-red-700 mt-2">{syncResult.error}</p>
-                )}
-                {syncResult.message && (
-                  <p className="text-sm text-red-700 mt-2">{syncResult.message}</p>
-                )}
-              </div>
-            )}
-
-            <div className="space-y-3">
-              <button
-                onClick={() => handleMetaSync(['instagram', 'facebook'])}
-                disabled={isSyncing}
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-lg font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                {isSyncing ? '⏳ Synkronoidaan...' : '📱 Synkronoi molemmat (Instagram + Facebook)'}
-              </button>
-
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => handleMetaSync(['instagram'])}
-                  disabled={isSyncing}
-                  className="bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-lg font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed"
-                >
-                  {isSyncing ? '⏳' : '📷 Vain Instagram'}
-                </button>
-                <button
-                  onClick={() => handleMetaSync(['facebook'])}
-                  disabled={isSyncing}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed"
-                >
-                  {isSyncing ? '⏳' : '📘 Vain Facebook'}
-                </button>
-              </div>
-
-              <button
-                onClick={() => {
-                  setShowSyncModal(false)
-                  setSyncResult(null)
-                }}
-                disabled={isSyncing}
-                className="w-full bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-lg font-semibold disabled:bg-gray-200 disabled:cursor-not-allowed"
-              >
-                Sulje
-              </button>
-            </div>
-
-            <div className="mt-4 text-xs text-gray-500">
-              <p>
-                💡 <strong>Huom:</strong> Varmista että Meta Graph API on konfiguroitu .env.local-tiedostossa.
-                Katso ohjeet: <code className="bg-gray-100 px-1">META_SETUP.md</code>
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Meta Sync Modal - DISABLED (Meta Graph API not working) */}
     </div>
   )
 }

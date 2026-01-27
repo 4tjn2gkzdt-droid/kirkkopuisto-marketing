@@ -1,28 +1,51 @@
-import Anthropic from '@anthropic-ai/sdk'
-import cors from '../../lib/cors'
+import { withCorsAndErrorHandling, AppError, ErrorTypes } from '../../lib/errorHandler'
+import { createClaudeMessage } from '../../lib/api/claudeService'
+import { getHistoricalContent } from '../../lib/api/brainstormService'
+import { supabase } from '../../lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 
 async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  // Tarkista autentikointi
+  const authHeader = req.headers.authorization
+  if (!authHeader) {
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  const token = authHeader.replace('Bearer ', '')
+  const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+
+  if (authError || !user) {
+    console.error('Auth error:', authError)
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
+
+  // Luo käyttäjäkohtainen Supabase client tokenilla
+  // Tämä varmistaa että RLS-politiikat toimivat oikein
+  const userSupabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    }
+  )
+
   const { event, channels = [] } = req.body
 
   if (!event || !event.title) {
-    return res.status(400).json({ error: 'Tapahtuman tiedot puuttuvat' })
+    throw new AppError('Tapahtuman tiedot puuttuvat', ErrorTypes.VALIDATION)
   }
 
   if (!channels || channels.length === 0) {
-    return res.status(400).json({ error: 'Valitse vähintään yksi kanava' })
+    throw new AppError('Valitse vähintään yksi kanava', ErrorTypes.VALIDATION)
   }
-
-  try {
-    const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY puuttuu')
-    }
-
-    const anthropic = new Anthropic({ apiKey })
 
     console.log('Optimizing content for channels:', channels)
 
@@ -81,6 +104,32 @@ async function handler(req, res) {
 
     const eventTime = event.time || ''
 
+    // Hae historiallista dataa kontekstiksi
+    let historicalContext = ''
+    try {
+      const historicalData = await getHistoricalContent({
+        types: ['news', 'newsletter', 'social_post'],
+        limit: 10,
+        isActive: true,
+        client: userSupabase
+      })
+
+      if (historicalData && historicalData.length > 0) {
+        historicalContext = `\n\nHISTORIALLISTA SISÄLTÖÄ INSPIRAATIOKSI (aikaisempia postauksia ja uutisia):
+
+${historicalData.map((item, index) => `
+${index + 1}. ${item.title} (${item.type}, ${item.year || 'ei vuotta'})
+${item.summary || item.content.substring(0, 200)}...
+`).join('\n')}
+
+Käytä näitä esimerkkejä inspiraationa sävylle ja tyylille, mutta luo täysin uusi sisältö nykyiselle tapahtumalle.
+`
+      }
+    } catch (error) {
+      console.error('Failed to fetch historical content:', error)
+      // Jatka ilman historiallista dataa
+    }
+
     const prompt = `Luo markkinointisisältöä Kirkkopuiston Terassin tapahtumalle eri kanaviin.
 
 TAPAHTUMAN TIEDOT:
@@ -89,7 +138,7 @@ TAPAHTUMAN TIEDOT:
 - Päivämäärä: ${eventDate}
 - Kellonaika: ${eventTime}
 - Kuvaus: ${event.summary || 'Ei kuvausta'}
-
+${historicalContext}
 LUO OPTIMOITU SISÄLTÖ SEURAAVILLE KANAVILLE:
 
 ${selectedChannels.map(channel => {
@@ -121,77 +170,67 @@ TÄRKEÄÄ:
 
 Vastaa VAIN puhtaalla JSON:lla, ei muuta tekstiä.`
 
-    console.log('Sending request to Claude API...')
+  console.log('Sending request to Claude API...')
 
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 3072,
-      temperature: 0.7,
-      messages: [{
-        role: 'user',
-        content: prompt
-      }],
-      system: `Olet markkinointisisällön optimoija Kirkkopuiston Terassille.
+  const result = await createClaudeMessage({
+    message: prompt,
+    systemPrompt: `Olet markkinointisisällön optimoija Kirkkopuiston Terassille.
 Luot erilaista sisältöä eri kanaviin, huomioiden kunkin kanavan ominaisuudet ja yleisön.
-Vastaa AINA JSON-muodossa ilman markdown-muotoilua.`
+Vastaa AINA JSON-muodossa ilman markdown-muotoilua.`,
+    maxTokens: 3072,
+    temperature: 0.7
+  })
+
+  // Tarkista että vastaus on olemassa
+  if (!result || !result.response) {
+    console.error('Empty response from Claude API')
+    throw new AppError(
+      'AI ei palauttanut vastausta',
+      ErrorTypes.EXTERNAL_API_ERROR,
+      { help: 'Tyhjä vastaus Claude API:lta' }
+    )
+  }
+
+  let contentText = result.response.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+
+  let parsed
+  try {
+    parsed = JSON.parse(contentText)
+  } catch (parseError) {
+    console.error('JSON parse error:', parseError)
+
+    // Fallback: luo yksinkertainen sisältö
+    const fallback = {}
+    selectedChannels.forEach(channel => {
+      fallback[channel] = `${event.title}${event.artist ? ' - ' + event.artist : ''}\n\n${eventDate}${eventTime ? ' klo ' + eventTime : ''}\n\nTule nauttimaan! 🎵\n\n#kirkkopuistonterassi #turku`
     })
 
-    const textContent = response.content.find(block => block.type === 'text')
-    let contentText = textContent?.text || '{}'
-
-    // Poista markdown code blocks
-    contentText = contentText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-
-    console.log('Claude response:', contentText.substring(0, 200))
-
-    let parsed
-    try {
-      parsed = JSON.parse(contentText)
-    } catch (parseError) {
-      console.error('JSON parse error:', parseError)
-      console.error('Content was:', contentText)
-
-      // Fallback: luo yksinkertainen sisältö
-      const fallback = {}
-      selectedChannels.forEach(channel => {
-        fallback[channel] = `${event.title}${event.artist ? ' - ' + event.artist : ''}\n\n${eventDate}${eventTime ? ' klo ' + eventTime : ''}\n\nTule nauttimaan! 🎵\n\n#kirkkopuistonterassi #turku`
-      })
-
-      return res.status(200).json({
-        success: true,
-        contents: fallback,
-        usage: response.usage,
-        fallback: true,
-        error: 'JSON parse failed, using fallback'
-      })
-    }
-
-    // Validoi että kaikki pyydetyt kanavat on vastauksessa
-    const contents = parsed.contents || parsed
-    const missingChannels = selectedChannels.filter(ch => !contents[ch])
-
-    if (missingChannels.length > 0) {
-      console.warn('Missing channels in response:', missingChannels)
-      // Lisää puuttuvat kanavat fallback-sisällöllä
-      missingChannels.forEach(channel => {
-        contents[channel] = `${event.title}${event.artist ? ' - ' + event.artist : ''}\n\n${eventDate}${eventTime ? ' klo ' + eventTime : ''}\n\nTervetuloa! 🎵`
-      })
-    }
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      contents,
-      usage: response.usage,
-      channels: selectedChannels
-    })
-
-  } catch (error) {
-    console.error('Multichannel optimization error:', error)
-    res.status(500).json({
-      error: error.message,
-      details: error.toString()
+      contents: fallback,
+      usage: result.usage,
+      fallback: true,
+      error: 'JSON parse failed, using fallback'
     })
   }
+
+  // Validoi että kaikki pyydetyt kanavat on vastauksessa
+  const contents = parsed.contents || parsed
+  const missingChannels = selectedChannels.filter(ch => !contents[ch])
+
+  if (missingChannels.length > 0) {
+    console.warn('Missing channels in response:', missingChannels)
+    missingChannels.forEach(channel => {
+      contents[channel] = `${event.title}${event.artist ? ' - ' + event.artist : ''}\n\n${eventDate}${eventTime ? ' klo ' + eventTime : ''}\n\nTervetuloa! 🎵`
+    })
+  }
+
+  return res.status(200).json({
+    success: true,
+    contents,
+    usage: result.usage,
+    channels: selectedChannels
+  })
 }
 
-export default cors(handler)
+export default withCorsAndErrorHandling(handler)

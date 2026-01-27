@@ -2,7 +2,30 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import Link from 'next/link';
 
+// Apufunktio: Parsii YYYY-MM-DD stringin paikalliseksi Date-objektiksi (ei UTC)
+// Välttää aikavyöhykeongelmia, joissa päivämäärä siirtyy päivällä
+function parseLocalDate(dateString) {
+  if (!dateString) return new Date()
+  const [year, month, day] = dateString.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
 export default function PoistaDuplikaatit() {
+  // Estä pääsy production-ympäristössä
+  if (process.env.NODE_ENV === 'production') {
+    return (
+      <div className="min-h-screen bg-gray-100 p-8 flex items-center justify-center">
+        <div className="max-w-md bg-white rounded-lg shadow-lg p-6 text-center">
+          <h1 className="text-2xl font-bold text-red-600 mb-4">🚫 Ei käytettävissä</h1>
+          <p className="text-gray-600 mb-4">Tämä sivu ei ole käytettävissä production-ympäristössä.</p>
+          <a href="/" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 inline-block">
+            ← Takaisin etusivulle
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState(null);
 
@@ -155,7 +178,7 @@ export default function PoistaDuplikaatit() {
                   {results.duplicates.map((dup, index) => (
                     <div key={index} className="bg-white rounded p-3 text-sm">
                       <p className="font-medium">{dup.title}</p>
-                      <p className="text-gray-600">{new Date(dup.date).toLocaleDateString('fi-FI')}</p>
+                      <p className="text-gray-600">{parseLocalDate(dup.date).toLocaleDateString('fi-FI')}</p>
                       <p className="text-xs text-gray-500 mt-1">
                         Pidetty: ID {dup.kept} | Poistettu: {dup.removed.length} kpl
                       </p>

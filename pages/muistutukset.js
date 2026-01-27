@@ -3,6 +3,14 @@ import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
 
+// Apufunktio: Parsii YYYY-MM-DD stringin paikalliseksi Date-objektiksi (ei UTC)
+// Välttää aikavyöhykeongelmia, joissa päivämäärä siirtyy päivällä
+function parseLocalDate(dateString) {
+  if (!dateString) return new Date()
+  const [year, month, day] = dateString.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
 export default function ContentAlerts() {
   const router = useRouter()
   const [user, setUser] = useState(null)
@@ -226,7 +234,7 @@ export default function ContentAlerts() {
 
                     {alert.date && (
                       <p className="text-sm text-gray-600 mb-2">
-                        📅 {new Date(alert.date).toLocaleDateString('fi-FI', {
+                        📅 {parseLocalDate(alert.date).toLocaleDateString('fi-FI', {
                           weekday: 'long',
                           day: 'numeric',
                           month: 'long'

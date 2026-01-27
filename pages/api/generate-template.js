@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase'
+import { withCorsAndErrorHandling, AppError, ErrorTypes } from '../../lib/errorHandler'
+import { createClaudeMessage } from '../../lib/api/claudeService'
 import Anthropic from '@anthropic-ai/sdk'
-import cors from '../../lib/cors'
 
 // Configure API route
 export const config = {
@@ -249,4 +250,4 @@ Pidä tyyli rentona mutta ammattimaisena.`
   }
 }
 
-export default cors(handler)
+export default withCorsAndErrorHandling(handler)

@@ -4,6 +4,14 @@ import Link from 'next/link'
 import { supabase } from '../lib/supabase'
 import { socialPostTypes, socialChannels } from '../lib/constants'
 
+// Apufunktio: Parsii YYYY-MM-DD stringin paikalliseksi Date-objektiksi (ei UTC)
+// Välttää aikavyöhykeongelmia, joissa päivämäärä siirtyy päivällä
+function parseLocalDate(dateString) {
+  if (!dateString) return new Date()
+  const [year, month, day] = dateString.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
 export default function ContentCalendar() {
   const router = useRouter()
   const [user, setUser] = useState(null)
@@ -475,7 +483,7 @@ export default function ContentCalendar() {
                               {getPriorityBadge(gap.priority)}
                             </span>
                             <span className="text-sm text-gray-600">
-                              {new Date(gap.date).toLocaleDateString('fi-FI', {
+                              {parseLocalDate(gap.date).toLocaleDateString('fi-FI', {
                                 weekday: 'short',
                                 day: 'numeric',
                                 month: 'short'
@@ -517,7 +525,7 @@ export default function ContentCalendar() {
                             {getPriorityBadge(suggestion.priority)}
                           </span>
                           <span className="text-sm font-medium text-gray-700">
-                            {new Date(suggestion.date).toLocaleDateString('fi-FI', {
+                            {parseLocalDate(suggestion.date).toLocaleDateString('fi-FI', {
                               weekday: 'long',
                               day: 'numeric',
                               month: 'long'

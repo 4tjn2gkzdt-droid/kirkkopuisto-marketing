@@ -10,6 +10,14 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
+// Apufunktio: Parsii YYYY-MM-DD stringin paikalliseksi Date-objektiksi (ei UTC)
+// Välttää aikavyöhykeongelmia, joissa päivämäärä siirtyy päivällä
+function parseLocalDate(dateString) {
+  if (!dateString) return new Date()
+  const [year, month, day] = dateString.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
 export default function Home() {
   const router = useRouter();
   const [user, setUser] = useState(null);
@@ -694,7 +702,7 @@ export default function Home() {
     allPosts.forEach(event => {
       const eventData = {
         'Tapahtuma': event.title,
-        'Päivämäärä': new Date(event.date).toLocaleDateString('fi-FI'),
+        'Päivämäärä': parseLocalDate(event.date).toLocaleDateString('fi-FI'),
         'Aika': event.time || '',
         'Tyyppi': event.eventType === 'artist' ? 'Artisti' :
                  event.eventType === 'dj' ? 'DJ' :
@@ -718,7 +726,7 @@ export default function Home() {
 
     // Lataa tiedosto
     const dateRange = startDate && endDate ?
-      `_${new Date(startDate).toLocaleDateString('fi-FI').replace(/\./g, '-')}_${new Date(endDate).toLocaleDateString('fi-FI').replace(/\./g, '-')}` :
+      `_${parseLocalDate(startDate).toLocaleDateString('fi-FI').replace(/\./g, '-')}_${parseLocalDate(endDate).toLocaleDateString('fi-FI').replace(/\./g, '-')}` :
       `_${selectedYear}`;
     XLSX.writeFile(wb, `Kirkkopuisto_Tapahtumat${dateRange}.xlsx`);
   };
@@ -746,7 +754,7 @@ export default function Home() {
     allPosts.forEach(event => {
       const eventData = {
         'Tapahtuma': event.title,
-        'Päivämäärä': new Date(event.date).toLocaleDateString('fi-FI'),
+        'Päivämäärä': parseLocalDate(event.date).toLocaleDateString('fi-FI'),
         'Aika': event.time || '',
         'Tyyppi': event.eventType === 'artist' ? 'Artisti' :
                  event.eventType === 'dj' ? 'DJ' :
@@ -955,7 +963,7 @@ export default function Home() {
 
 Tapahtuma: ${post.title}
 Artisti: ${post.artist || 'Ei ilmoitettu'}
-Päivämäärä: ${new Date(post.date).toLocaleDateString('fi-FI')}
+Päivämäärä: ${parseLocalDate(post.date).toLocaleDateString('fi-FI')}
 Aika: ${post.time || 'Ei ilmoitettu'}
 Kanava: ${channel?.name || task.channel}
 Tehtävä: ${task.title}
@@ -1073,7 +1081,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
 Tapahtuma: ${event.title}
 Artisti: ${event.artist || 'Ei ilmoitettu'}
-Päivämäärä: ${new Date(event.date).toLocaleDateString('fi-FI')}
+Päivämäärä: ${parseLocalDate(event.date).toLocaleDateString('fi-FI')}
 Aika: ${event.time || 'Ei ilmoitettu'}
 Kanava: ${channel?.name || task.channel}
 Tehtävä: ${task.title}
@@ -2590,7 +2598,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                             <div>
                               <h3 className="font-semibold text-lg">{post.title}</h3>
                               <p className="text-sm text-gray-500">
-                                {new Date(post.date).toLocaleDateString('fi-FI')}
+                                {parseLocalDate(post.date).toLocaleDateString('fi-FI')}
                                 {post.time && ` klo ${post.time}`}
                               </p>
                               {post.summary && (
@@ -2827,7 +2835,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                   <span className="text-sm">{statusEmoji}</span>
                                 </div>
                                 <p className="text-sm text-gray-500">
-                                  {new Date(post.date).toLocaleDateString('fi-FI')}
+                                  {parseLocalDate(post.date).toLocaleDateString('fi-FI')}
                                   {post.time && ` klo ${post.time}`}
                                   {' • '}
                                   <span className={`font-medium ${postType.color.replace('bg-', 'text-')}`}>
@@ -3778,7 +3786,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                       <div key={index} className="bg-white bg-opacity-60 rounded-lg p-3 border border-green-200">
                         <div className="flex items-center gap-4 flex-wrap">
                           <div className="font-semibold text-gray-900">
-                            {new Date(dateEntry.date).toLocaleDateString('fi-FI', { weekday: 'short', day: 'numeric', month: 'numeric', year: 'numeric' })}
+                            {parseLocalDate(dateEntry.date).toLocaleDateString('fi-FI', { weekday: 'short', day: 'numeric', month: 'numeric', year: 'numeric' })}
                           </div>
                           {(dateEntry.startTime || dateEntry.endTime) && (
                             <div className="text-gray-700">
@@ -4312,7 +4320,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
 Tapahtuma: ${event.title}
 ${event.artist ? `Esiintyjä: ${event.artist}` : ''}
-Päivämäärä: ${new Date(event.date).toLocaleDateString('fi-FI')}
+Päivämäärä: ${parseLocalDate(event.date).toLocaleDateString('fi-FI')}
 ${event.time ? `Aika: ${event.time}` : ''}
 
 Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingTask.task.channel}-kanavalle. Lisää sopivat hashtagit (#kirkkopuistonterassi #turku). Älä käytä emojeja.`;
@@ -4608,7 +4616,7 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
                                   {event.dates.map((dateEntry, idx) => (
                                     <div key={idx}>
                                       <p className="font-semibold text-gray-900 text-sm">
-                                        {new Date(dateEntry.date).toLocaleDateString('fi-FI', {
+                                        {parseLocalDate(dateEntry.date).toLocaleDateString('fi-FI', {
                                           weekday: 'short',
                                           day: 'numeric',
                                           month: 'numeric'
@@ -4625,7 +4633,7 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
                               ) : (
                                 <>
                                   <p className="font-semibold text-gray-900">
-                                    {new Date(event.date).toLocaleDateString('fi-FI', {
+                                    {parseLocalDate(event.date).toLocaleDateString('fi-FI', {
                                       weekday: 'long',
                                       day: 'numeric',
                                       month: 'long'
@@ -5043,7 +5051,7 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
                   <option value="">Ei linkitetty tapahtumaan</option>
                   {(posts[selectedYear] || []).map(event => (
                     <option key={event.id} value={event.id}>
-                      {event.title} - {new Date(event.date).toLocaleDateString('fi-FI')}
+                      {event.title} - {parseLocalDate(event.date).toLocaleDateString('fi-FI')}
                     </option>
                   ))}
                 </select>

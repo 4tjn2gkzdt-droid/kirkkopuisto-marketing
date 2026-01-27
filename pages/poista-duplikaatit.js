@@ -2,6 +2,14 @@ import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import Link from 'next/link';
 
+// Apufunktio: Parsii YYYY-MM-DD stringin paikalliseksi Date-objektiksi (ei UTC)
+// Välttää aikavyöhykeongelmia, joissa päivämäärä siirtyy päivällä
+function parseLocalDate(dateString) {
+  if (!dateString) return new Date()
+  const [year, month, day] = dateString.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
 export default function PoistaDuplikaatit() {
   // Estä pääsy production-ympäristössä
   if (process.env.NODE_ENV === 'production') {
@@ -170,7 +178,7 @@ export default function PoistaDuplikaatit() {
                   {results.duplicates.map((dup, index) => (
                     <div key={index} className="bg-white rounded p-3 text-sm">
                       <p className="font-medium">{dup.title}</p>
-                      <p className="text-gray-600">{new Date(dup.date).toLocaleDateString('fi-FI')}</p>
+                      <p className="text-gray-600">{parseLocalDate(dup.date).toLocaleDateString('fi-FI')}</p>
                       <p className="text-xs text-gray-500 mt-1">
                         Pidetty: ID {dup.kept} | Poistettu: {dup.removed.length} kpl
                       </p>

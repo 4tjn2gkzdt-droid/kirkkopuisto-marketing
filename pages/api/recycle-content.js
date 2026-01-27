@@ -118,6 +118,16 @@ Vastaa VAIN lopullisella postauksella, ei selityksiä.`,
     temperature: 0.7
   })
 
+  // Tarkista että vastaus on olemassa
+  if (!result || !result.response) {
+    console.error('Empty response from Claude API')
+    throw new AppError(
+      'AI ei palauttanut vastausta',
+      ErrorTypes.EXTERNAL_API_ERROR,
+      { help: 'Tyhjä vastaus Claude API:lta' }
+    )
+  }
+
   return res.status(200).json({
     success: true,
     recycleType: instruction.name,

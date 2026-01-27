@@ -181,6 +181,16 @@ Vastaa AINA JSON-muodossa ilman markdown-muotoilua.`,
     temperature: 0.7
   })
 
+  // Tarkista että vastaus on olemassa
+  if (!result || !result.response) {
+    console.error('Empty response from Claude API')
+    throw new AppError(
+      'AI ei palauttanut vastausta',
+      ErrorTypes.EXTERNAL_API_ERROR,
+      { help: 'Tyhjä vastaus Claude API:lta' }
+    )
+  }
+
   let contentText = result.response.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
 
   let parsed

@@ -7,7 +7,7 @@ import {
   getBrainstormSessions,
   getBrainstormMessages
 } from '../../../lib/api/brainstormService'
-import { supabase } from '../../../lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 
 export default async function handler(req, res) {
   try {
@@ -18,7 +18,21 @@ export default async function handler(req, res) {
     }
 
     const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+
+    // Luo käyttäjäkohtainen Supabase-client tokenilla
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      {
+        global: {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      }
+    )
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
       console.error('Auth error:', authError)
@@ -31,26 +45,46 @@ export default async function handler(req, res) {
 
       // Jos sessionId annettu, hae kyseisen session viestit
       if (sessionId) {
-        const messages = await getBrainstormMessages(sessionId)
-        return res.status(200).json({ messages })
+        const { data: messages, error } = await supabase
+          .from('brainstorm_messages')
+          .select('*')
+          .eq('session_id', sessionId)
+          .order('created_at', { ascending: true })
+
+        if (error) throw error
+
+        return res.status(200).json({ messages: messages || [] })
       }
 
       // Muuten hae kaikki sessiot
-      const sessions = await getBrainstormSessions(
-        limit ? parseInt(limit) : 50
-      )
+      const { data: sessions, error } = await supabase
+        .from('brainstorm_sessions')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit ? parseInt(limit) : 50)
 
-      return res.status(200).json({ sessions })
+      if (error) throw error
+
+      return res.status(200).json({ sessions: sessions || [] })
     }
 
     // POST - Luo uusi sessio
     if (req.method === 'POST') {
       const { title } = req.body
 
-      const session = await createBrainstormSession({
-        title: title || 'Uusi brainstorming-sessio',
-        user
-      })
+      // Luo uusi sessio suoraan käyttäjäkohtaisella clientillä
+      const { data: session, error } = await supabase
+        .from('brainstorm_sessions')
+        .insert({
+          title: title || 'Uusi brainstorming-sessio',
+          created_by_id: user.id,
+          created_by_email: user.email,
+          created_by_name: user.user_metadata?.full_name || user.email
+        })
+        .select()
+        .single()
+
+      if (error) throw error
 
       return res.status(201).json({
         success: true,

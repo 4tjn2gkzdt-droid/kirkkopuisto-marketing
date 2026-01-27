@@ -619,6 +619,45 @@ export default function ContentTemplates() {
                   placeholder="Sisäiset muistiinpanot..."
                 />
               </div>
+
+              {/* Kuvien/medioiden linkit */}
+              <div>
+                <label className="block text-sm font-semibold mb-2">Kuvat/mediat (URL-linkit)</label>
+                {newSocialPost.mediaLinks.map((link, index) => (
+                  <div key={index} className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={link}
+                      onChange={(e) => {
+                        const updatedLinks = [...newSocialPost.mediaLinks];
+                        updatedLinks[index] = e.target.value;
+                        setNewSocialPost({ ...newSocialPost, mediaLinks: updatedLinks });
+                      }}
+                      className="flex-1 p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                      placeholder="https://example.com/kuva.jpg"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updatedLinks = newSocialPost.mediaLinks.filter((_, i) => i !== index);
+                        setNewSocialPost({ ...newSocialPost, mediaLinks: updatedLinks });
+                      }}
+                      className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewSocialPost({ ...newSocialPost, mediaLinks: [...newSocialPost.mediaLinks, ''] });
+                  }}
+                  className="w-full py-2 px-4 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-indigo-500 hover:text-indigo-600 transition"
+                >
+                  ➕ Lisää kuva/media
+                </button>
+              </div>
             </div>
 
             {/* Toimintonapit */}

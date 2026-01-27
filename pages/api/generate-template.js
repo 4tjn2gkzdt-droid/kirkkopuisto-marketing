@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase'
 import { withCorsAndErrorHandling, AppError, ErrorTypes } from '../../lib/errorHandler'
 import { createClaudeMessage } from '../../lib/api/claudeService'
+import Anthropic from '@anthropic-ai/sdk'
 
 // Configure API route
 export const config = {

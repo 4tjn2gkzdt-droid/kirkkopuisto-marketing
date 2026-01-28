@@ -6,8 +6,9 @@ export default function DebugEvents() {
   const [testEvent, setTestEvent] = useState({
     title: 'Debug Test Event',
     date: new Date().toISOString().split('T')[0],
-    type: 'tapahtuma',
-    description: 'Tämä on debug-testi'
+    time: '18:00',
+    artist: 'Test Artist',
+    year: new Date().getFullYear()
   });
   const [loading, setLoading] = useState(false);
   const [supabaseStatus, setSupabaseStatus] = useState(null);
@@ -36,7 +37,7 @@ export default function DebugEvents() {
       }
 
       const { data, error } = await supabase
-        .from('posts')
+        .from('events')
         .select('id, title')
         .limit(1);
 
@@ -63,7 +64,7 @@ export default function DebugEvents() {
 
       addLog('Ladataan tapahtumia...', 'info');
       const { data, error } = await supabase
-        .from('posts')
+        .from('events')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(10);
@@ -91,16 +92,18 @@ export default function DebugEvents() {
       }
 
       const newEvent = {
-        ...testEvent,
-        id: Date.now(),
-        status: 'luonnos',
-        created_at: new Date().toISOString(),
+        title: testEvent.title,
+        date: testEvent.date,
+        time: testEvent.time,
+        artist: testEvent.artist,
+        year: testEvent.year,
+        images: {}
       };
 
       addLog(`Tallennetaan tapahtuma: ${JSON.stringify(newEvent)}`, 'info');
 
       const { data, error } = await supabase
-        .from('posts')
+        .from('events')
         .insert([newEvent])
         .select();
 
@@ -133,23 +136,21 @@ export default function DebugEvents() {
         return;
       }
 
-      const baseTime = Date.now();
-      const events = [1, 2, 3].map((i, index) => ({
-        id: baseTime + index,
+      const eventsToSave = [1, 2, 3].map((i) => ({
         title: `Erätesti ${i}: ${testEvent.title}`,
         date: testEvent.date,
-        type: testEvent.type,
-        description: `${testEvent.description} (nro ${i})`,
-        status: 'luonnos',
-        created_at: new Date().toISOString(),
+        time: testEvent.time,
+        artist: testEvent.artist || '',
+        year: testEvent.year,
+        images: {}
       }));
 
-      addLog(`Tallennetaan ${events.length} tapahtumaa...`, 'info');
-      events.forEach((e, i) => addLog(`  ${i + 1}. ${e.title} (ID: ${e.id})`, 'info'));
+      addLog(`Tallennetaan ${eventsToSave.length} tapahtumaa...`, 'info');
+      eventsToSave.forEach((e, i) => addLog(`  ${i + 1}. ${e.title}`, 'info'));
 
       const { data, error } = await supabase
-        .from('posts')
-        .insert(events)
+        .from('events')
+        .insert(eventsToSave)
         .select();
 
       if (error) {
@@ -183,41 +184,33 @@ export default function DebugEvents() {
       // Simuloi Excel-tuonti kuten index.js:ssä
       const importedEvents = [
         {
-          title: 'Excel-tuonti testi 1',
-          date: '2024-02-01',
+          title: 'Excel-tuonti testi 1: Testartisti 1',
+          date: '2026-02-01',
           time: '18:00',
-          description: 'Tuotu Excelistä',
-          type: 'tapahtuma'
+          artist: 'Testartisti 1',
+          year: 2026
         },
         {
-          title: 'Excel-tuonti testi 2',
-          date: '2024-02-02',
+          title: 'Excel-tuonti testi 2: Testartisti 2',
+          date: '2026-02-02',
           time: '19:00',
-          description: 'Tuotu Excelistä',
-          type: 'markkinointi'
+          artist: 'Testartisti 2',
+          year: 2026
         }
       ];
 
       addLog(`Tuotu ${importedEvents.length} tapahtumaa Excelistä`, 'info');
 
-      const baseTime = Date.now();
-      const eventsToSave = importedEvents.map((event, index) => {
-        const newId = baseTime + index;
-        addLog(`Luodaan tapahtuma ID ${newId}: ${event.title}`, 'info');
+      const eventsToSave = importedEvents.map((event) => {
+        addLog(`Luodaan tapahtuma: ${event.title}`, 'info');
 
         return {
-          id: newId,
           title: event.title,
           date: event.date,
           time: event.time || '',
-          description: event.description || '',
-          type: event.type || 'tapahtuma',
-          status: 'luonnos',
-          platform: '',
-          hashtags: '',
-          image_url: '',
-          created_at: new Date().toISOString(),
-          autoGenerateContent: false
+          artist: event.artist || '',
+          year: event.year,
+          images: {}
         };
       });
 
@@ -225,7 +218,7 @@ export default function DebugEvents() {
       addLog(`Tallennettavat tapahtumat: ${JSON.stringify(eventsToSave, null, 2)}`, 'info');
 
       const { data, error } = await supabase
-        .from('posts')
+        .from('events')
         .insert(eventsToSave)
         .select();
 
@@ -269,7 +262,7 @@ export default function DebugEvents() {
 
       // Yritä hakea yksi tapahtuma ja tarkista kentät
       const { data, error } = await supabase
-        .from('posts')
+        .from('events')
         .select('*')
         .limit(1);
 
@@ -277,20 +270,11 @@ export default function DebugEvents() {
         addLog(`❌ Virhe skeeman tarkistuksessa: ${error.message}`, 'error');
       } else if (data && data.length > 0) {
         const fields = Object.keys(data[0]);
-        addLog(`✅ Taulun 'posts' kentät (${fields.length} kpl):`, 'success');
-        fields.forEach(field => addLog(`  - ${field}`, 'info'));
+        addLog(`✅ Taulun 'events' kentät (${fields.length} kpl):`, 'success');
+        fields.forEach(field => addLog(`  - ${field}: ${typeof data[0][field]}`, 'info'));
       } else {
         addLog('⚠️ Taulu on tyhjä, ei voida tarkistaa skeemaa', 'warning');
-
-        // Yritä insert tyhjällä objektilla nähdäksemme pakolliset kentät
-        const { error: insertError } = await supabase
-          .from('posts')
-          .insert([{ id: Date.now(), title: 'test' }])
-          .select();
-
-        if (insertError) {
-          addLog(`Virhe kertoo pakollisista kentistä: ${insertError.message}`, 'info');
-        }
+        addLog('Odotetut kentät: title (TEXT), date (DATE), time (TEXT), artist (TEXT), year (INTEGER), images (JSONB)', 'info');
       }
 
     } catch (err) {
@@ -319,9 +303,9 @@ export default function DebugEvents() {
       }
 
       const { data, error } = await supabase
-        .from('posts')
+        .from('events')
         .delete()
-        .or('title.ilike.%debug%,title.ilike.%testi%,title.ilike.%excel-tuonti%')
+        .or('title.ilike.%debug%,title.ilike.%testi%,title.ilike.%excel-tuonti%,title.ilike.%erätesti%')
         .select();
 
       if (error) {
@@ -342,7 +326,7 @@ export default function DebugEvents() {
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold mb-2">Debug: Tapahtumien tallennus</h1>
         <p className="text-gray-600 mb-6">
-          Testaa ja debuggaa tapahtumien tallennusta Supabaseen
+          Testaa ja debuggaa tapahtumien tallennusta Supabaseen (events-taulu)
         </p>
 
         {/* Status Card */}
@@ -374,6 +358,15 @@ export default function DebugEvents() {
                   />
                 </div>
                 <div>
+                  <label className="block text-sm font-medium mb-1">Artisti</label>
+                  <input
+                    type="text"
+                    value={testEvent.artist}
+                    onChange={(e) => setTestEvent({...testEvent, artist: e.target.value})}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+                <div>
                   <label className="block text-sm font-medium mb-1">Päivämäärä</label>
                   <input
                     type="date"
@@ -383,25 +376,21 @@ export default function DebugEvents() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Tyyppi</label>
-                  <select
-                    value={testEvent.type}
-                    onChange={(e) => setTestEvent({...testEvent, type: e.target.value})}
+                  <label className="block text-sm font-medium mb-1">Kellonaika</label>
+                  <input
+                    type="time"
+                    value={testEvent.time}
+                    onChange={(e) => setTestEvent({...testEvent, time: e.target.value})}
                     className="w-full px-3 py-2 border rounded-lg"
-                  >
-                    <option value="tapahtuma">Tapahtuma</option>
-                    <option value="markkinointi">Markkinointi</option>
-                    <option value="some">Some</option>
-                    <option value="blogi">Blogi</option>
-                  </select>
+                  />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Kuvaus</label>
-                  <textarea
-                    value={testEvent.description}
-                    onChange={(e) => setTestEvent({...testEvent, description: e.target.value})}
+                  <label className="block text-sm font-medium mb-1">Vuosi</label>
+                  <input
+                    type="number"
+                    value={testEvent.year}
+                    onChange={(e) => setTestEvent({...testEvent, year: parseInt(e.target.value)})}
                     className="w-full px-3 py-2 border rounded-lg"
-                    rows="3"
                   />
                 </div>
               </div>
@@ -472,7 +461,7 @@ export default function DebugEvents() {
                   <div key={event.id} className="p-3 bg-gray-50 rounded border text-sm">
                     <div className="font-medium">{event.title}</div>
                     <div className="text-gray-600 text-xs mt-1">
-                      ID: {event.id} | {event.date} | {event.type}
+                      ID: {event.id} | {event.date} {event.time || ''} | Artisti: {event.artist || 'Ei määritelty'} | Vuosi: {event.year}
                     </div>
                   </div>
                 ))}

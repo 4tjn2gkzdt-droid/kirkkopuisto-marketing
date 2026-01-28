@@ -687,7 +687,7 @@ export default function ContentCalendar() {
       {/* Somepostauksen lisäysmodaali */}
       {showAddSocialPostModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-3xl w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
             <h3 className="text-2xl font-bold mb-6">📱 Lisää somepostaus</h3>
 
             <div className="space-y-4">

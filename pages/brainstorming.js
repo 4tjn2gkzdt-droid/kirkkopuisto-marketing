@@ -319,7 +319,7 @@ export default function Brainstorming() {
       {/* Main content */}
       <div className="flex-1 overflow-hidden flex">
         {/* Chat area */}
-        <div className={`flex-1 overflow-hidden flex flex-col px-4 sm:px-6 lg:px-8 py-6 transition-all ${showSidebar ? 'mr-80' : ''}`}>
+        <div className={`flex-1 overflow-hidden flex flex-col px-4 sm:px-6 lg:px-8 py-6 transition-all ${showSidebar ? 'md:mr-80' : ''}`}>
           {/* Messages */}
           <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2">
             {/* Ohjeet */}
@@ -433,9 +433,9 @@ export default function Brainstorming() {
           </div>
         </div>
 
-        {/* Sidebar */}
+        {/* Sidebar - piilossa mobiililla, näkyy desktopilla */}
         {showSidebar && (
-          <div className="w-80 border-l border-gray-200 bg-white overflow-y-auto flex-shrink-0">
+          <div className="hidden md:block md:w-80 border-l border-gray-200 bg-white overflow-y-auto flex-shrink-0">
             <div className="p-4">
               {/* Tabs */}
               <div className="flex gap-2 mb-4">
@@ -533,7 +533,7 @@ export default function Brainstorming() {
       {/* Save Idea Modal */}
       {showSaveIdeaForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-6 max-w-lg w-full">
+          <div className="bg-white rounded-lg p-4 sm:p-6 max-w-lg w-full">
             <h3 className="text-lg font-bold mb-4">💡 Tallenna idea</h3>
 
             <div className="space-y-4">

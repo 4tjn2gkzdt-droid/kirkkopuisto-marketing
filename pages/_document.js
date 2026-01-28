@@ -4,6 +4,9 @@ export default function Document() {
   return (
     <Html lang="fi">
       <Head>
+        {/* Viewport - KRIITTINEN mobiilille */}
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+
         {/* PWA Meta Tags */}
         <meta name="application-name" content="KP Markkinointi" />
         <meta name="apple-mobile-web-app-capable" content="yes" />

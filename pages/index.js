@@ -3235,7 +3235,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                               return (
                                 <div
                                   key={event.id}
-                                  className="text-[9px] md:text-xs bg-green-100 border border-green-300 rounded p-0.5 md:p-1 cursor-pointer hover:bg-green-200"
+                                  className="text-xs sm:text-xs md:text-sm bg-green-100 border border-green-300 rounded p-1.5 md:p-2 cursor-pointer hover:bg-green-200 touch-manipulation"
                                   onClick={() => {
                                     setExpandedEvents(prev => ({ ...prev, [event.id]: true }));
                                     setViewMode('list');
@@ -3247,13 +3247,13 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                     <div className="text-gray-600 hidden md:block">{event.time}</div>
                                   )}
                                   <div className="flex items-center gap-1 mt-0.5 md:mt-1">
-                                    <div className="flex-1 bg-gray-200 rounded-full h-0.5 md:h-1">
+                                    <div className="flex-1 bg-gray-200 rounded-full h-1 md:h-1.5">
                                       <div
-                                        className="bg-green-600 h-0.5 md:h-1 rounded-full"
+                                        className="bg-green-600 h-1 md:h-1.5 rounded-full"
                                         style={{ width: `${(completed / total) * 100}%` }}
                                       ></div>
                                     </div>
-                                    <span className="text-[8px] md:text-[10px]">{completed}/{total}</span>
+                                    <span className="text-xs sm:text-xs">{completed}/{total}</span>
                                   </div>
                                 </div>
                               );
@@ -3270,7 +3270,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                               return (
                                 <div
                                   key={`social-${post.id}`}
-                                  className="text-[9px] md:text-xs bg-blue-100 border border-blue-300 rounded p-0.5 md:p-1 cursor-pointer hover:bg-blue-200"
+                                  className="text-xs sm:text-xs md:text-sm bg-blue-100 border border-blue-300 rounded p-1.5 md:p-2 cursor-pointer hover:bg-blue-200 touch-manipulation"
                                   onClick={() => openEditSocialPostModal(post)}
                                   title={post.title}
                                 >
@@ -3281,7 +3281,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                   {post.time && (
                                     <div className="text-gray-600 hidden md:block">{post.time}</div>
                                   )}
-                                  <div className="text-[8px] md:text-[10px] text-gray-600">
+                                  <div className="text-xs sm:text-xs text-gray-600">
                                     {statusEmoji} {post.status}
                                   </div>
                                 </div>
@@ -3369,7 +3369,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                     style={{ width: `${(completed / total) * 100}%` }}
                                   ></div>
                                 </div>
-                                <span className="text-[10px]">{completed}/{total}</span>
+                                <span className="text-xs">{completed}/{total}</span>
                               </div>
                             </div>
                           );
@@ -3396,7 +3396,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                               {post.time && (
                                 <div className="text-gray-600 mb-1">🕐 {post.time}</div>
                               )}
-                              <div className="text-[10px] text-gray-600">
+                              <div className="text-xs text-gray-600">
                                 {statusEmoji} {post.status}
                               </div>
                             </div>
@@ -3420,7 +3420,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
           return (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-              <div className="bg-white rounded-lg max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto">
+              <div className="bg-white rounded-lg max-w-3xl w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-2xl font-bold">🔔 Lähestyvät deadlinet</h3>
                   <button
@@ -3563,7 +3563,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
         {showImportModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-lg max-w-2xl w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
               <h3 className="text-xl font-bold mb-4">Tuo tapahtumia</h3>
 
               {/* Progress-indikaattori */}
@@ -3614,7 +3614,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
         {showAddEventModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-lg max-w-4xl w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
               <h3 className="text-2xl font-bold mb-6">➕ Lisää uusi tapahtuma</h3>
 
               {/* Progress-ilmoitus tallennukselle */}
@@ -3914,11 +3914,11 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                         <h5 className="font-bold text-sm text-gray-900 mb-1">{op.name}</h5>
                         <p className="text-xs text-gray-600 mb-2">{op.description}</p>
                         <div className="flex items-center gap-2">
-                          <span className={`${channel?.color || 'bg-gray-500'} text-white px-2 py-0.5 rounded text-[10px] font-medium`}>
+                          <span className={`${channel?.color || 'bg-gray-500'} text-white px-2 py-0.5 rounded text-xs font-medium`}>
                             {channel?.name}
                           </span>
                           {deadlineText && (
-                            <span className="text-[10px] text-gray-700 font-semibold">
+                            <span className="text-xs text-gray-700 font-semibold">
                               {deadlineText}
                             </span>
                           )}
@@ -4068,7 +4068,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
         {/* Preview-modaali */}
         {showPreview && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
-            <div className="bg-white rounded-lg max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-lg max-w-3xl w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
               <h3 className="text-2xl font-bold mb-6">👀 Esikatselu - Varmista tiedot</h3>
 
               {/* Tapahtuman tiedot */}
@@ -4097,7 +4097,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                   <div>
                     <span className="text-gray-600">🎭 Tyyppi:</span>
                     <p className="font-semibold">
@@ -4230,7 +4230,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
         {/* Muokkaa tapahtumaa -modaali */}
         {showEditEventModal && editingEvent && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
-            <div className="bg-white rounded-lg max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-lg max-w-3xl w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
               <h3 className="text-2xl font-bold mb-6">✏️ Muokkaa tapahtumaa</h3>
 
               <div className="space-y-5 mb-6">
@@ -4649,7 +4649,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
         {showTaskEditModal && editingTask && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-lg max-w-2xl w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
               <h3 className="text-xl font-bold mb-4">Muokkaa tehtävää</h3>
               
               <div className="space-y-4">
@@ -4665,7 +4665,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">Deadline</label>
                     <input
@@ -4829,7 +4829,7 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
 
         {showImageModal && currentEventForImages && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-lg max-w-4xl w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
               <div className="mb-6">
                 <h3 className="text-xl font-bold mb-3">📸 Kuvat: {currentEventForImages.title}</h3>
 
@@ -4916,7 +4916,7 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
       {/* Tulostusmodaali */}
       {showPrintModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-4xl w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-2xl font-bold">🖨️ Tulosta tapahtumalista</h3>
               <button
@@ -5252,14 +5252,14 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
       {/* Vienti/tulostusmodaali */}
       {showExportModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-2xl w-full p-6">
+          <div className="bg-white rounded-lg max-w-2xl w-full p-4 sm:p-6">
             <h3 className="text-2xl font-bold mb-6">📤 Vie tai tulosta tapahtumat</h3>
 
             <div className="space-y-4 mb-6">
               {/* Päivämääräväli */}
               <div>
                 <label className="block text-sm font-semibold mb-2">Valitse aikaväli</label>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs text-gray-600 mb-1">Alkupäivä</label>
                     <input
@@ -5350,7 +5350,7 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
       {/* Somepostauksen lisäys/muokkausmodaali */}
       {showAddSocialPostModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-3xl w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
             <h3 className="text-2xl font-bold mb-6">
               {editingSocialPost ? '✏️ Muokkaa somepostausta' : '📱 Lisää somepostaus'}
             </h3>
@@ -5369,7 +5369,7 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
               </div>
 
               {/* Päivämäärä ja aika */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold mb-2">Julkaisupäivä *</label>
                   <input

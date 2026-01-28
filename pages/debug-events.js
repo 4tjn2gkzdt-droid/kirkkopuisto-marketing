@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase } from '../lib/supabase';
 
 export default function DebugEvents() {
   const [logs, setLogs] = useState([]);
@@ -12,8 +12,6 @@ export default function DebugEvents() {
   const [loading, setLoading] = useState(false);
   const [supabaseStatus, setSupabaseStatus] = useState(null);
   const [events, setEvents] = useState([]);
-
-  const supabase = createClientComponentClient();
 
   const addLog = (message, type = 'info') => {
     const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
@@ -30,14 +28,12 @@ export default function DebugEvents() {
     try {
       addLog('Tarkistetaan Supabase-yhteyttä...', 'info');
 
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError) {
-        addLog(`Auth-virhe: ${authError.message}`, 'error');
-        setSupabaseStatus({ connected: false, error: authError.message });
+      if (!supabase) {
+        addLog('❌ Supabase-client ei ole alustettu!', 'error');
+        addLog('Tarkista että .env.local sisältää NEXT_PUBLIC_SUPABASE_URL ja NEXT_PUBLIC_SUPABASE_ANON_KEY', 'error');
+        setSupabaseStatus({ connected: false, error: 'Supabase-client puuttuu' });
         return;
       }
-
-      addLog(`Käyttäjä: ${user?.email || 'Ei kirjautunut'}`, 'success');
 
       const { data, error } = await supabase
         .from('posts')
@@ -46,10 +42,11 @@ export default function DebugEvents() {
 
       if (error) {
         addLog(`Tietokantavirhe: ${error.message}`, 'error');
+        addLog(`Virhekoodi: ${error.code}`, 'error');
         setSupabaseStatus({ connected: false, error: error.message });
       } else {
-        addLog('Supabase-yhteys toimii!', 'success');
-        setSupabaseStatus({ connected: true, user: user?.email });
+        addLog('✅ Supabase-yhteys toimii!', 'success');
+        setSupabaseStatus({ connected: true });
       }
     } catch (err) {
       addLog(`Odottamaton virhe: ${err.message}`, 'error');
@@ -59,6 +56,11 @@ export default function DebugEvents() {
 
   const loadEvents = async () => {
     try {
+      if (!supabase) {
+        addLog('❌ Supabase ei ole alustettu', 'error');
+        return;
+      }
+
       addLog('Ladataan tapahtumia...', 'info');
       const { data, error } = await supabase
         .from('posts')
@@ -82,6 +84,12 @@ export default function DebugEvents() {
     addLog('=== ALOITETAAN YKSITTÄINEN TALLENNUS ===', 'info');
 
     try {
+      if (!supabase) {
+        addLog('❌ Supabase ei ole alustettu', 'error');
+        setLoading(false);
+        return;
+      }
+
       const newEvent = {
         ...testEvent,
         id: Date.now(),
@@ -119,6 +127,12 @@ export default function DebugEvents() {
     addLog('=== ALOITETAAN ERÄTALLENNUS (3 tapahtumaa) ===', 'info');
 
     try {
+      if (!supabase) {
+        addLog('❌ Supabase ei ole alustettu', 'error');
+        setLoading(false);
+        return;
+      }
+
       const baseTime = Date.now();
       const events = [1, 2, 3].map((i, index) => ({
         id: baseTime + index,
@@ -160,6 +174,12 @@ export default function DebugEvents() {
     addLog('=== SIMULOIDAAN EXCEL-TUONTIA ===', 'info');
 
     try {
+      if (!supabase) {
+        addLog('❌ Supabase ei ole alustettu', 'error');
+        setLoading(false);
+        return;
+      }
+
       // Simuloi Excel-tuonti kuten index.js:ssä
       const importedEvents = [
         {
@@ -241,6 +261,12 @@ export default function DebugEvents() {
     addLog('=== TARKISTETAAN TIETOKANTASKEEMA ===', 'info');
 
     try {
+      if (!supabase) {
+        addLog('❌ Supabase-client ei ole alustettu!', 'error');
+        setLoading(false);
+        return;
+      }
+
       // Yritä hakea yksi tapahtuma ja tarkista kentät
       const { data, error } = await supabase
         .from('posts')
@@ -267,10 +293,6 @@ export default function DebugEvents() {
         }
       }
 
-      // Tarkista RLS-käytännöt
-      const { data: { user } } = await supabase.auth.getUser();
-      addLog(`Kirjautunut käyttäjä: ${user?.id || 'Ei kirjautunut'}`, 'info');
-
     } catch (err) {
       addLog(`❌ Odottamaton virhe: ${err.message}`, 'error');
     } finally {
@@ -290,6 +312,12 @@ export default function DebugEvents() {
     addLog('=== POISTETAAN TESTITAPAHTUMAT ===', 'info');
 
     try {
+      if (!supabase) {
+        addLog('❌ Supabase ei ole alustettu', 'error');
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('posts')
         .delete()
@@ -324,9 +352,6 @@ export default function DebugEvents() {
           <h2 className="font-bold mb-2">
             {supabaseStatus?.connected ? '✅ Supabase yhteys toimii' : '❌ Supabase yhteysvirhe'}
           </h2>
-          {supabaseStatus?.user && (
-            <p className="text-sm">Käyttäjä: {supabaseStatus.user}</p>
-          )}
           {supabaseStatus?.error && (
             <p className="text-sm text-red-600">Virhe: {supabaseStatus.error}</p>
           )}

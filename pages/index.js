@@ -70,6 +70,8 @@ export default function Home() {
   const [generatingProgress, setGeneratingProgress] = useState({ current: 0, total: 0, isGenerating: false });
   const [isSaving, setIsSaving] = useState(false);
   const [savingStatus, setSavingStatus] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  const [importingStatus, setImportingStatus] = useState('');
 
   // Kalenterin lataussuodattimet
   const [calendarDownloadFilters, setCalendarDownloadFilters] = useState({
@@ -349,6 +351,28 @@ export default function Home() {
 
             if (eventError) throw eventError;
 
+            // Lisää event_instances (monipäiväinen tuki)
+            // Jos post.dates on olemassa, käytä sitä, muuten luo yksittäinen instanssi
+            const instancesToInsert = post.dates && Array.isArray(post.dates)
+              ? post.dates.map(dateEntry => ({
+                  event_id: newEvent.id,
+                  date: dateEntry.date,
+                  start_time: dateEntry.startTime || null,
+                  end_time: dateEntry.endTime || null
+                }))
+              : [{
+                  event_id: newEvent.id,
+                  date: post.date,
+                  start_time: post.time || null,
+                  end_time: null
+                }];
+
+            const { error: instancesError } = await supabase
+              .from('event_instances')
+              .insert(instancesToInsert);
+
+            if (instancesError) throw instancesError;
+
             // Lisää tehtävät
             if (post.tasks && post.tasks.length > 0) {
               const tasksToInsert = post.tasks.map(task => ({
@@ -389,6 +413,29 @@ export default function Home() {
               .eq('id', post.id);
 
             if (updateError) throw updateError;
+
+            // Päivitä event_instances (poista vanhat ja lisää uudet)
+            await supabase.from('event_instances').delete().eq('event_id', post.id);
+
+            const instancesToUpdate = post.dates && Array.isArray(post.dates)
+              ? post.dates.map(dateEntry => ({
+                  event_id: post.id,
+                  date: dateEntry.date,
+                  start_time: dateEntry.startTime || null,
+                  end_time: dateEntry.endTime || null
+                }))
+              : [{
+                  event_id: post.id,
+                  date: post.date,
+                  start_time: post.time || null,
+                  end_time: null
+                }];
+
+            const { error: updateInstancesError } = await supabase
+              .from('event_instances')
+              .insert(instancesToUpdate);
+
+            if (updateInstancesError) throw updateInstancesError;
 
             // Päivitä tehtävät (yksinkertainen: poista vanhat ja lisää uudet)
             await supabase.from('tasks').delete().eq('event_id', post.id);
@@ -524,66 +571,98 @@ export default function Home() {
       return;
     }
 
-    const currentPosts = posts[selectedYear] || [];
-    await savePosts(selectedYear, [...currentPosts, ...parsed]);
+    setIsImporting(true);
+    setImportingStatus(`Tuodaan ${parsed.length} tapahtumaa...`);
 
-    // Lataa data uudelleen Supabasesta varmistaaksesi että kaikki on tallennettu
-    if (supabase) {
-      const { data: events, error } = await supabase
-        .from('events')
-        .select(`*, tasks (*)`)
-        .eq('year', selectedYear)
-        .order('date', { ascending: true });
+    try {
+      const currentPosts = posts[selectedYear] || [];
 
-      if (!error && events) {
-        const formattedEvents = events.map(event => ({
-          id: event.id,
-          title: event.title,
-          date: event.date,
-          time: event.time,
-          artist: event.artist,
-          summary: event.summary,
-          images: event.images || {},
-          tasks: (event.tasks || []).map(task => ({
-            id: task.id,
-            title: task.title,
-            channel: task.channel,
-            dueDate: task.due_date,
-            dueTime: task.due_time,
-            completed: task.completed,
-            content: task.content,
-            assignee: task.assignee
+      setImportingStatus(`Tallennetaan ${parsed.length} tapahtumaa tietokantaan...`);
+      await savePosts(selectedYear, [...currentPosts, ...parsed]);
+
+      // Lataa data uudelleen Supabasesta varmistaaksesi että kaikki on tallennettu
+      if (supabase) {
+        setImportingStatus('Päivitetään näkymää...');
+        const { data: events, error } = await supabase
+          .from('events')
+          .select(`*, event_instances (*), tasks (*)`)
+          .eq('year', selectedYear)
+          .order('date', { ascending: true });
+
+        if (!error && events) {
+          const formattedEvents = events.map(event => ({
+            id: event.id,
+            title: event.title,
+            artist: event.artist,
+            summary: event.summary,
+            images: event.images || {},
+            // Monipäiväiset tapahtumat
+            dates: (event.event_instances || [])
+              .sort((a, b) => new Date(a.date) - new Date(b.date))
+              .map(inst => ({
+                date: inst.date,
+                startTime: inst.start_time,
+                endTime: inst.end_time
+              })),
+            // Backward compatibility
+            date: event.event_instances?.[0]?.date || event.date,
+            time: event.event_instances?.[0]?.start_time || event.time,
+            tasks: (event.tasks || []).map(task => ({
+              id: task.id,
+              title: task.title,
+              channel: task.channel,
+              dueDate: task.due_date,
+              dueTime: task.due_time,
+              completed: task.completed,
+              content: task.content,
+              assignee: task.assignee,
+              notes: task.notes
+            }))
           }))
-        }));
-        setPosts(prev => ({ ...prev, [selectedYear]: formattedEvents }));
+          .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-        // Generoi sisältö kaikille uusille tapahtumille jos automaattinen generointi on päällä
-        if (autoGenerateContent) {
-          // Löydä juuri tuodut tapahtumat
-          const importedEventIds = parsed.map(p => p.title); // Käytetään titlea koska ID muuttuu
-          const importedEvents = formattedEvents.filter(e =>
-            importedEventIds.includes(e.title)
-          );
+          setPosts(prev => ({ ...prev, [selectedYear]: formattedEvents }));
 
-          if (importedEvents.length > 0) {
-            setShowImportModal(false);
-            setImportText('');
+          // Generoi sisältö kaikille uusille tapahtumille jos automaattinen generointi on päällä
+          if (autoGenerateContent) {
+            // Löydä juuri tuodut tapahtumat
+            const importedEventIds = parsed.map(p => p.title); // Käytetään titlea koska ID muuttuu
+            const importedEvents = formattedEvents.filter(e =>
+              importedEventIds.includes(e.title)
+            );
 
-            // Generoi sisältö kaikille tuoduille tapahtumille
-            for (const event of importedEvents) {
-              await generateContentForAllTasks(event);
+            if (importedEvents.length > 0) {
+              setImportingStatus(`Luodaan AI-sisältöä ${importedEvents.length} tapahtumalle...`);
+
+              // Generoi sisältö kaikille tuoduille tapahtumille
+              for (let i = 0; i < importedEvents.length; i++) {
+                const event = importedEvents[i];
+                setImportingStatus(`Luodaan sisältöä tapahtumalle ${i + 1}/${importedEvents.length}...`);
+                await generateContentForAllTasks(event, setImportingStatus);
+              }
+
+              setIsImporting(false);
+              setImportingStatus('');
+              setShowImportModal(false);
+              setImportText('');
+              alert(`✨ Lisätty ${parsed.length} tapahtumaa ja generoitu sisältö tehtäville!`);
+              return;
             }
-
-            alert(`✨ Lisätty ${parsed.length} tapahtumaa ja generoitu sisältö tehtäville!`);
-            return;
           }
         }
       }
-    }
 
-    setShowImportModal(false);
-    setImportText('');
-    alert(`Lisätty ${parsed.length} tapahtumaa!`);
+      setIsImporting(false);
+      setImportingStatus('');
+      setShowImportModal(false);
+      setImportText('');
+      alert(`Lisätty ${parsed.length} tapahtumaa!`);
+    } catch (error) {
+      console.error('Virhe tuotaessa tapahtumia:', error);
+      setIsImporting(false);
+      setImportingStatus('');
+      alert('Virhe tuotaessa tapahtumia: ' + error.message);
+    }
   };
 
   const toggleTask = (postId, taskId) => {
@@ -1064,7 +1143,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
     }
   };
 
-  const generateContentForAllTasks = async (event) => {
+  const generateContentForAllTasks = async (event, statusCallback = null) => {
     const tasksToGenerate = event.tasks.filter(t => !t.content || t.content.trim() === '');
 
     if (tasksToGenerate.length === 0) {
@@ -1073,8 +1152,19 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
     setGeneratingProgress({ current: 0, total: tasksToGenerate.length, isGenerating: true });
 
+    if (statusCallback) {
+      statusCallback(`Luodaan AI-sisältöä: 0/${tasksToGenerate.length} tehtävää valmis...`);
+    }
+
+    let successCount = 0;
+    let errorCount = 0;
+
     for (let i = 0; i < tasksToGenerate.length; i++) {
       const task = tasksToGenerate[i];
+
+      if (statusCallback) {
+        statusCallback(`Luodaan sisältöä: ${i + 1}/${tasksToGenerate.length} (${task.title})...`);
+      }
 
       try {
         const channel = channels.find(c => c.id === task.channel);
@@ -1095,51 +1185,87 @@ Luo sopiva postaus/sisältö tälle kanavalle. Sisällytä:
 
 Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
-        const response = await fetch('/api/claude', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: prompt })
-        });
+        // Luo AbortController timeoutia varten
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 sekunnin timeout
 
-        const data = await response.json();
-
-        if (response.ok && data.response) {
-          // Päivitä Supabaseen
-          if (supabase && typeof task.id === 'number') {
-            await supabase
-              .from('tasks')
-              .update({ content: data.response })
-              .eq('id', task.id);
-          }
-
-          // Päivitä UI
-          setPosts(prev => {
-            const yearPosts = prev[selectedYear] || [];
-            const updatedPosts = yearPosts.map(p => {
-              if (p.id === event.id) {
-                return {
-                  ...p,
-                  tasks: p.tasks.map(t =>
-                    t.id === task.id ? { ...t, content: data.response } : t
-                  )
-                };
-              }
-              return p;
-            });
-            return { ...prev, [selectedYear]: updatedPosts };
+        try {
+          const response = await fetch('/api/claude', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: prompt }),
+            signal: controller.signal
           });
+
+          clearTimeout(timeoutId);
+
+          const data = await response.json();
+
+          if (response.ok && data.response) {
+            // Päivitä Supabaseen
+            if (supabase && typeof task.id === 'number') {
+              await supabase
+                .from('tasks')
+                .update({ content: data.response })
+                .eq('id', task.id);
+            }
+
+            // Päivitä UI
+            setPosts(prev => {
+              const yearPosts = prev[selectedYear] || [];
+              const updatedPosts = yearPosts.map(p => {
+                if (p.id === event.id) {
+                  return {
+                    ...p,
+                    tasks: p.tasks.map(t =>
+                      t.id === task.id ? { ...t, content: data.response } : t
+                    )
+                  };
+                }
+                return p;
+              });
+              return { ...prev, [selectedYear]: updatedPosts };
+            });
+
+            successCount++;
+          } else {
+            console.error(`API palautti virheen tehtävälle ${task.title}:`, data.error);
+            errorCount++;
+          }
+        } catch (fetchError) {
+          clearTimeout(timeoutId);
+          if (fetchError.name === 'AbortError') {
+            console.error(`Timeout: Sisällön generointi tehtävälle ${task.title} kesti yli 45 sekuntia`);
+          } else {
+            console.error(`Verkkovirhe generoitaessa sisältöä tehtävälle ${task.title}:`, fetchError);
+          }
+          errorCount++;
         }
       } catch (error) {
         console.error(`Virhe generoitaessa sisältöä tehtävälle ${task.title}:`, error);
+        errorCount++;
         // Jatka seuraavaan tehtävään virheen sattuessa
       }
 
       // Päivitä progress vasta kun tehtävä on valmis
       setGeneratingProgress({ current: i + 1, total: tasksToGenerate.length, isGenerating: true });
+
+      if (statusCallback) {
+        statusCallback(`Sisältö luotu: ${i + 1}/${tasksToGenerate.length} tehtävää valmis...`);
+      }
     }
 
     setGeneratingProgress({ current: 0, total: 0, isGenerating: false });
-    alert(`✨ Sisältö generoitu ${tasksToGenerate.length} tehtävälle!`);
+
+    if (statusCallback) {
+      statusCallback('Sisällön generointi valmis!');
+    }
+
+    if (errorCount > 0) {
+      alert(`✨ Sisältö generoitu ${successCount}/${tasksToGenerate.length} tehtävälle.\n⚠️ ${errorCount} tehtävän generointi epäonnistui.`);
+    } else {
+      alert(`✨ Sisältö generoitu ${tasksToGenerate.length} tehtävälle!`);
+    }
   };
 
   // Uusi: Generoi sisältö kaikille kanaville kerralla optimoituna
@@ -1427,10 +1553,9 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
           // Generoi sisältö automaattisesti jos valittu
           if (autoGenerateContent && newEvent.tasks.length > 0) {
-            setSavingStatus('Luodaan AI-sisältöä tehtäville...');
             const createdEvent = formattedEvents.find(e => e.id === savedEvent.id);
             if (createdEvent) {
-              await generateContentForAllTasks(createdEvent);
+              await generateContentForAllTasks(createdEvent, setSavingStatus);
             }
           }
         }
@@ -3311,6 +3436,18 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
               <h3 className="text-xl font-bold mb-4">Tuo tapahtumia</h3>
+
+              {/* Progress-indikaattori */}
+              {isImporting && (
+                <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
+                  <h4 className="font-semibold text-green-900">{importingStatus || 'Tuodaan tapahtumia...'}</h4>
+                  <div className="mt-2 flex items-center gap-3">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600"></div>
+                    <span className="text-sm text-green-700">Tämä voi kestää hetken...</span>
+                  </div>
+                </div>
+              )}
+
               <textarea
                 value={importText}
                 onChange={(e) => setImportText(e.target.value)}
@@ -3332,16 +3469,18 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
               <div className="flex gap-3 mt-4">
                 <button
                   onClick={handleImport}
-                  className="flex-1 bg-green-600 text-white py-2 rounded-lg"
+                  disabled={isImporting}
+                  className="flex-1 bg-green-600 text-white py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Lisää
+                  {isImporting ? 'Tuodaan...' : 'Lisää'}
                 </button>
                 <button
                   onClick={() => {
                     setShowImportModal(false);
                     setImportText('');
                   }}
-                  className="flex-1 bg-gray-200 py-2 rounded-lg"
+                  disabled={isImporting}
+                  className="flex-1 bg-gray-200 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Peruuta
                 </button>

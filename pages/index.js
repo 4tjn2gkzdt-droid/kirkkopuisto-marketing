@@ -68,6 +68,8 @@ export default function Home() {
   const [generatingTaskId, setGeneratingTaskId] = useState(null);
   const [autoGenerateContent, setAutoGenerateContent] = useState(true);
   const [generatingProgress, setGeneratingProgress] = useState({ current: 0, total: 0, isGenerating: false });
+  const [isSaving, setIsSaving] = useState(false);
+  const [savingStatus, setSavingStatus] = useState('');
 
   // Kalenterin lataussuodattimet
   const [calendarDownloadFilters, setCalendarDownloadFilters] = useState({
@@ -1073,7 +1075,6 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
     for (let i = 0; i < tasksToGenerate.length; i++) {
       const task = tasksToGenerate[i];
-      setGeneratingProgress({ current: i + 1, total: tasksToGenerate.length, isGenerating: true });
 
       try {
         const channel = channels.find(c => c.id === task.channel);
@@ -1132,6 +1133,9 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
         console.error(`Virhe generoitaessa sisältöä tehtävälle ${task.title}:`, error);
         // Jatka seuraavaan tehtävään virheen sattuessa
       }
+
+      // Päivitä progress vasta kun tehtävä on valmis
+      setGeneratingProgress({ current: i + 1, total: tasksToGenerate.length, isGenerating: true });
     }
 
     setGeneratingProgress({ current: 0, total: 0, isGenerating: false });
@@ -1309,13 +1313,17 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
       }
     }
 
-    // Käytä ensimmäistä päivää vuoden määrittämiseen
-    const eventYear = new Date(newEvent.dates[0].date).getFullYear();
-    const currentPosts = posts[eventYear] || [];
+    // Aloita tallennus - näytä progress
+    setIsSaving(true);
+    setSavingStatus('Tallennetaan tapahtumaa...');
 
-    if (supabase) {
-      // Tallenna Supabaseen
-      try {
+    try {
+      // Käytä ensimmäistä päivää vuoden määrittämiseen
+      const eventYear = new Date(newEvent.dates[0].date).getFullYear();
+      const currentPosts = posts[eventYear] || [];
+
+      if (supabase) {
+        // Tallenna Supabaseen
         // Tallenna tapahtuma (master event)
         const { data: savedEvent, error: eventError } = await supabase
           .from('events')
@@ -1334,6 +1342,8 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
         if (eventError) throw eventError;
 
+        setSavingStatus(`Tallennetaan päivämääriä (${newEvent.dates.length} kpl)...`);
+
         // Tallenna tapahtuman päivät (event instances)
         const instancesToInsert = newEvent.dates.map(dateEntry => ({
           event_id: savedEvent.id,
@@ -1350,6 +1360,8 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
         // Tallenna tehtävät
         if (newEvent.tasks.length > 0) {
+          setSavingStatus(`Tallennetaan tehtäviä (${newEvent.tasks.length} kpl)...`);
+
           const tasksToInsert = newEvent.tasks.map(task => ({
             event_id: savedEvent.id,
             title: task.title,
@@ -1371,6 +1383,8 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
           if (tasksError) throw tasksError;
         }
+
+        setSavingStatus('Päivitetään näkymää...');
 
         // Päivitä UI
         const { data: events, error } = await supabase
@@ -1413,19 +1427,14 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
           // Generoi sisältö automaattisesti jos valittu
           if (autoGenerateContent && newEvent.tasks.length > 0) {
+            setSavingStatus('Luodaan AI-sisältöä tehtäville...');
             const createdEvent = formattedEvents.find(e => e.id === savedEvent.id);
             if (createdEvent) {
               await generateContentForAllTasks(createdEvent);
             }
           }
         }
-
-      } catch (error) {
-        console.error('Virhe tallennettaessa:', error);
-        alert('Virhe tallennettaessa tapahtumaa: ' + error.message);
-        return;
-      }
-    } else {
+      } else {
       // LocalStorage fallback
       const newPost = {
         id: Date.now(),
@@ -1437,6 +1446,10 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
         new Date(a.date) - new Date(b.date)
       ));
     }
+
+    // Tallennus valmis
+    setIsSaving(false);
+    setSavingStatus('');
 
     // Tyhjennä lomake ja sulje modaali
     setNewEvent({
@@ -1452,9 +1465,15 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
     setShowPreview(false);
     setShowAddEventModal(false);
 
-    // Vaihda oikeaan vuoteen jos tarpeen
-    if (eventYear !== selectedYear) {
-      setSelectedYear(eventYear);
+      // Vaihda oikeaan vuoteen jos tarpeen
+      if (eventYear !== selectedYear) {
+        setSelectedYear(eventYear);
+      }
+    } catch (error) {
+      console.error('Virhe tallennettaessa:', error);
+      setIsSaving(false);
+      setSavingStatus('');
+      alert('Virhe tallennettaessa tapahtumaa: ' + error.message);
     }
   };
 
@@ -3336,6 +3355,19 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             <div className="bg-white rounded-lg max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto">
               <h3 className="text-2xl font-bold mb-6">➕ Lisää uusi tapahtuma</h3>
 
+              {/* Progress-ilmoitus tallennukselle */}
+              {isSaving && (
+                <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="animate-spin text-2xl">💾</div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-green-900">{savingStatus || 'Tallennetaan...'}</h4>
+                      <p className="text-sm text-green-700">Ole hyvä ja odota...</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Progress-ilmoitus sisällön generoinnille */}
               {generatingProgress.isGenerating && (
                 <div className="mb-6 bg-purple-50 border border-purple-200 rounded-lg p-4">
@@ -3345,6 +3377,9 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                       <h4 className="font-semibold text-purple-900">Luodaan sisältöä AI:llä...</h4>
                       <p className="text-sm text-purple-700">
                         Tehtävä {generatingProgress.current} / {generatingProgress.total}
+                      </p>
+                      <p className="text-xs text-purple-600 mt-1">
+                        {Math.round((generatingProgress.current / generatingProgress.total) * 100)}% valmis
                       </p>
                     </div>
                   </div>
@@ -3901,16 +3936,27 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
               <div className="flex gap-3">
                 <button
                   onClick={() => {
+                    if (isSaving) return;
                     setShowPreview(false);
                     saveNewEvent();
                   }}
-                  className="flex-1 bg-green-600 text-white py-4 rounded-lg hover:bg-green-700 font-bold text-lg shadow-lg hover:shadow-xl transition-all"
+                  disabled={isSaving}
+                  className={`flex-1 py-4 rounded-lg font-bold text-lg shadow-lg transition-all ${
+                    isSaving
+                      ? 'bg-gray-400 cursor-not-allowed'
+                      : 'bg-green-600 hover:bg-green-700 hover:shadow-xl'
+                  } text-white`}
                 >
-                  ✅ Vahvista ja tallenna
+                  {isSaving ? '💾 Tallennetaan...' : '✅ Vahvista ja tallenna'}
                 </button>
                 <button
                   onClick={() => setShowPreview(false)}
-                  className="bg-gray-200 px-6 py-4 rounded-lg hover:bg-gray-300 font-semibold"
+                  disabled={isSaving}
+                  className={`px-6 py-4 rounded-lg font-semibold ${
+                    isSaving
+                      ? 'bg-gray-100 cursor-not-allowed text-gray-400'
+                      : 'bg-gray-200 hover:bg-gray-300'
+                  }`}
                 >
                   ← Takaisin muokkaukseen
                 </button>

@@ -622,33 +622,6 @@ export default function Home() {
           .sort((a, b) => new Date(a.date) - new Date(b.date));
 
           setPosts(prev => ({ ...prev, [selectedYear]: formattedEvents }));
-
-          // Generoi sisältö kaikille uusille tapahtumille jos automaattinen generointi on päällä
-          if (autoGenerateContent) {
-            // Löydä juuri tuodut tapahtumat
-            const importedEventIds = parsed.map(p => p.title); // Käytetään titlea koska ID muuttuu
-            const importedEvents = formattedEvents.filter(e =>
-              importedEventIds.includes(e.title)
-            );
-
-            if (importedEvents.length > 0) {
-              setImportingStatus(`Luodaan AI-sisältöä ${importedEvents.length} tapahtumalle...`);
-
-              // Generoi sisältö kaikille tuoduille tapahtumille
-              for (let i = 0; i < importedEvents.length; i++) {
-                const event = importedEvents[i];
-                setImportingStatus(`Luodaan sisältöä tapahtumalle ${i + 1}/${importedEvents.length}...`);
-                await generateContentForAllTasks(event, setImportingStatus);
-              }
-
-              setIsImporting(false);
-              setImportingStatus('');
-              setShowImportModal(false);
-              setImportText('');
-              alert(`✨ Lisätty ${parsed.length} tapahtumaa ja generoitu sisältö tehtäville!`);
-              return;
-            }
-          }
         }
       }
 
@@ -656,7 +629,7 @@ export default function Home() {
       setImportingStatus('');
       setShowImportModal(false);
       setImportText('');
-      alert(`Lisätty ${parsed.length} tapahtumaa!`);
+      alert(`✅ Lisätty ${parsed.length} tapahtumaa!\n\n💡 Voit generoida AI-sisällön myöhemmin tapahtuman muokkausnäkymästä.`);
     } catch (error) {
       console.error('Virhe tuotaessa tapahtumia:', error);
       setIsImporting(false);
@@ -3443,7 +3416,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   <h4 className="font-semibold text-green-900">{importingStatus || 'Tuodaan tapahtumia...'}</h4>
                   <div className="mt-2 flex items-center gap-3">
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600"></div>
-                    <span className="text-sm text-green-700">Tämä voi kestää hetken...</span>
+                    <span className="text-sm text-green-700">Hetki...</span>
                   </div>
                 </div>
               )}
@@ -3454,17 +3427,11 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                 className="w-full p-3 border rounded-lg h-48 font-mono text-sm"
                 placeholder="Liitä taulukko..."
               />
-              <div className="mt-3 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <input
-                  type="checkbox"
-                  id="autoGenerateContentImport"
-                  checked={autoGenerateContent}
-                  onChange={(e) => setAutoGenerateContent(e.target.checked)}
-                  className="w-4 h-4 text-purple-600 rounded border-gray-300"
-                />
-                <label htmlFor="autoGenerateContentImport" className="text-sm text-gray-700 cursor-pointer">
-                  ✨ Luo sisältö automaattisesti AI:llä kaikille tehtäville (säästää aikaa!)
-                </label>
+              <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-gray-700">
+                  <span className="font-semibold">💡 Vinkki:</span> Tapahtumat lisätään nopeasti ilman AI-sisältöä.
+                  Voit generoida AI-tekstit myöhemmin tapahtuman muokkausnäkymästä.
+                </p>
               </div>
               <div className="flex gap-3 mt-4">
                 <button

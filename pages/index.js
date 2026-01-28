@@ -4408,6 +4408,108 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                     Jos haluat lisätä uusia markkinointikanavia, luo uusi tapahtuma tai lisää tehtäviä manuaalisesti.
                   </p>
                 </div>
+
+                {/* AI-sisällön generointi tehtäville */}
+                {editingEvent.tasks && editingEvent.tasks.length > 0 && (
+                  <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-5 mb-4">
+                    <div className="flex items-start gap-4">
+                      <div className="flex-1">
+                        <label className="text-base font-bold text-gray-900 block mb-2">
+                          ✨ Generoi sisältö tehtäville AI:llä
+                        </label>
+                        <p className="text-sm text-gray-700 mb-3">
+                          Claude luo automaattisesti markkinointitekstin kaikille tehtäville, joilla ei vielä ole sisältöä.
+                          Voit muokata sisältöä myöhemmin klikkaamalla tehtävää.
+                        </p>
+                        <button
+                          onClick={async () => {
+                            if (generatingProgress.isGenerating) return;
+
+                            const emptyTasks = editingEvent.tasks.filter(t => !t.content || t.content.trim() === '');
+                            if (emptyTasks.length === 0) {
+                              alert('Kaikille tehtäville on jo luotu sisältö!');
+                              return;
+                            }
+
+                            if (!confirm(`Luodaanko AI-sisältö ${emptyTasks.length} tehtävälle?`)) {
+                              return;
+                            }
+
+                            try {
+                              await generateContentForAllTasks(editingEvent);
+
+                              // Päivitä UI
+                              const eventYear = new Date(editingEvent.dates?.[0]?.date || editingEvent.date).getFullYear();
+                              if (supabase) {
+                                const { data: events, error } = await supabase
+                                  .from('events')
+                                  .select(`*, event_instances (*), tasks (*)`)
+                                  .eq('id', editingEvent.id)
+                                  .single();
+
+                                if (!error && events) {
+                                  const updatedEvent = {
+                                    id: events.id,
+                                    title: events.title,
+                                    artist: events.artist,
+                                    summary: events.summary,
+                                    images: events.images || {},
+                                    dates: (events.event_instances || [])
+                                      .sort((a, b) => new Date(a.date) - new Date(b.date))
+                                      .map(inst => ({
+                                        date: inst.date,
+                                        startTime: inst.start_time,
+                                        endTime: inst.end_time
+                                      })),
+                                    date: events.event_instances?.[0]?.date || events.date,
+                                    time: events.event_instances?.[0]?.start_time || events.time,
+                                    tasks: (events.tasks || []).map(task => ({
+                                      id: task.id,
+                                      title: task.title,
+                                      channel: task.channel,
+                                      dueDate: task.due_date,
+                                      dueTime: task.due_time,
+                                      completed: task.completed,
+                                      content: task.content,
+                                      assignee: task.assignee,
+                                      notes: task.notes
+                                    }))
+                                  };
+
+                                  setEditingEvent(updatedEvent);
+
+                                  // Päivitä myös posts-lista
+                                  setPosts(prev => ({
+                                    ...prev,
+                                    [eventYear]: (prev[eventYear] || []).map(p =>
+                                      p.id === updatedEvent.id ? updatedEvent : p
+                                    )
+                                  }));
+
+                                  alert('✅ AI-sisältö luotu onnistuneesti!');
+                                }
+                              }
+                            } catch (error) {
+                              console.error('Virhe generoitaessa sisältöä:', error);
+                              alert('Virhe AI-sisällön luomisessa: ' + error.message);
+                            }
+                          }}
+                          disabled={generatingProgress.isGenerating}
+                          className={`px-6 py-3 rounded-lg font-semibold transition ${
+                            generatingProgress.isGenerating
+                              ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                              : 'bg-purple-600 hover:bg-purple-700 text-white shadow-md hover:shadow-lg'
+                          }`}
+                        >
+                          {generatingProgress.isGenerating
+                            ? `🤖 Luodaan sisältöä... ${generatingProgress.current}/${generatingProgress.total}`
+                            : `✨ Generoi AI-sisältö (${editingEvent.tasks.filter(t => !t.content || t.content.trim() === '').length} tehtävää)`
+                          }
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Napit */}

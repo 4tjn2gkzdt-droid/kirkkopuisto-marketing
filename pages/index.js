@@ -333,6 +333,14 @@ export default function Home() {
         for (const post of updatedPosts) {
           if (typeof post.id === 'number' && post.id > 1000000000000) {
             // Uusi client-side generoitu ID, lisää uusi tapahtuma
+            console.log('Tallennetaan uusi tapahtuma:', {
+              title: post.title,
+              date: post.date,
+              time: post.time,
+              artist: post.artist,
+              year: year
+            });
+
             const { data: newEvent, error: eventError } = await supabase
               .from('events')
               .insert({
@@ -349,7 +357,12 @@ export default function Home() {
               .select()
               .single();
 
-            if (eventError) throw eventError;
+            if (eventError) {
+              console.error('Virhe tallentaessa tapahtumaa:', eventError);
+              throw eventError;
+            }
+
+            console.log('Tapahtuma tallennettu, ID:', newEvent.id);
 
             // Lisää event_instances (monipäiväinen tuki)
             // Jos post.dates on olemassa, käytä sitä, muuten luo yksittäinen instanssi
@@ -367,14 +380,23 @@ export default function Home() {
                   end_time: null
                 }];
 
+            console.log('Tallennetaan event_instances:', instancesToInsert);
+
             const { error: instancesError } = await supabase
               .from('event_instances')
               .insert(instancesToInsert);
 
-            if (instancesError) throw instancesError;
+            if (instancesError) {
+              console.error('Virhe tallentaessa event_instances:', instancesError);
+              throw instancesError;
+            }
+
+            console.log('Event_instances tallennettu');
 
             // Lisää tehtävät
             if (post.tasks && post.tasks.length > 0) {
+              console.log(`Tallennetaan ${post.tasks.length} tehtävää...`);
+
               const tasksToInsert = post.tasks.map(task => ({
                 event_id: newEvent.id,
                 title: task.title,
@@ -394,7 +416,12 @@ export default function Home() {
                 .from('tasks')
                 .insert(tasksToInsert);
 
-              if (tasksError) throw tasksError;
+              if (tasksError) {
+                console.error('Virhe tallentaessa tehtäviä:', tasksError);
+                throw tasksError;
+              }
+
+              console.log('Tehtävät tallennettu');
             }
           } else {
             // Päivitä olemassa oleva tapahtuma
@@ -466,8 +493,8 @@ export default function Home() {
         }
       } catch (error) {
         console.error('Virhe tallennettaessa Supabaseen:', error);
-        // Fallback localStorageen
-        localStorage.setItem(`posts-${year}`, JSON.stringify(updatedPosts));
+        // Heitä virhe eteenpäin, jotta käyttäjä näkee virheilmoituksen
+        throw new Error(`Tietokannan tallennus epäonnistui: ${error.message}`);
       }
     } else {
       // Ei Supabasea, käytetään localStoragea
@@ -510,41 +537,43 @@ export default function Home() {
   const parseImportedData = (text) => {
     const lines = text.trim().split('\n');
     const events = [];
-    
+    let idCounter = 0; // Laskuri yksilöllisten ID:iden luomiseen
+
     for (const line of lines) {
       if (!line.trim()) continue;
       const parts = line.split('\t');
-      
+
       if (parts.length >= 2) {
         const dateStr = parts[0]?.trim() || '';
         const eventType = parts[1]?.trim() || '';
         const artist = parts[2]?.trim() || '';
         const time = parts[3]?.trim() || '';
-        
+
         if (!dateStr || !eventType || eventType === '-') continue;
-        
+
         let date = '';
         const dateMatch = dateStr.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
         if (dateMatch) {
           const [, day, month, year] = dateMatch;
           date = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
         }
-        
+
         let title = eventType;
         if (artist && artist !== 'Julkaistaan myöhemmin' && artist !== '-') {
           title = `${eventType}: ${artist}`;
         }
-        
+
         let cleanTime = time.replace('.', ':');
         if (cleanTime === '-') cleanTime = '';
-        
+
         if (date && title) {
+          // Luo yksilöllinen ID: aikaleima + laskuri varmistaa että ID on uniikki
           const event = {
             title,
             date,
             artist: artist === 'Julkaistaan myöhemmin' ? '' : artist,
             time: cleanTime,
-            id: Date.now() + Math.random(),
+            id: Date.now() + idCounter++,
             images: {}
           };
           event.tasks = createTasks(event);
@@ -552,7 +581,7 @@ export default function Home() {
         }
       }
     }
-    
+
     return events;
   };
 

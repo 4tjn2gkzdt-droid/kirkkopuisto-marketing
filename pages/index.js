@@ -535,13 +535,25 @@ export default function Home() {
   };
 
   const parseImportedData = (text) => {
+    console.log('🔍 parseImportedData: Aloitetaan parsiminen');
+    console.log('📝 Saatu teksti (pituus):', text.length);
+    console.log('📝 Saatu teksti (ensimmäiset 200 merkkiä):', text.substring(0, 200));
+
     const lines = text.trim().split('\n');
+    console.log('📋 Rivien määrä:', lines.length);
+
     const events = [];
     let idCounter = 0; // Laskuri yksilöllisten ID:iden luomiseen
 
-    for (const line of lines) {
-      if (!line.trim()) continue;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line.trim()) {
+        console.log(`⏭️ Rivi ${i + 1}: Tyhjä rivi, ohitetaan`);
+        continue;
+      }
+
       const parts = line.split('\t');
+      console.log(`🔎 Rivi ${i + 1}: Osien määrä: ${parts.length}`, parts);
 
       if (parts.length >= 2) {
         const dateStr = parts[0]?.trim() || '';
@@ -549,13 +561,24 @@ export default function Home() {
         const artist = parts[2]?.trim() || '';
         const time = parts[3]?.trim() || '';
 
-        if (!dateStr || !eventType || eventType === '-') continue;
+        console.log(`  📅 Päivämäärä: "${dateStr}"`);
+        console.log(`  🎭 Tapahtumatyyppi: "${eventType}"`);
+        console.log(`  🎤 Artisti: "${artist}"`);
+        console.log(`  🕐 Aika: "${time}"`);
+
+        if (!dateStr || !eventType || eventType === '-') {
+          console.log(`  ❌ Rivi ${i + 1}: Ohitetaan (puuttuva data)`);
+          continue;
+        }
 
         let date = '';
         const dateMatch = dateStr.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
         if (dateMatch) {
           const [, day, month, year] = dateMatch;
           date = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+          console.log(`  ✅ Päivämäärä parsittu: ${date}`);
+        } else {
+          console.log(`  ❌ Päivämäärän parsiminen epäonnistui: "${dateStr}"`);
         }
 
         let title = eventType;
@@ -578,10 +601,16 @@ export default function Home() {
           };
           event.tasks = createTasks(event);
           events.push(event);
+          console.log(`  ✅ Tapahtuma luotu: ${title}`);
+        } else {
+          console.log(`  ❌ Tapahtuman luonti epäonnistui (date: ${date}, title: ${title})`);
         }
+      } else {
+        console.log(`  ❌ Rivi ${i + 1}: Liian vähän sarakkeita (${parts.length})`);
       }
     }
 
+    console.log(`✅ Parsittu yhteensä ${events.length} tapahtumaa`);
     return events;
   };
 
@@ -594,9 +623,14 @@ export default function Home() {
   };
 
   const handleImport = async () => {
+    console.log('🚀 handleImport: Aloitetaan tuonti');
+    console.log('📝 importText:', importText);
+
     const parsed = parseImportedData(importText);
+    console.log('📊 Parsittu:', parsed.length, 'tapahtumaa');
+
     if (parsed.length === 0) {
-      alert('Ei voitu lukea tapahtumia');
+      alert('❌ Ei voitu lukea tapahtumia.\n\nTarkista että:\n- Liitit taulukon Excelistä (Tab-erotettuna)\n- Ensimmäinen sarake on päivämäärä (esim. 1.2.2026)\n- Toinen sarake on tapahtuman nimi\n\nKatso konsolista (F12) lisätietoja.');
       return;
     }
 
@@ -604,66 +638,159 @@ export default function Home() {
     setImportingStatus(`Tuodaan ${parsed.length} tapahtumaa...`);
 
     try {
-      const currentPosts = posts[selectedYear] || [];
+      if (!supabase) {
+        throw new Error('Supabase ei ole alustettu');
+      }
 
-      setImportingStatus(`Tallennetaan ${parsed.length} tapahtumaa tietokantaan...`);
-      await savePosts(selectedYear, [...currentPosts, ...parsed]);
+      console.log('💾 Tallennetaan tapahtumat suoraan Supabaseen...');
 
-      // Lataa data uudelleen Supabasesta varmistaaksesi että kaikki on tallennettu
-      if (supabase) {
-        setImportingStatus('Päivitetään näkymää...');
-        const { data: events, error } = await supabase
-          .from('events')
-          .select(`*, event_instances (*), tasks (*)`)
-          .eq('year', selectedYear)
-          .order('date', { ascending: true });
+      // Tallenna tapahtumat yksi kerrallaan, jotta voimme luoda tasks jokaiselle
+      let savedCount = 0;
+      let errorCount = 0;
 
-        if (!error && events) {
-          const formattedEvents = events.map(event => ({
-            id: event.id,
-            title: event.title,
-            artist: event.artist,
-            summary: event.summary,
-            images: event.images || {},
-            // Monipäiväiset tapahtumat
-            dates: (event.event_instances || [])
-              .sort((a, b) => new Date(a.date) - new Date(b.date))
-              .map(inst => ({
-                date: inst.date,
-                startTime: inst.start_time,
-                endTime: inst.end_time
-              })),
-            // Backward compatibility
-            date: event.event_instances?.[0]?.date || event.date,
-            time: event.event_instances?.[0]?.start_time || event.time,
-            tasks: (event.tasks || []).map(task => ({
-              id: task.id,
+      for (let i = 0; i < parsed.length; i++) {
+        const event = parsed[i];
+        setImportingStatus(`Tallennetaan tapahtuma ${i + 1}/${parsed.length}: ${event.title}...`);
+
+        try {
+          console.log(`📝 Tallennetaan tapahtuma ${i + 1}:`, event.title);
+
+          // Tallenna tapahtuma ilman ID:tä (Supabase generoi sen)
+          const { data: newEvent, error: eventError } = await supabase
+            .from('events')
+            .insert({
+              title: event.title,
+              date: event.date,
+              time: event.time || null,
+              artist: event.artist || null,
+              year: selectedYear,
+              images: event.images || {},
+              created_by_id: user?.id || null,
+              created_by_email: user?.email || null,
+              created_by_name: userProfile?.full_name || user?.email || null
+            })
+            .select()
+            .single();
+
+          if (eventError) {
+            console.error(`❌ Virhe tallennettaessa tapahtumaa ${i + 1}:`, eventError);
+            errorCount++;
+            continue;
+          }
+
+          console.log(`✅ Tapahtuma tallennettu, ID: ${newEvent.id}`);
+
+          // Tallenna event_instance (yksittäinen päivä)
+          const { error: instanceError } = await supabase
+            .from('event_instances')
+            .insert({
+              event_id: newEvent.id,
+              date: event.date,
+              start_time: event.time || null,
+              end_time: null
+            });
+
+          if (instanceError) {
+            console.error(`⚠️ Virhe tallennettaessa event_instance:`, instanceError);
+          }
+
+          // Tallenna tehtävät
+          if (event.tasks && event.tasks.length > 0) {
+            console.log(`📋 Tallennetaan ${event.tasks.length} tehtävää...`);
+
+            const tasksToInsert = event.tasks.map(task => ({
+              event_id: newEvent.id,
               title: task.title,
               channel: task.channel,
-              dueDate: task.due_date,
-              dueTime: task.due_time,
-              completed: task.completed,
-              content: task.content,
-              assignee: task.assignee,
-              notes: task.notes
-            }))
-          }))
-          .sort((a, b) => new Date(a.date) - new Date(b.date));
+              due_date: task.dueDate,
+              due_time: task.dueTime || null,
+              completed: task.completed || false,
+              content: task.content || null,
+              assignee: task.assignee || null,
+              notes: task.notes || null,
+              created_by_id: user?.id || null,
+              created_by_email: user?.email || null,
+              created_by_name: userProfile?.full_name || user?.email || null
+            }));
 
-          setPosts(prev => ({ ...prev, [selectedYear]: formattedEvents }));
+            const { error: tasksError } = await supabase
+              .from('tasks')
+              .insert(tasksToInsert);
+
+            if (tasksError) {
+              console.error(`⚠️ Virhe tallennettaessa tehtäviä:`, tasksError);
+            } else {
+              console.log(`✅ ${event.tasks.length} tehtävää tallennettu`);
+            }
+          }
+
+          savedCount++;
+        } catch (err) {
+          console.error(`❌ Odottamaton virhe tapahtumassa ${i + 1}:`, err);
+          errorCount++;
         }
+      }
+
+      console.log(`✅ Tallennettu ${savedCount}/${parsed.length} tapahtumaa`);
+
+      // Lataa data uudelleen Supabasesta
+      setImportingStatus('Päivitetään näkymää...');
+      const { data: events, error } = await supabase
+        .from('events')
+        .select(`*, event_instances (*), tasks (*)`)
+        .eq('year', selectedYear)
+        .order('date', { ascending: true });
+
+      if (!error && events) {
+        const formattedEvents = events.map(event => ({
+          id: event.id,
+          title: event.title,
+          artist: event.artist,
+          summary: event.summary,
+          images: event.images || {},
+          // Monipäiväiset tapahtumat
+          dates: (event.event_instances || [])
+            .sort((a, b) => new Date(a.date) - new Date(b.date))
+            .map(inst => ({
+              date: inst.date,
+              startTime: inst.start_time,
+              endTime: inst.end_time
+            })),
+          // Backward compatibility
+          date: event.event_instances?.[0]?.date || event.date,
+          time: event.event_instances?.[0]?.start_time || event.time,
+          tasks: (event.tasks || []).map(task => ({
+            id: task.id,
+            title: task.title,
+            channel: task.channel,
+            dueDate: task.due_date,
+            dueTime: task.due_time,
+            completed: task.completed,
+            content: task.content,
+            assignee: task.assignee,
+            notes: task.notes
+          }))
+        }))
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        setPosts(prev => ({ ...prev, [selectedYear]: formattedEvents }));
       }
 
       setIsImporting(false);
       setImportingStatus('');
       setShowImportModal(false);
       setImportText('');
-      alert(`✅ Lisätty ${parsed.length} tapahtumaa!\n\n💡 Voit generoida AI-sisällön myöhemmin tapahtuman muokkausnäkymästä.`);
+
+      if (errorCount > 0) {
+        alert(`✅ Lisätty ${savedCount}/${parsed.length} tapahtumaa!\n\n⚠️ ${errorCount} tapahtumaa epäonnistui. Katso konsolista (F12) lisätietoja.\n\n💡 Voit generoida AI-sisällön myöhemmin tapahtuman muokkausnäkymästä.`);
+      } else {
+        alert(`✅ Lisätty ${savedCount} tapahtumaa onnistuneesti!\n\n💡 Voit generoida AI-sisällön myöhemmin tapahtuman muokkausnäkymästä.`);
+      }
     } catch (error) {
-      console.error('Virhe tuotaessa tapahtumia:', error);
+      console.error('❌ Virhe tuotaessa tapahtumia:', error);
       setIsImporting(false);
       setImportingStatus('');
-      alert('Virhe tuotaessa tapahtumia: ' + error.message);
+      alert('❌ Virhe tuotaessa tapahtumia: ' + error.message + '\n\nKatso konsolista (F12) lisätietoja.');
     }
   };
 

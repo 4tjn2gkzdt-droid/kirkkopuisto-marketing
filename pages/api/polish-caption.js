@@ -10,16 +10,18 @@ async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const { caption } = req.body
+  const { caption, url } = req.body
 
   if (!caption || caption.trim().length === 0) {
     return res.status(400).json({ error: 'Caption is required' })
   }
 
+  const urlSection = url ? `\n\nLISÄTIETOJA VARTEN LINKKI:\n${url}\n\nVoit käyttää tätä linkkiä artistin tai tapahtuman lisätietojen hakemiseen.` : '';
+
   const prompt = `Sinun tehtäväsi on viimeistellä somepostauksen teksti Kirkkopuiston Terassille.
 
 ALKUPERÄINEN TEKSTI:
-"${caption}"
+"${caption}"${urlSection}
 
 Luo kolme eri versiota tästä tekstistä:
 
@@ -38,16 +40,17 @@ OHJEET:
 TÄRKEÄÄ - ARTISTIEN JA BÄNDIEN KUVAUKSET:
 Jos tekstissä mainitaan artisti tai bändi:
 1. Tunnista että kyseessä on artisti/bändi
-2. Etsi internetistä artistin/bändin virallinen kuvaus, biografia tai esittelyteksti
-3. Pidä sisältö USKOLLISENA alkuperäiselle kuvaukselle - älä keksi faktoja
-4. Säilytä tärkeät tiedot kuten:
+2. Jos linkki on annettu, käytä sitä ensisijaisesti tiedonlähteenä
+3. Etsi tarvittaessa myös internetistä artistin/bändin virallinen kuvaus, biografia tai esittelyteksti
+4. Pidä sisältö USKOLLISENA alkuperäiselle kuvaukselle - älä keksi faktoja
+5. Säilytä tärkeät tiedot kuten:
    - Bändin tyylisuunta ja musiikkigenre
    - Keskeiset jäsenet tai kokoonpano
    - Erityispiirteet ja tunnusmerkit
    - Saavutukset ja tausta
-5. Voit muotoilla tekstin Kirkkopuiston brändin mukaiseen tyyliin, mutta sisältö tulee pysyä samana
-6. Jos et löydä luotettavaa tietoa artistista, käytä vain käytettävissä olevaa tietoa äläkä spekuloi
-7. Mikäli merkkimäärä antaa periksi, lisää artistista mielenkiintoisia faktoja tekstiin
+6. Voit muotoilla tekstin Kirkkopuiston brändin mukaiseen tyyliin, mutta sisältö tulee pysyä samana
+7. Jos et löydä luotettavaa tietoa artistista, käytä vain käytettävissä olevaa tietoa äläkä spekuloi
+8. Mikäli merkkimäärä antaa periksi, lisää artistista mielenkiintoisia faktoja tekstiin
 
 Palauta vastaus JSON-muodossa:
 {

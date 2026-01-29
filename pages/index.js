@@ -44,6 +44,7 @@ export default function Home() {
     title: '',
     dates: [{ date: '', startTime: '', endTime: '' }], // Monipäiväiset tapahtumat
     artist: '',
+    url: '', // Linkki artistin sivuille tai tapahtuman lisätietoihin
     eventType: 'artist', // 'artist', 'dj', 'other'
     summary: '', // Tapahtuman yhteenveto 100-300 merkkiä
     tasks: []
@@ -226,6 +227,7 @@ export default function Home() {
             title: event.title,
             artist: event.artist,
             summary: event.summary,
+            url: event.url,
             images: event.images || {},
             // Monipäiväiset tapahtumat
             dates: (event.event_instances || [])
@@ -749,6 +751,7 @@ export default function Home() {
           title: event.title,
           artist: event.artist,
           summary: event.summary,
+          url: event.url,
           images: event.images || {},
           // Monipäiväiset tapahtumat
           dates: (event.event_instances || [])
@@ -1275,7 +1278,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
   };
 
   // Viimeistele tapahtuman yhteenveto AI:lla
-  const polishEventSummaryWithAI = async (summary, isEditMode = false) => {
+  const polishEventSummaryWithAI = async (summary, isEditMode = false, eventUrl = null) => {
     if (!summary || summary.trim().length === 0) {
       alert('Kirjoita ensin yhteenveto ennen AI-viimeistelyä');
       return;
@@ -1289,7 +1292,8 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          caption: summary
+          caption: summary,
+          url: eventUrl
         })
       });
 
@@ -1622,6 +1626,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             title: newEvent.title,
             artist: newEvent.artist || null,
             summary: newEvent.summary || null,
+            url: newEvent.url || null,
             year: eventYear,
             images: {},
             created_by_id: user?.id || null,
@@ -1689,6 +1694,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             title: event.title,
             artist: event.artist,
             summary: event.summary,
+            url: event.url,
             images: event.images || {},
             // Monipäiväiset tapahtumat
             dates: (event.event_instances || [])
@@ -3834,6 +3840,22 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                 </div>
 
                 <div>
+                  <label className="block text-sm font-bold mb-2 text-gray-800">
+                    🔗 Linkki (valinnainen)
+                  </label>
+                  <input
+                    type="url"
+                    value={newEvent.url || ''}
+                    onChange={(e) => setNewEvent({ ...newEvent, url: e.target.value })}
+                    className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                    placeholder="https://artistin-sivut.fi"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    💡 Artistin sivut, Facebook-tapahtuma tai muu relevantti linkki
+                  </p>
+                </div>
+
+                <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-sm font-bold text-gray-800">
                       📝 Tapahtuman yhteenveto
@@ -3865,7 +3887,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   <div className="mt-3">
                     <button
                       type="button"
-                      onClick={() => polishEventSummaryWithAI(newEvent.summary, false)}
+                      onClick={() => polishEventSummaryWithAI(newEvent.summary, false, newEvent.url)}
                       disabled={polishingEventSummary || !newEvent.summary || newEvent.summary.trim().length === 0}
                       className={`w-full py-2 px-4 rounded-lg font-medium transition-all ${
                         polishingEventSummary || !newEvent.summary || newEvent.summary.trim().length === 0
@@ -4500,6 +4522,22 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                 </div>
 
                 <div>
+                  <label className="block text-sm font-bold mb-2 text-gray-800">
+                    🔗 Linkki (valinnainen)
+                  </label>
+                  <input
+                    type="url"
+                    value={editingEvent.url || ''}
+                    onChange={(e) => setEditingEvent({ ...editingEvent, url: e.target.value })}
+                    className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
+                    placeholder="https://artistin-sivut.fi"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    💡 Artistin sivut, Facebook-tapahtuma tai muu relevantti linkki
+                  </p>
+                </div>
+
+                <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-sm font-bold text-gray-800">
                       📝 Tapahtuman yhteenveto
@@ -4531,7 +4569,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   <div className="mt-3">
                     <button
                       type="button"
-                      onClick={() => polishEventSummaryWithAI(editingEvent.summary, true)}
+                      onClick={() => polishEventSummaryWithAI(editingEvent.summary, true, editingEvent.url)}
                       disabled={polishingEventSummary || !editingEvent.summary || editingEvent.summary.trim().length === 0}
                       className={`w-full py-2 px-4 rounded-lg font-medium transition-all ${
                         polishingEventSummary || !editingEvent.summary || editingEvent.summary.trim().length === 0
@@ -4775,6 +4813,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                             title: editingEvent.title,
                             artist: editingEvent.artist || null,
                             summary: editingEvent.summary || null,
+                            url: editingEvent.url || null,
                             images: editingEvent.images || {}
                           })
                           .eq('id', editingEvent.id);
@@ -4817,6 +4856,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                             title: event.title,
                             artist: event.artist,
                             summary: event.summary,
+                            url: event.url,
                             eventType: event.event_type || 'artist',
                             images: event.images || {},
                             // Monipäiväiset tapahtumat

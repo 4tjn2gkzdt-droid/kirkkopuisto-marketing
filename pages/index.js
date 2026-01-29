@@ -1745,13 +1745,8 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
           setSelectedYear(eventYear);
         }
 
-        // Generoi sisältö automaattisesti jos valittu - TÄMÄ TAPAHTUU TAUSTALLA
-        if (autoGenerateContent && newEvent.tasks.length > 0) {
-          // Käynnistä generointi taustalla ilman await
-          generateContentForAllTasks(createdEvent, null).catch(err => {
-            console.error('Virhe AI-sisällön generoinnissa:', err);
-          });
-        }
+        // AI-sisällön generointi on poistettu automaattisesta käytöstä
+        // Käyttäjä voi generoida sisällön käyttämällä "Viimeistele AI:llä" -nappia
       } else {
         // LocalStorage fallback
         const newPost = {
@@ -4139,22 +4134,16 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   </p>
                 </div>
 
-                {/* AI-sisällön generointi */}
-                <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-5">
-                  <div className="flex items-start gap-4">
-                    <input
-                      type="checkbox"
-                      id="autoGenerateContentNew"
-                      checked={autoGenerateContent}
-                      onChange={(e) => setAutoGenerateContent(e.target.checked)}
-                      className="w-5 h-5 text-purple-600 rounded border-gray-300 mt-1"
-                    />
+                {/* AI-sisällön generointi - Ohjeistus */}
+                <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-5">
+                  <div className="flex items-start gap-3">
+                    <div className="text-2xl">💡</div>
                     <div className="flex-1">
-                      <label htmlFor="autoGenerateContentNew" className="text-base font-bold text-gray-900 cursor-pointer block mb-2">
-                        ✨ Luo automaattiset tekstiehdotukset AI:llä
-                      </label>
+                      <h4 className="text-base font-bold text-gray-900 mb-2">
+                        AI-sisällön generointi
+                      </h4>
                       <p className="text-sm text-gray-700 mb-2">
-                        Claude luo valmiit tekstiehdotukset kaikille valituille markkinointikanavilles. Voit muokata niitä myöhemmin.
+                        Kun olet tallentanut tapahtuman, voit generoida valmiit tekstiehdotukset kaikille markkinointikanavilles käyttämällä <span className="font-semibold">"Viimeistele AI:llä"</span> -nappia tapahtuman tiedoissa.
                       </p>
                       <ul className="text-xs text-gray-600 space-y-1 ml-4">
                         <li>• Houkuttelevat otsikot ja tekstit</li>

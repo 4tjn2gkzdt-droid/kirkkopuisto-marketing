@@ -842,7 +842,8 @@ export default function Home() {
         if (error) throw error;
       } catch (error) {
         console.error('Virhe tallennettaessa tehtävää:', error);
-        alert('Virhe tallennettaessa tehtävää: ' + error.message);
+        setSavingStatus('Virhe: ' + error.message);
+        setTimeout(() => setSavingStatus(''), 3000);
         return;
       }
     }
@@ -885,7 +886,6 @@ export default function Home() {
       const { error } = await supabase.from('events').delete().eq('id', id);
       if (error) {
         console.error('Virhe poistettaessa Supabasesta:', error);
-        alert('Virhe poistettaessa tapahtumaa. Yritä uudelleen.');
         return;
       }
     }
@@ -1687,82 +1687,70 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
           if (tasksError) throw tasksError;
         }
 
-        setSavingStatus('Päivitetään näkymää...');
-
-        // Päivitä UI
-        const { data: events, error } = await supabase
-          .from('events')
-          .select(`*, event_instances (*), tasks (*)`)
-          .eq('year', eventYear);
-
-        if (!error) {
-          const formattedEvents = events.map(event => ({
-            id: event.id,
-            title: event.title,
-            artist: event.artist,
-            summary: event.summary,
-            url: event.url,
-            images: event.images || {},
-            // Monipäiväiset tapahtumat
-            dates: (event.event_instances || [])
-              .sort((a, b) => new Date(a.date) - new Date(b.date))
-              .map(inst => ({
-                date: inst.date,
-                startTime: inst.start_time,
-                endTime: inst.end_time
-              })),
-            // Backward compatibility
-            date: event.event_instances?.[0]?.date || event.date,
-            time: event.event_instances?.[0]?.start_time || event.time,
-            tasks: (event.tasks || []).map(task => ({
-              id: task.id,
-              title: task.title,
-              channel: task.channel,
-              dueDate: task.due_date,
-              dueTime: task.due_time,
-              completed: task.completed,
-              content: task.content,
-              assignee: task.assignee,
-              notes: task.notes
-            }))
+        // Luo uusi tapahtuma-objekti paikallisesti - NOPEA!
+        const sortedDates = newEvent.dates.sort((a, b) => new Date(a.date) - new Date(b.date));
+        const createdEvent = {
+          id: savedEvent.id,
+          title: newEvent.title,
+          artist: newEvent.artist,
+          summary: newEvent.summary,
+          url: newEvent.url,
+          images: {},
+          dates: sortedDates,
+          // Backward compatibility
+          date: sortedDates[0].date,
+          time: sortedDates[0].startTime,
+          tasks: newEvent.tasks.map((task, idx) => ({
+            id: savedEvent.id * 1000 + idx, // Temporary ID, real ID comes from DB
+            title: task.title,
+            channel: task.channel,
+            dueDate: task.dueDate,
+            dueTime: task.dueTime,
+            completed: false,
+            content: task.content || null,
+            assignee: task.assignee,
+            notes: task.notes
           }))
-          .sort((a, b) => new Date(a.date) - new Date(b.date));
-          setPosts(prev => ({ ...prev, [eventYear]: formattedEvents }));
+        };
 
-          // Tallennus valmis - vapauta käyttöliittymä heti
-          setIsSaving(false);
-          setSavingStatus('');
+        // Päivitä UI lisäämällä uusi tapahtuma - NOPEA!
+        setPosts(prev => {
+          const yearPosts = prev[eventYear] || [];
+          const updatedPosts = [...yearPosts, createdEvent]
+            .sort((a, b) => new Date(a.date) - new Date(b.date));
+          return { ...prev, [eventYear]: updatedPosts };
+        });
 
-          // Tyhjennä lomake ja sulje modaali
-          setNewEvent({
-            title: '',
-            dates: [{ date: '', startTime: '', endTime: '' }],
-            artist: '',
-            eventType: 'artist',
-            summary: '',
-            tasks: []
+        // Tallennus valmis - vapauta käyttöliittymä heti
+        setIsSaving(false);
+        setSavingStatus('');
+
+        // Tyhjennä lomake ja sulje modaali
+        setNewEvent({
+          title: '',
+          dates: [{ date: '', startTime: '', endTime: '' }],
+          artist: '',
+          eventType: 'artist',
+          summary: '',
+          tasks: []
+        });
+        setSelectedMarketingChannels([]);
+        setDefaultAssignee('');
+        setShowPreview(false);
+        setPolishedEventVersions(null);
+        setShowAddEventModal(false);
+
+        // Vaihda oikeaan vuoteen jos tarpeen
+        if (eventYear !== selectedYear) {
+          setSelectedYear(eventYear);
+        }
+
+        // Generoi sisältö automaattisesti jos valittu - TÄMÄ TAPAHTUU TAUSTALLA
+        if (autoGenerateContent && newEvent.tasks.length > 0) {
+          // Käynnistä generointi taustalla ilman await
+          generateContentForAllTasks(createdEvent, null).catch(err => {
+            console.error('Virhe AI-sisällön generoinnissa:', err);
           });
-          setSelectedMarketingChannels([]);
-          setDefaultAssignee('');
-          setShowPreview(false);
-          setPolishedEventVersions(null);
-          setShowAddEventModal(false);
-
-          // Vaihda oikeaan vuoteen jos tarpeen
-          if (eventYear !== selectedYear) {
-            setSelectedYear(eventYear);
-          }
-
-          // Generoi sisältö automaattisesti jos valittu - TÄMÄ TAPAHTUU TAUSTALLA
-          if (autoGenerateContent && newEvent.tasks.length > 0) {
-            const createdEvent = formattedEvents.find(e => e.id === savedEvent.id);
-            if (createdEvent) {
-              // Käynnistä generointi taustalla ilman await
-              generateContentForAllTasks(createdEvent, null).catch(err => {
-                console.error('Virhe AI-sisällön generoinnissa:', err);
-              });
-            }
-          }
         }
       } else {
         // LocalStorage fallback
@@ -1803,8 +1791,8 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
     } catch (error) {
       console.error('Virhe tallennettaessa:', error);
       setIsSaving(false);
-      setSavingStatus('');
-      alert('Virhe tallennettaessa tapahtumaa: ' + error.message);
+      setSavingStatus('Virhe: ' + error.message);
+      setTimeout(() => setSavingStatus(''), 3000);
     }
   };
 
@@ -4877,59 +4865,41 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
                         if (insertError) throw insertError;
 
-                        // Päivitä UI
-                        setSavingStatus('Viimeistellään...');
-                        const { data: events, error } = await supabase
-                          .from('events')
-                          .select(`*, event_instances (*), tasks (*)`)
-                          .eq('year', eventYear);
-
-                        if (!error) {
-                          const formattedEvents = events.map(event => ({
-                            id: event.id,
-                            title: event.title,
-                            artist: event.artist,
-                            summary: event.summary,
-                            url: event.url,
-                            eventType: event.event_type || 'artist',
-                            images: event.images || {},
-                            // Monipäiväiset tapahtumat
-                            dates: (event.event_instances || [])
-                              .sort((a, b) => new Date(a.date) - new Date(b.date))
-                              .map(inst => ({
-                                date: inst.date,
-                                startTime: inst.start_time,
-                                endTime: inst.end_time
-                              })),
-                            // Backward compatibility
-                            date: event.event_instances?.[0]?.date || event.date,
-                            time: event.event_instances?.[0]?.start_time || event.time,
-                            tasks: (event.tasks || []).map(task => ({
-                              id: task.id,
-                              title: task.title,
-                              channel: task.channel,
-                              dueDate: task.due_date,
-                              dueTime: task.due_time,
-                              completed: task.completed,
-                              content: task.content,
-                              assignee: task.assignee
-                            }))
-                          }))
-                          .sort((a, b) => new Date(a.date) - new Date(b.date));
-                          setPosts(prev => ({ ...prev, [eventYear]: formattedEvents }));
-                        }
+                        // Päivitä UI - päivitä vain tämä tapahtuma, NOPEA!
+                        const sortedDates = dates.sort((a, b) => new Date(a.date) - new Date(b.date));
+                        setPosts(prev => {
+                          const yearPosts = prev[eventYear] || [];
+                          const updatedPosts = yearPosts.map(p => {
+                            if (p.id === editingEvent.id) {
+                              return {
+                                ...p,
+                                title: editingEvent.title,
+                                artist: editingEvent.artist,
+                                summary: editingEvent.summary,
+                                url: editingEvent.url,
+                                images: editingEvent.images || {},
+                                dates: sortedDates,
+                                date: sortedDates[0].date,
+                                time: sortedDates[0].startTime
+                              };
+                            }
+                            return p;
+                          }).sort((a, b) => new Date(a.date) - new Date(b.date));
+                          return { ...prev, [eventYear]: updatedPosts };
+                        });
 
                         setIsSaving(false);
                         setSavingStatus('');
                         setShowEditEventModal(false);
                         setEditingEvent(null);
                         setPolishedEventVersions(null);
-                        alert('✅ Tapahtuma päivitetty!');
+                        console.log('✅ Tapahtuma päivitetty!');
                       } catch (error) {
                         console.error('Virhe tallennettaessa:', error);
                         setIsSaving(false);
-                        setSavingStatus('');
-                        alert('Virhe tallennettaessa tapahtumaa: ' + error.message);
+                        setSavingStatus('Virhe: ' + error.message);
+                        // Näytä virhe 3 sekuntia, sitten tyhjennä
+                        setTimeout(() => setSavingStatus(''), 3000);
                         return;
                       }
                     } else {
@@ -4941,7 +4911,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                       setShowEditEventModal(false);
                       setEditingEvent(null);
                       setPolishedEventVersions(null);
-                      alert('✅ Tapahtuma päivitetty!');
+                      console.log('✅ Tapahtuma päivitetty!');
                     }
                   }}
                   disabled={isSaving}

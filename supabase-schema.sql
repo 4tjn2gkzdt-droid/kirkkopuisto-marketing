@@ -1,15 +1,27 @@
 -- Kirkkopuiston Terassi - Tietokantamalli
 -- Aja tämä skripti Supabase SQL Editorissa
 
--- 1. Tapahtumat-taulu
+-- 1. Tapahtumat-taulu (Master Event)
 CREATE TABLE IF NOT EXISTS events (
   id BIGSERIAL PRIMARY KEY,
   title TEXT NOT NULL,
-  date DATE NOT NULL,
-  time TEXT,
+  date DATE, -- DEPRECATED: Käytä event_instances-taulua monipäiväisille tapahtumille
+  time TEXT, -- DEPRECATED: Käytä event_instances-taulua
   artist TEXT,
   year INTEGER NOT NULL,
   images JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 1b. Tapahtuman päivät (Event Instances)
+-- Mahdollistaa monipäiväiset tapahtumat, joilla jokaisella päivällä omat kellonajat
+CREATE TABLE IF NOT EXISTS event_instances (
+  id BIGSERIAL PRIMARY KEY,
+  event_id BIGINT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  date DATE NOT NULL,
+  start_time TEXT, -- Aloitusaika (HH:MM)
+  end_time TEXT,   -- Lopetusaika (HH:MM), voi olla NULL
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -39,6 +51,8 @@ CREATE TABLE IF NOT EXISTS brainstorm_messages (
 -- Indeksit suorituskyvyn parantamiseksi
 CREATE INDEX IF NOT EXISTS idx_events_year ON events(year);
 CREATE INDEX IF NOT EXISTS idx_events_date ON events(date);
+CREATE INDEX IF NOT EXISTS idx_event_instances_event_id ON event_instances(event_id);
+CREATE INDEX IF NOT EXISTS idx_event_instances_date ON event_instances(date);
 CREATE INDEX IF NOT EXISTS idx_tasks_event_id ON tasks(event_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
 CREATE INDEX IF NOT EXISTS idx_brainstorm_created ON brainstorm_messages(created_at);
@@ -57,6 +71,11 @@ CREATE TRIGGER update_events_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
+CREATE TRIGGER update_event_instances_updated_at
+  BEFORE UPDATE ON event_instances
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
 CREATE TRIGGER update_tasks_updated_at
   BEFORE UPDATE ON tasks
   FOR EACH ROW
@@ -64,6 +83,7 @@ CREATE TRIGGER update_tasks_updated_at
 
 -- Row Level Security (RLS) - Salli kaikille pääsy (voit muuttaa myöhemmin)
 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE event_instances ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE brainstorm_messages ENABLE ROW LEVEL SECURITY;
 
@@ -72,6 +92,11 @@ CREATE POLICY "Enable read access for all users" ON events FOR SELECT USING (tru
 CREATE POLICY "Enable insert access for all users" ON events FOR INSERT WITH CHECK (true);
 CREATE POLICY "Enable update access for all users" ON events FOR UPDATE USING (true);
 CREATE POLICY "Enable delete access for all users" ON events FOR DELETE USING (true);
+
+CREATE POLICY "Enable read access for all users" ON event_instances FOR SELECT USING (true);
+CREATE POLICY "Enable insert access for all users" ON event_instances FOR INSERT WITH CHECK (true);
+CREATE POLICY "Enable update access for all users" ON event_instances FOR UPDATE USING (true);
+CREATE POLICY "Enable delete access for all users" ON event_instances FOR DELETE USING (true);
 
 CREATE POLICY "Enable read access for all users" ON tasks FOR SELECT USING (true);
 CREATE POLICY "Enable insert access for all users" ON tasks FOR INSERT WITH CHECK (true);

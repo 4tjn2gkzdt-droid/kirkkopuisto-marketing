@@ -3,6 +3,14 @@ import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
 
+// Apufunktio: Parsii YYYY-MM-DD stringin paikalliseksi Date-objektiksi (ei UTC)
+// Välttää aikavyöhykeongelmia, joissa päivämäärä siirtyy päivällä
+function parseLocalDate(dateString) {
+  if (!dateString) return new Date()
+  const [year, month, day] = dateString.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
 export default function NewsletterGenerator() {
   const router = useRouter()
   const [user, setUser] = useState(null)
@@ -673,7 +681,7 @@ export default function NewsletterGenerator() {
   <div class="container">
     <div class="header">
       <h1>🌿 Kirkkopuiston Terassi</h1>
-      <p>${new Date(startDate).toLocaleDateString('fi-FI')} - ${new Date(endDate).toLocaleDateString('fi-FI')}</p>
+      <p>${parseLocalDate(startDate).toLocaleDateString('fi-FI')} - ${parseLocalDate(endDate).toLocaleDateString('fi-FI')}</p>
     </div>
 
     <div class="content">
@@ -861,7 +869,7 @@ export default function NewsletterGenerator() {
                     <div className="flex-1">
                       <div className="font-semibold text-gray-900">{event.title}</div>
                       <div className="text-sm text-gray-600">
-                        📅 {new Date(event.date).toLocaleDateString('fi-FI', {
+                        📅 {parseLocalDate(event.date).toLocaleDateString('fi-FI', {
                           weekday: 'long',
                           day: 'numeric',
                           month: 'long'

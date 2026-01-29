@@ -3862,23 +3862,22 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   </p>
 
                   {/* Viimeistely AI:lla */}
-                  {newEvent.summary && newEvent.summary.trim().length > 0 && (
-                    <div className="mt-3">
-                      <button
-                        type="button"
-                        onClick={() => polishEventSummaryWithAI(newEvent.summary, false)}
-                        disabled={polishingEventSummary}
-                        className={`w-full py-2 px-4 rounded-lg font-medium transition-all ${
-                          polishingEventSummary
-                            ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 shadow-md hover:shadow-lg'
-                        }`}
-                      >
-                        {polishingEventSummary ? '⏳ Viimeistellään...' : '✨ Viimeistele AI:lla'}
-                      </button>
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      onClick={() => polishEventSummaryWithAI(newEvent.summary, false)}
+                      disabled={polishingEventSummary || !newEvent.summary || newEvent.summary.trim().length === 0}
+                      className={`w-full py-2 px-4 rounded-lg font-medium transition-all ${
+                        polishingEventSummary || !newEvent.summary || newEvent.summary.trim().length === 0
+                          ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 shadow-md hover:shadow-lg'
+                      }`}
+                    >
+                      {polishingEventSummary ? '⏳ Viimeistellään...' : '✨ Viimeistele AI:lla'}
+                    </button>
 
-                      {/* Näytä viimeistellyt versiot */}
-                      {polishedEventVersions && (
+                    {/* Näytä viimeistellyt versiot */}
+                    {polishedEventVersions && (
                         <div className="mt-4 space-y-3 bg-purple-50 border-2 border-purple-200 rounded-lg p-4">
                           <div className="flex items-center gap-2 mb-3">
                             <span className="text-lg">✨</span>
@@ -3954,8 +3953,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                           </button>
                         </div>
                       )}
-                    </div>
-                  )}
+                  </div>
                 </div>
               </div>
 
@@ -4530,23 +4528,22 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   </p>
 
                   {/* Viimeistely AI:lla */}
-                  {editingEvent.summary && editingEvent.summary.trim().length > 0 && (
-                    <div className="mt-3">
-                      <button
-                        type="button"
-                        onClick={() => polishEventSummaryWithAI(editingEvent.summary, true)}
-                        disabled={polishingEventSummary}
-                        className={`w-full py-2 px-4 rounded-lg font-medium transition-all ${
-                          polishingEventSummary
-                            ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 shadow-md hover:shadow-lg'
-                        }`}
-                      >
-                        {polishingEventSummary ? '⏳ Viimeistellään...' : '✨ Viimeistele AI:lla'}
-                      </button>
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      onClick={() => polishEventSummaryWithAI(editingEvent.summary, true)}
+                      disabled={polishingEventSummary || !editingEvent.summary || editingEvent.summary.trim().length === 0}
+                      className={`w-full py-2 px-4 rounded-lg font-medium transition-all ${
+                        polishingEventSummary || !editingEvent.summary || editingEvent.summary.trim().length === 0
+                          ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 shadow-md hover:shadow-lg'
+                      }`}
+                    >
+                      {polishingEventSummary ? '⏳ Viimeistellään...' : '✨ Viimeistele AI:lla'}
+                    </button>
 
-                      {/* Näytä viimeistellyt versiot */}
-                      {polishedEventVersions && (
+                    {/* Näytä viimeistellyt versiot */}
+                    {polishedEventVersions && (
                         <div className="mt-4 space-y-3 bg-purple-50 border-2 border-purple-200 rounded-lg p-4">
                           <div className="flex items-center gap-2 mb-3">
                             <span className="text-lg">✨</span>
@@ -4622,8 +4619,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                           </button>
                         </div>
                       )}
-                    </div>
-                  )}
+                  </div>
                 </div>
               </div>
 

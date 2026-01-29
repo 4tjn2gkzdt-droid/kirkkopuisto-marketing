@@ -1373,10 +1373,16 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
           if (response.ok && data.response) {
             // Päivitä Supabaseen
             if (supabase && typeof task.id === 'number') {
-              await supabase
+              const { error: updateError } = await supabase
                 .from('tasks')
                 .update({ content: data.response })
                 .eq('id', task.id);
+
+              if (updateError) {
+                console.error(`Virhe päivitettäessä tehtävän ${task.title} sisältöä tietokantaan:`, updateError);
+                errorCount++;
+                continue; // Hyppää seuraavaan tehtävään
+              }
             }
 
             // Päivitä UI
@@ -1430,10 +1436,11 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
       statusCallback('Sisällön generointi valmis!');
     }
 
+    // Kirjoita konsoliin tulokset ilman alert-ikkunaa
     if (errorCount > 0) {
-      alert(`✨ Sisältö generoitu ${successCount}/${tasksToGenerate.length} tehtävälle.\n⚠️ ${errorCount} tehtävän generointi epäonnistui.`);
+      console.log(`✨ AI-sisältö generoitu ${successCount}/${tasksToGenerate.length} tehtävälle. ⚠️ ${errorCount} tehtävän generointi epäonnistui.`);
     } else {
-      alert(`✨ Sisältö generoitu ${tasksToGenerate.length} tehtävälle!`);
+      console.log(`✨ AI-sisältö generoitu onnistuneesti ${tasksToGenerate.length} tehtävälle!`);
     }
   };
 
@@ -1722,49 +1729,76 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
           .sort((a, b) => new Date(a.date) - new Date(b.date));
           setPosts(prev => ({ ...prev, [eventYear]: formattedEvents }));
 
-          // Generoi sisältö automaattisesti jos valittu
+          // Tallennus valmis - vapauta käyttöliittymä heti
+          setIsSaving(false);
+          setSavingStatus('');
+
+          // Tyhjennä lomake ja sulje modaali
+          setNewEvent({
+            title: '',
+            dates: [{ date: '', startTime: '', endTime: '' }],
+            artist: '',
+            eventType: 'artist',
+            summary: '',
+            tasks: []
+          });
+          setSelectedMarketingChannels([]);
+          setDefaultAssignee('');
+          setShowPreview(false);
+          setPolishedEventVersions(null);
+          setShowAddEventModal(false);
+
+          // Vaihda oikeaan vuoteen jos tarpeen
+          if (eventYear !== selectedYear) {
+            setSelectedYear(eventYear);
+          }
+
+          // Generoi sisältö automaattisesti jos valittu - TÄMÄ TAPAHTUU TAUSTALLA
           if (autoGenerateContent && newEvent.tasks.length > 0) {
             const createdEvent = formattedEvents.find(e => e.id === savedEvent.id);
             if (createdEvent) {
-              await generateContentForAllTasks(createdEvent, setSavingStatus);
+              // Käynnistä generointi taustalla ilman await
+              generateContentForAllTasks(createdEvent, null).catch(err => {
+                console.error('Virhe AI-sisällön generoinnissa:', err);
+              });
             }
           }
         }
       } else {
-      // LocalStorage fallback
-      const newPost = {
-        id: Date.now(),
-        ...newEvent,
-        images: {},
-        tasks: newEvent.tasks.map(t => ({ ...t, id: Date.now() + Math.random() }))
-      };
-      savePosts(eventYear, [...currentPosts, newPost].sort((a, b) =>
-        new Date(a.date) - new Date(b.date)
-      ));
-    }
+        // LocalStorage fallback
+        const newPost = {
+          id: Date.now(),
+          ...newEvent,
+          images: {},
+          tasks: newEvent.tasks.map(t => ({ ...t, id: Date.now() + Math.random() }))
+        };
+        savePosts(eventYear, [...currentPosts, newPost].sort((a, b) =>
+          new Date(a.date) - new Date(b.date)
+        ));
 
-    // Tallennus valmis
-    setIsSaving(false);
-    setSavingStatus('');
+        // Tallennus valmis
+        setIsSaving(false);
+        setSavingStatus('');
 
-    // Tyhjennä lomake ja sulje modaali
-    setNewEvent({
-      title: '',
-      dates: [{ date: '', startTime: '', endTime: '' }],
-      artist: '',
-      eventType: 'artist',
-      summary: '',
-      tasks: []
-    });
-    setSelectedMarketingChannels([]);
-    setDefaultAssignee('');
-    setShowPreview(false);
-    setPolishedEventVersions(null);
-    setShowAddEventModal(false);
+        // Tyhjennä lomake ja sulje modaali
+        setNewEvent({
+          title: '',
+          dates: [{ date: '', startTime: '', endTime: '' }],
+          artist: '',
+          eventType: 'artist',
+          summary: '',
+          tasks: []
+        });
+        setSelectedMarketingChannels([]);
+        setDefaultAssignee('');
+        setShowPreview(false);
+        setPolishedEventVersions(null);
+        setShowAddEventModal(false);
 
-      // Vaihda oikeaan vuoteen jos tarpeen
-      if (eventYear !== selectedYear) {
-        setSelectedYear(eventYear);
+        // Vaihda oikeaan vuoteen jos tarpeen
+        if (eventYear !== selectedYear) {
+          setSelectedYear(eventYear);
+        }
       }
     } catch (error) {
       console.error('Virhe tallennettaessa:', error);

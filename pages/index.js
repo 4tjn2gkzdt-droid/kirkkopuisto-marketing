@@ -72,6 +72,8 @@ export default function Home() {
   const [savingStatus, setSavingStatus] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [importingStatus, setImportingStatus] = useState('');
+  const [polishingEventSummary, setPolishingEventSummary] = useState(false);
+  const [polishedEventVersions, setPolishedEventVersions] = useState(null);
 
   // Kalenterin lataussuodattimet
   const [calendarDownloadFilters, setCalendarDownloadFilters] = useState({
@@ -1272,6 +1274,40 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
     }
   };
 
+  // Viimeistele tapahtuman yhteenveto AI:lla
+  const polishEventSummaryWithAI = async (summary, isEditMode = false) => {
+    if (!summary || summary.trim().length === 0) {
+      alert('Kirjoita ensin yhteenveto ennen AI-viimeistelyä');
+      return;
+    }
+
+    setPolishingEventSummary(true);
+    setPolishedEventVersions(null);
+
+    try {
+      const response = await fetch('/api/polish-caption', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          caption: summary
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setPolishedEventVersions(data.versions);
+      } else {
+        alert('Virhe AI-viimeistelyss\u00e4: ' + (data.error || 'Tuntematon virhe'));
+      }
+    } catch (error) {
+      console.error('Error polishing event summary:', error);
+      alert('Virhe AI-viimeistelyss\u00e4: ' + error.message);
+    } finally {
+      setPolishingEventSummary(false);
+    }
+  };
+
   const generateContentForAllTasks = async (event, statusCallback = null) => {
     const tasksToGenerate = event.tasks.filter(t => !t.content || t.content.trim() === '');
 
@@ -1717,6 +1753,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
     setSelectedMarketingChannels([]);
     setDefaultAssignee('');
     setShowPreview(false);
+    setPolishedEventVersions(null);
     setShowAddEventModal(false);
 
       // Vaihda oikeaan vuoteen jos tarpeen
@@ -3823,6 +3860,102 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   <p className="text-xs text-gray-500 mt-1">
                     💡 Vinkki: Yhteenveto näkyy tapahtumalistassa ja auttaa hahmottamaan mitä tapahtumassa on kyse
                   </p>
+
+                  {/* Viimeistely AI:lla */}
+                  {newEvent.summary && newEvent.summary.trim().length > 0 && (
+                    <div className="mt-3">
+                      <button
+                        type="button"
+                        onClick={() => polishEventSummaryWithAI(newEvent.summary, false)}
+                        disabled={polishingEventSummary}
+                        className={`w-full py-2 px-4 rounded-lg font-medium transition-all ${
+                          polishingEventSummary
+                            ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 shadow-md hover:shadow-lg'
+                        }`}
+                      >
+                        {polishingEventSummary ? '⏳ Viimeistellään...' : '✨ Viimeistele AI:lla'}
+                      </button>
+
+                      {/* Näytä viimeistellyt versiot */}
+                      {polishedEventVersions && (
+                        <div className="mt-4 space-y-3 bg-purple-50 border-2 border-purple-200 rounded-lg p-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className="text-lg">✨</span>
+                            <h5 className="font-bold text-purple-900">Valitse viimeistelty versio:</h5>
+                          </div>
+
+                          {/* Lyhyt versio */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewEvent({ ...newEvent, summary: polishedEventVersions.short });
+                              setPolishedEventVersions(null);
+                            }}
+                            className="w-full text-left p-3 bg-white border-2 border-purple-300 rounded-lg hover:border-purple-500 hover:shadow-md transition-all group"
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <span className="font-bold text-purple-900 text-sm">📱 LYHYT</span>
+                              <span className="text-xs text-gray-500 group-hover:text-purple-600">
+                                {polishedEventVersions.short.length} merkkiä
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-800 leading-relaxed">
+                              {polishedEventVersions.short}
+                            </p>
+                          </button>
+
+                          {/* Keskipitkä versio */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewEvent({ ...newEvent, summary: polishedEventVersions.medium });
+                              setPolishedEventVersions(null);
+                            }}
+                            className="w-full text-left p-3 bg-white border-2 border-purple-300 rounded-lg hover:border-purple-500 hover:shadow-md transition-all group"
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <span className="font-bold text-purple-900 text-sm">📸 KESKIPITKÄ</span>
+                              <span className="text-xs text-gray-500 group-hover:text-purple-600">
+                                {polishedEventVersions.medium.length} merkkiä
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-800 leading-relaxed">
+                              {polishedEventVersions.medium}
+                            </p>
+                          </button>
+
+                          {/* Pitkä versio */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewEvent({ ...newEvent, summary: polishedEventVersions.long });
+                              setPolishedEventVersions(null);
+                            }}
+                            className="w-full text-left p-3 bg-white border-2 border-purple-300 rounded-lg hover:border-purple-500 hover:shadow-md transition-all group"
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <span className="font-bold text-purple-900 text-sm">📝 PITKÄ</span>
+                              <span className="text-xs text-gray-500 group-hover:text-purple-600">
+                                {polishedEventVersions.long.length} merkkiä
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-800 leading-relaxed">
+                              {polishedEventVersions.long}
+                            </p>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setPolishedEventVersions(null)}
+                            className="w-full text-center py-2 text-sm text-gray-600 hover:text-gray-800 font-medium"
+                          >
+                            ✕ Sulje ehdotukset
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -4055,6 +4188,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                     setSelectedMarketingChannels([]);
                     setDefaultAssignee('');
                     setShowPreview(false);
+                    setPolishedEventVersions(null);
                   }}
                   className="bg-gray-200 px-6 py-4 rounded-lg hover:bg-gray-300 font-semibold"
                 >
@@ -4394,6 +4528,102 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   <p className="text-xs text-gray-500 mt-1">
                     💡 Yhteenveto näkyy tapahtumalistassa
                   </p>
+
+                  {/* Viimeistely AI:lla */}
+                  {editingEvent.summary && editingEvent.summary.trim().length > 0 && (
+                    <div className="mt-3">
+                      <button
+                        type="button"
+                        onClick={() => polishEventSummaryWithAI(editingEvent.summary, true)}
+                        disabled={polishingEventSummary}
+                        className={`w-full py-2 px-4 rounded-lg font-medium transition-all ${
+                          polishingEventSummary
+                            ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:from-purple-700 hover:to-blue-700 shadow-md hover:shadow-lg'
+                        }`}
+                      >
+                        {polishingEventSummary ? '⏳ Viimeistellään...' : '✨ Viimeistele AI:lla'}
+                      </button>
+
+                      {/* Näytä viimeistellyt versiot */}
+                      {polishedEventVersions && (
+                        <div className="mt-4 space-y-3 bg-purple-50 border-2 border-purple-200 rounded-lg p-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <span className="text-lg">✨</span>
+                            <h5 className="font-bold text-purple-900">Valitse viimeistelty versio:</h5>
+                          </div>
+
+                          {/* Lyhyt versio */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingEvent({ ...editingEvent, summary: polishedEventVersions.short });
+                              setPolishedEventVersions(null);
+                            }}
+                            className="w-full text-left p-3 bg-white border-2 border-purple-300 rounded-lg hover:border-purple-500 hover:shadow-md transition-all group"
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <span className="font-bold text-purple-900 text-sm">📱 LYHYT</span>
+                              <span className="text-xs text-gray-500 group-hover:text-purple-600">
+                                {polishedEventVersions.short.length} merkkiä
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-800 leading-relaxed">
+                              {polishedEventVersions.short}
+                            </p>
+                          </button>
+
+                          {/* Keskipitkä versio */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingEvent({ ...editingEvent, summary: polishedEventVersions.medium });
+                              setPolishedEventVersions(null);
+                            }}
+                            className="w-full text-left p-3 bg-white border-2 border-purple-300 rounded-lg hover:border-purple-500 hover:shadow-md transition-all group"
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <span className="font-bold text-purple-900 text-sm">📸 KESKIPITKÄ</span>
+                              <span className="text-xs text-gray-500 group-hover:text-purple-600">
+                                {polishedEventVersions.medium.length} merkkiä
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-800 leading-relaxed">
+                              {polishedEventVersions.medium}
+                            </p>
+                          </button>
+
+                          {/* Pitkä versio */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingEvent({ ...editingEvent, summary: polishedEventVersions.long });
+                              setPolishedEventVersions(null);
+                            }}
+                            className="w-full text-left p-3 bg-white border-2 border-purple-300 rounded-lg hover:border-purple-500 hover:shadow-md transition-all group"
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <span className="font-bold text-purple-900 text-sm">📝 PITKÄ</span>
+                              <span className="text-xs text-gray-500 group-hover:text-purple-600">
+                                {polishedEventVersions.long.length} merkkiä
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-800 leading-relaxed">
+                              {polishedEventVersions.long}
+                            </p>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setPolishedEventVersions(null)}
+                            className="w-full text-center py-2 text-sm text-gray-600 hover:text-gray-800 font-medium"
+                          >
+                            ✕ Sulje ehdotukset
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -4627,6 +4857,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
                     setShowEditEventModal(false);
                     setEditingEvent(null);
+                    setPolishedEventVersions(null);
                     alert('✅ Tapahtuma päivitetty!');
                   }}
                   className="flex-1 bg-green-600 text-white py-4 rounded-lg hover:bg-green-700 font-bold text-lg shadow-lg hover:shadow-xl transition-all"
@@ -4637,6 +4868,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   onClick={() => {
                     setShowEditEventModal(false);
                     setEditingEvent(null);
+                    setPolishedEventVersions(null);
                   }}
                   className="bg-gray-200 px-6 py-4 rounded-lg hover:bg-gray-300 font-semibold"
                 >

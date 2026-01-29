@@ -4764,7 +4764,11 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
                     if (supabase && typeof editingEvent.id === 'number') {
                       try {
+                        setIsSaving(true);
+                        setSavingStatus('Tallennetaan tapahtumaa...');
+
                         // Päivitä tapahtuma
+                        setSavingStatus('Päivitetään tapahtuman tiedot...');
                         const { error: updateError } = await supabase
                           .from('events')
                           .update({
@@ -4778,6 +4782,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                         if (updateError) throw updateError;
 
                         // Poista vanhat event_instances
+                        setSavingStatus('Päivitetään päivämääriä...');
                         const { error: deleteError } = await supabase
                           .from('event_instances')
                           .delete()
@@ -4800,6 +4805,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                         if (insertError) throw insertError;
 
                         // Päivitä UI
+                        setSavingStatus('Viimeistellään...');
                         const { data: events, error } = await supabase
                           .from('events')
                           .select(`*, event_instances (*), tasks (*)`)
@@ -4838,8 +4844,17 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                           .sort((a, b) => new Date(a.date) - new Date(b.date));
                           setPosts(prev => ({ ...prev, [eventYear]: formattedEvents }));
                         }
+
+                        setIsSaving(false);
+                        setSavingStatus('');
+                        setShowEditEventModal(false);
+                        setEditingEvent(null);
+                        setPolishedEventVersions(null);
+                        alert('✅ Tapahtuma päivitetty!');
                       } catch (error) {
                         console.error('Virhe tallennettaessa:', error);
+                        setIsSaving(false);
+                        setSavingStatus('');
                         alert('Virhe tallennettaessa tapahtumaa: ' + error.message);
                         return;
                       }
@@ -4849,16 +4864,20 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                         p.id === editingEvent.id ? editingEvent : p
                       );
                       savePosts(eventYear, updatedPosts);
+                      setShowEditEventModal(false);
+                      setEditingEvent(null);
+                      setPolishedEventVersions(null);
+                      alert('✅ Tapahtuma päivitetty!');
                     }
-
-                    setShowEditEventModal(false);
-                    setEditingEvent(null);
-                    setPolishedEventVersions(null);
-                    alert('✅ Tapahtuma päivitetty!');
                   }}
-                  className="flex-1 bg-green-600 text-white py-4 rounded-lg hover:bg-green-700 font-bold text-lg shadow-lg hover:shadow-xl transition-all"
+                  disabled={isSaving}
+                  className={`flex-1 py-4 rounded-lg font-bold text-lg shadow-lg hover:shadow-xl transition-all ${
+                    isSaving
+                      ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                      : 'bg-green-600 text-white hover:bg-green-700'
+                  }`}
                 >
-                  💾 Tallenna muutokset
+                  {isSaving ? `⏳ ${savingStatus}` : '💾 Tallenna muutokset'}
                 </button>
                 <button
                   onClick={() => {

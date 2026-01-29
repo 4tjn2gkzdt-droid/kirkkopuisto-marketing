@@ -35,6 +35,20 @@ OHJEET:
 - Kirjoita suomeksi
 - Tee tekstistä houkutteleva ja helppolukuinen
 
+TÄRKEÄÄ - ARTISTIEN JA BÄNDIEN KUVAUKSET:
+Jos tekstissä mainitaan artisti tai bändi:
+1. Tunnista että kyseessä on artisti/bändi
+2. Etsi internetistä artistin/bändin virallinen kuvaus, biografia tai esittelyteksti
+3. Pidä sisältö USKOLLISENA alkuperäiselle kuvaukselle - älä keksi faktoja
+4. Säilytä tärkeät tiedot kuten:
+   - Bändin tyylisuunta ja musiikkigenre
+   - Keskeiset jäsenet tai kokoonpano
+   - Erityispiirteet ja tunnusmerkit
+   - Saavutukset ja tausta
+5. Voit muotoilla tekstin Kirkkopuiston brändin mukaiseen tyyliin, mutta sisältö tulee pysyä samana
+6. Jos et löydä luotettavaa tietoa artistista, käytä vain käytettävissä olevaa tietoa äläkä spekuloi
+7. Mikäli merkkimäärä antaa periksi, lisää artistista mielenkiintoisia faktoja tekstiin
+
 Palauta vastaus JSON-muodossa:
 {
   "short": "lyhyt versio tähän",

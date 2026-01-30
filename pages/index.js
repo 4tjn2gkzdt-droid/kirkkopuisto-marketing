@@ -3788,8 +3788,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                               <label className="block text-xs font-semibold mb-1 text-gray-700">
                                 Aloitusaika
                               </label>
-                              <input
-                                type="time"
+                              <select
                                 value={dateEntry.startTime}
                                 onChange={(e) => {
                                   const newDates = [...newEvent.dates];
@@ -3797,14 +3796,23 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                   setNewEvent({ ...newEvent, dates: newDates });
                                 }}
                                 className="w-full p-2 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
-                              />
+                              >
+                                <option value="">Valitse aika</option>
+                                {Array.from({ length: 24 }, (_, h) => [
+                                  <option key={`${h}:00`} value={`${String(h).padStart(2, '0')}:00`}>
+                                    {String(h).padStart(2, '0')}:00
+                                  </option>,
+                                  <option key={`${h}:30`} value={`${String(h).padStart(2, '0')}:30`}>
+                                    {String(h).padStart(2, '0')}:30
+                                  </option>
+                                ]).flat()}
+                              </select>
                             </div>
                             <div>
                               <label className="block text-xs font-semibold mb-1 text-gray-700">
                                 Lopetusaika <span className="text-gray-400 font-normal">(valinnainen)</span>
                               </label>
-                              <input
-                                type="time"
+                              <select
                                 value={dateEntry.endTime}
                                 onChange={(e) => {
                                   const newDates = [...newEvent.dates];
@@ -3812,7 +3820,17 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                   setNewEvent({ ...newEvent, dates: newDates });
                                 }}
                                 className="w-full p-2 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
-                              />
+                              >
+                                <option value="">Valitse aika</option>
+                                {Array.from({ length: 24 }, (_, h) => [
+                                  <option key={`${h}:00`} value={`${String(h).padStart(2, '0')}:00`}>
+                                    {String(h).padStart(2, '0')}:00
+                                  </option>,
+                                  <option key={`${h}:30`} value={`${String(h).padStart(2, '0')}:30`}>
+                                    {String(h).padStart(2, '0')}:30
+                                  </option>
+                                ]).flat()}
+                              </select>
                             </div>
                           </div>
                           {newEvent.dates.length > 1 && (
@@ -4468,8 +4486,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                               <label className="block text-xs font-semibold mb-1 text-gray-700">
                                 Aloitusaika
                               </label>
-                              <input
-                                type="time"
+                              <select
                                 value={dateEntry.startTime || ''}
                                 onChange={(e) => {
                                   const currentDates = editingEvent.dates || [{ date: editingEvent.date || '', startTime: editingEvent.time || '', endTime: '' }];
@@ -4478,14 +4495,23 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                   setEditingEvent({ ...editingEvent, dates: newDates });
                                 }}
                                 className="w-full p-2 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
-                              />
+                              >
+                                <option value="">Valitse aika</option>
+                                {Array.from({ length: 24 }, (_, h) => [
+                                  <option key={`${h}:00`} value={`${String(h).padStart(2, '0')}:00`}>
+                                    {String(h).padStart(2, '0')}:00
+                                  </option>,
+                                  <option key={`${h}:30`} value={`${String(h).padStart(2, '0')}:30`}>
+                                    {String(h).padStart(2, '0')}:30
+                                  </option>
+                                ]).flat()}
+                              </select>
                             </div>
                             <div>
                               <label className="block text-xs font-semibold mb-1 text-gray-700">
                                 Lopetusaika <span className="text-gray-400 font-normal">(valinnainen)</span>
                               </label>
-                              <input
-                                type="time"
+                              <select
                                 value={dateEntry.endTime || ''}
                                 onChange={(e) => {
                                   const currentDates = editingEvent.dates || [{ date: editingEvent.date || '', startTime: editingEvent.time || '', endTime: '' }];
@@ -4494,7 +4520,17 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                   setEditingEvent({ ...editingEvent, dates: newDates });
                                 }}
                                 className="w-full p-2 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
-                              />
+                              >
+                                <option value="">Valitse aika</option>
+                                {Array.from({ length: 24 }, (_, h) => [
+                                  <option key={`${h}:00`} value={`${String(h).padStart(2, '0')}:00`}>
+                                    {String(h).padStart(2, '0')}:00
+                                  </option>,
+                                  <option key={`${h}:30`} value={`${String(h).padStart(2, '0')}:30`}>
+                                    {String(h).padStart(2, '0')}:30
+                                  </option>
+                                ]).flat()}
+                              </select>
                             </div>
                           </div>
                           {(editingEvent.dates || []).length > 1 && (
@@ -4960,15 +4996,24 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Aika</label>
-                    <input
-                      type="time"
+                    <select
                       value={editingTask.task.dueTime}
                       onChange={(e) => setEditingTask({
                         ...editingTask,
                         task: { ...editingTask.task, dueTime: e.target.value }
                       })}
                       className="w-full p-2 border rounded"
-                    />
+                    >
+                      <option value="">Valitse aika</option>
+                      {Array.from({ length: 24 }, (_, h) => [
+                        <option key={`${h}:00`} value={`${String(h).padStart(2, '0')}:00`}>
+                          {String(h).padStart(2, '0')}:00
+                        </option>,
+                        <option key={`${h}:30`} value={`${String(h).padStart(2, '0')}:30`}>
+                          {String(h).padStart(2, '0')}:30
+                        </option>
+                      ]).flat()}
+                    </select>
                   </div>
                 </div>
 
@@ -5661,12 +5706,21 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
                 </div>
                 <div>
                   <label className="block text-sm font-semibold mb-2">Julkaisuaika</label>
-                  <input
-                    type="time"
+                  <select
                     value={newSocialPost.time}
                     onChange={(e) => setNewSocialPost({ ...newSocialPost, time: e.target.value })}
                     className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
-                  />
+                  >
+                    <option value="">Valitse aika</option>
+                    {Array.from({ length: 24 }, (_, h) => [
+                      <option key={`${h}:00`} value={`${String(h).padStart(2, '0')}:00`}>
+                        {String(h).padStart(2, '0')}:00
+                      </option>,
+                      <option key={`${h}:30`} value={`${String(h).padStart(2, '0')}:30`}>
+                        {String(h).padStart(2, '0')}:30
+                      </option>
+                    ]).flat()}
+                  </select>
                 </div>
               </div>
 

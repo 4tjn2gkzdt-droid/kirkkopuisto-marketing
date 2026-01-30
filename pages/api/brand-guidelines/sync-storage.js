@@ -4,14 +4,17 @@
  */
 
 import { supabaseAdmin } from '../../../lib/supabase-admin'
+import logger from '../../../lib/logger'
 
 export default async function handler(req, res) {
+  const syncLogger = logger.withPrefix('sync-storage');
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  console.log('[sync-storage] ==========================================')
-  console.log('[sync-storage] Aloitetaan Storage-synkronointi')
+  syncLogger.info('==========================================');
+  syncLogger.info('Aloitetaan Storage-synkronointi');
 
   try {
     // Tarkista autentikointi
@@ -29,10 +32,10 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Unauthorized' })
     }
 
-    console.log(`[sync-storage] ✅ Käyttäjä: ${user.email}`)
+    syncLogger.info('✅ Käyttäjä tunnistettu');
 
     // Hae kaikki tiedostot Storage bucketista
-    console.log('[sync-storage] Haetaan tiedostot Storagesta...')
+    syncLogger.info(' Haetaan tiedostot Storagesta...')
     const { data: storageFiles, error: storageError } = await supabaseAdmin.storage
       .from('brand-guidelines')
       .list('', {
@@ -42,7 +45,7 @@ export default async function handler(req, res) {
       })
 
     if (storageError) {
-      console.error('[sync-storage] ❌ Storage-listaus epäonnistui:', storageError)
+      syncLogger.error(' ❌ Storage-listaus epäonnistui:', storageError)
       return res.status(500).json({
         success: false,
         error: 'Storage-listaus epäonnistui',
@@ -50,16 +53,16 @@ export default async function handler(req, res) {
       })
     }
 
-    console.log(`[sync-storage] ✅ Storage-tiedostoja: ${storageFiles?.length || 0}`)
+    syncLogger.info(`✅ Storage-tiedostoja: ${storageFiles?.length || 0}`);
 
     // Hae kaikki rivit tietokannasta
-    console.log('[sync-storage] Haetaan rivit tietokannasta...')
+    syncLogger.info(' Haetaan rivit tietokannasta...')
     const { data: dbRows, error: dbError } = await supabaseAdmin
       .from('brand_guidelines')
       .select('file_path, file_name')
 
     if (dbError) {
-      console.error('[sync-storage] ❌ Tietokantahaku epäonnistui:', dbError)
+      syncLogger.error(' ❌ Tietokantahaku epäonnistui:', dbError)
       return res.status(500).json({
         success: false,
         error: 'Tietokantahaku epäonnistui',
@@ -67,7 +70,7 @@ export default async function handler(req, res) {
       })
     }
 
-    console.log(`[sync-storage] ✅ Tietokannan rivejä: ${dbRows?.length || 0}`)
+    syncLogger.info(`✅ Tietokannan rivejä: ${dbRows?.length || 0}`);
 
     // Luo Map tietokannan tiedostopoluista
     const dbFilePaths = new Set((dbRows || []).map(row => row.file_path))
@@ -75,11 +78,11 @@ export default async function handler(req, res) {
     // Etsi tiedostot jotka ovat Storagessa mutta EIVÄT tietokannassa
     const missingFiles = storageFiles.filter(file => !dbFilePaths.has(file.name))
 
-    console.log(`[sync-storage] Puuttuvia tiedostoja: ${missingFiles.length}`)
+    syncLogger.info(`Puuttuvia tiedostoja: ${missingFiles.length}`);
 
     if (missingFiles.length === 0) {
-      console.log('[sync-storage] ✅ Kaikki tiedostot ovat jo synkronoitu!')
-      console.log('[sync-storage] ==========================================')
+      syncLogger.info(' ✅ Kaikki tiedostot ovat jo synkronoitu!')
+      syncLogger.info(' ==========================================')
       return res.status(200).json({
         success: true,
         message: 'Kaikki tiedostot ovat jo synkronoitu',
@@ -93,7 +96,7 @@ export default async function handler(req, res) {
     }
 
     // Luo puuttuvat tietokannan rivit
-    console.log('[sync-storage] Luodaan puuttuvat rivit...')
+    syncLogger.info(' Luodaan puuttuvat rivit...')
     const createdRows = []
 
     for (const file of missingFiles) {
@@ -114,7 +117,7 @@ export default async function handler(req, res) {
         status: 'uploaded' // Aluksi vain ladattu, prosessointi erikseen
       }
 
-      console.log(`[sync-storage] Luodaan rivi tiedostolle: ${file.name}`)
+      syncLogger.info(`Luodaan rivi tiedostolle: ${file.name}`);
 
       const { data: newRow, error: insertError } = await supabaseAdmin
         .from('brand_guidelines')
@@ -123,12 +126,12 @@ export default async function handler(req, res) {
         .single()
 
       if (insertError) {
-        console.error(`[sync-storage] ❌ Virhe luotaessa riviä tiedostolle ${file.name}:`, insertError)
+        syncLogger.error(`❌ Virhe luotaessa riviä tiedostolle ${file.name}:`, insertError);
         // Jatka silti muiden tiedostojen kanssa
         continue
       }
 
-      console.log(`[sync-storage] ✅ Rivi luotu: ${newRow.id}`)
+      syncLogger.info(`✅ Rivi luotu: ${newRow.id}`);
       createdRows.push({
         id: newRow.id,
         title: newRow.title,
@@ -136,8 +139,8 @@ export default async function handler(req, res) {
       })
     }
 
-    console.log(`[sync-storage] ✅ Luotiin ${createdRows.length} uutta riviä`)
-    console.log('[sync-storage] ==========================================')
+    syncLogger.info(`✅ Luotiin ${createdRows.length} uutta riviä`);
+    syncLogger.info(' ==========================================')
 
     return res.status(200).json({
       success: true,
@@ -151,8 +154,8 @@ export default async function handler(req, res) {
     })
 
   } catch (error) {
-    console.error('[sync-storage] ❌❌❌ Kriittinen virhe:', error)
-    console.log('[sync-storage] ==========================================')
+    syncLogger.error(' ❌❌❌ Kriittinen virhe:', error)
+    syncLogger.info(' ==========================================')
     return res.status(500).json({
       success: false,
       error: 'Synkronointi epäonnistui',

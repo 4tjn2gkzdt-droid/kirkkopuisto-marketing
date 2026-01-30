@@ -6,11 +6,14 @@ import { supabaseAdmin } from '../../../lib/supabase-admin'
 import {
   createBrandGuideline
 } from '../../../lib/api/brandGuidelineService'
+import logger from '../../../lib/logger'
 
 // Huom: Tiedosto ladataan suoraan Supabase Storageen frontend-puolella,
 // joten API vastaanottaa vain metatiedot. Tämä ohittaa Vercel payload-rajoitukset.
 
 export default async function handler(req, res) {
+  const uploadLogger = logger.withPrefix('upload');
+
   if (req.method !== 'POST') {
     return res.status(405).json({
       success: false,
@@ -18,19 +21,19 @@ export default async function handler(req, res) {
     })
   }
 
-  console.log('[upload] ==========================================')
-  console.log('[upload] Aloitetaan dokumentin lataus...')
-  console.log('[upload] Request body:', JSON.stringify(req.body, null, 2))
-  console.log('[upload] Headers:', {
+  uploadLogger.info('==========================================');
+  uploadLogger.info('Aloitetaan dokumentin lataus...');
+  uploadLogger.debug('Request body:', JSON.stringify(req.body, null, 2));
+  uploadLogger.debug('Headers:', {
     hasAuth: !!req.headers.authorization,
     contentType: req.headers['content-type']
-  })
+  });
 
   try {
     // Tarkista autentikointi
     const authHeader = req.headers.authorization
     if (!authHeader) {
-      console.log('[upload] ❌ Virhe: Puuttuva Authorization header')
+      uploadLogger.error('❌ Virhe: Puuttuva Authorization header');
       return res.status(401).json({
         success: false,
         error: 'Kirjautuminen vaaditaan',
@@ -39,14 +42,14 @@ export default async function handler(req, res) {
       })
     }
 
-    console.log('[upload] ✅ Authorization header löytyi')
+    uploadLogger.info('✅ Authorization header löytyi');
 
     const token = authHeader.replace('Bearer ', '')
-    console.log('[upload] Token extracted, length:', token.length)
+    uploadLogger.debug('Token extracted, length:', token.length);
 
     // Tarkista että supabaseAdmin on olemassa
     if (!supabaseAdmin) {
-      console.log('[upload] ❌ KRIITTINEN: supabaseAdmin on null!')
+      uploadLogger.error('❌ KRIITTINEN: supabaseAdmin on null!');
       return res.status(500).json({
         success: false,
         error: 'Palvelimen konfigurointivirhe',
@@ -55,17 +58,17 @@ export default async function handler(req, res) {
       })
     }
 
-    console.log('[upload] ✅ supabaseAdmin client OK')
+    uploadLogger.info('✅ supabaseAdmin client OK');
 
     // Tarkista käyttäjä Supabasesta
-    console.log('[upload] Tarkistetaan käyttäjä tokenilla...')
+    uploadLogger.info('Tarkistetaan käyttäjä tokenilla...');
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
 
     if (authError || !user) {
-      console.log('[upload] ❌ Virhe: Autentikointi epäonnistui', {
+      uploadLogger.error('❌ Virhe: Autentikointi epäonnistui', {
         error: authError?.message,
         hasUser: !!user
-      })
+      });
       return res.status(401).json({
         success: false,
         error: 'Kirjautuminen epäonnistui',
@@ -74,10 +77,10 @@ export default async function handler(req, res) {
       })
     }
 
-    console.log(`[upload] ✅ Käyttäjä tunnistettu: ${user.email} (ID: ${user.id})`)
+    uploadLogger.info('✅ Käyttäjä tunnistettu');
 
     // Tarkista että käyttäjä on admin
-    console.log('[upload] Haetaan käyttäjäprofiilia...')
+    uploadLogger.info('Haetaan käyttäjäprofiilia...');
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('user_profiles')
       .select('is_admin')
@@ -85,11 +88,11 @@ export default async function handler(req, res) {
       .single()
 
     if (profileError) {
-      console.log('[upload] ❌ Virhe: Käyttäjäprofiilin haku epäonnistui', {
+      uploadLogger.error('❌ Virhe: Käyttäjäprofiilin haku epäonnistui', {
         code: profileError.code,
         message: profileError.message,
         details: profileError.details
-      })
+      });
       return res.status(500).json({
         success: false,
         error: 'Käyttäjäprofiilin haku epäonnistui',
@@ -98,16 +101,16 @@ export default async function handler(req, res) {
       })
     }
 
-    console.log('[upload] ✅ Profiili haettu:', {
+    uploadLogger.info('✅ Profiili haettu:', {
       hasProfile: !!profile,
       isAdmin: profile?.is_admin
-    })
+    });
 
     if (!profile || !profile.is_admin) {
-      console.log('[upload] ❌ Virhe: Käyttäjällä ei ole admin-oikeuksia', {
+      uploadLogger.error('❌ Virhe: Käyttäjällä ei ole admin-oikeuksia', {
         hasProfile: !!profile,
         isAdmin: profile?.is_admin
-      })
+      });
       return res.status(403).json({
         success: false,
         error: 'Ei käyttöoikeutta',
@@ -116,7 +119,7 @@ export default async function handler(req, res) {
       })
     }
 
-    console.log('[upload] ✅ Admin-oikeudet vahvistettu')
+    uploadLogger.info('✅ Admin-oikeudet vahvistettu');
 
     // Frontend lähettää tiedoston metatiedot (tiedosto on jo Supabase Storagessa)
     const { title, fileName, filePath, fileUrl } = req.body
@@ -153,19 +156,18 @@ export default async function handler(req, res) {
       })
     }
 
-    console.log(`[upload] Rekisteröidään dokumentti: "${title}" (${fileName})`)
-    console.log(`[upload] Tiedostopolku: ${filePath}`)
+    uploadLogger.info(`Rekisteröidään dokumentti: "${title}" (${fileName})`);
+    uploadLogger.debug(`Tiedostopolku: ${filePath}`);
 
     // Luo tietokantaan entry (status = 'uploaded' by default)
-    console.log('[upload] Luodaan tietokantaan merkintä...')
-    console.log('[upload] Data:', {
+    uploadLogger.info('Luodaan tietokantaan merkintä...');
+    uploadLogger.debug('Data:', {
       title,
       fileName,
       filePath,
       fileUrlLength: fileUrl?.length,
-      userId: user.id,
-      userEmail: user.email
-    })
+      userId: user.id
+    });
 
     const guideline = await createBrandGuideline({
       title,
@@ -176,8 +178,8 @@ export default async function handler(req, res) {
       userEmail: user.email
     })
 
-    console.log(`[upload] ✅ Dokumentti luotu ID:llä: ${guideline.id}`)
-    console.log('[upload] ==========================================')
+    uploadLogger.info(`✅ Dokumentti luotu ID:llä: ${guideline.id}`);
+    uploadLogger.info('==========================================')
 
     // EI prosessoida automaattisesti - käyttäjä prosessoi manuaalisesti
 
@@ -188,12 +190,12 @@ export default async function handler(req, res) {
     })
 
   } catch (error) {
-    console.error('[upload] ❌❌❌ Kriittinen virhe dokumentin latauksessa:', error)
-    console.error('[upload] Error name:', error.name)
-    console.error('[upload] Error message:', error.message)
-    console.error('[upload] Error stack:', error.stack)
-    console.error('[upload] Error details:', error.details)
-    console.log('[upload] ==========================================')
+    uploadLogger.error('❌❌❌ Kriittinen virhe dokumentin latauksessa:', error);
+    uploadLogger.error('Error name:', error.name);
+    uploadLogger.error('Error message:', error.message);
+    uploadLogger.error('Error stack:', error.stack);
+    uploadLogger.error('Error details:', error.details);
+    uploadLogger.info('==========================================')
 
     // Palauta tarkka virheviesti
     return res.status(500).json({

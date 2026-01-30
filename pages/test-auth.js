@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabase';
+import logger from '../lib/logger';
 
 export default function TestAuth() {
   // Estä pääsy production-ympäristössä
@@ -29,27 +30,29 @@ export default function TestAuth() {
   }, []);
 
   const checkAuth = async () => {
+    const authLogger = logger.withPrefix('AUTH');
+
     try {
-      console.log('1. Checking session...');
+      authLogger.info('1. Checking session...');
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
       if (sessionError) {
-        console.error('Session error:', sessionError);
+        authLogger.error('Session error:', sessionError);
         setError('Session error: ' + sessionError.message);
         setLoading(false);
         return;
       }
 
       if (!session) {
-        console.log('No session, redirecting to login');
+        authLogger.info('No session, redirecting to login');
         router.push('/login');
         return;
       }
 
-      console.log('2. Session found:', session.user.email);
+      authLogger.info('2. Session found');
       setUser(session.user);
 
-      console.log('3. Fetching user profile...');
+      authLogger.info('3. Fetching user profile...');
       const { data: profileData, error: profileError } = await supabase
         .from('user_profiles')
         .select('*')
@@ -57,16 +60,16 @@ export default function TestAuth() {
         .single();
 
       if (profileError) {
-        console.error('Profile error:', profileError);
+        authLogger.error('Profile error:', profileError);
         setError('Profile error: ' + profileError.message);
       } else {
-        console.log('4. Profile loaded:', profileData);
+        authLogger.info('4. Profile loaded');
         setProfile(profileData);
       }
 
       setLoading(false);
     } catch (err) {
-      console.error('Unexpected error:', err);
+      authLogger.error('Unexpected error:', err);
       setError('Unexpected error: ' + err.message);
       setLoading(false);
     }

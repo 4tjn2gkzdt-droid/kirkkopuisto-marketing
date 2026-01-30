@@ -6,6 +6,7 @@ import { socialPostTypes, socialChannels, years, channels, marketingOperations, 
 import { getDaysInMonth, getWeekDays, formatDateFI, formatDateISO, isToday, isFutureDate, getDaysDiff } from '../lib/dateUtils';
 import { filterPosts, getEventsForDate, filterSocialPosts, getSocialPostsForDate, getUpcomingDeadlines } from '../lib/filterUtils';
 import InstallPrompt from '../components/InstallPrompt';
+import logger from '../lib/logger';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -112,6 +113,8 @@ export default function Home() {
 
   // Tarkista autentikointi
   useEffect(() => {
+    const authLogger = logger.withPrefix('AUTH');
+
     const checkAuth = async () => {
       if (!supabase) {
         setLoading(false);
@@ -119,28 +122,28 @@ export default function Home() {
       }
 
       try {
-        console.log('[AUTH] Checking session...');
+        authLogger.info('Checking session...');
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
         if (sessionError) {
-          console.error('[AUTH] Session error:', sessionError);
+          authLogger.error('Session error:', sessionError);
           setLoading(false);
           router.push('/login');
           return;
         }
 
         if (!session) {
-          console.log('[AUTH] No session found, redirecting to login');
+          authLogger.info('No session found, redirecting to login');
           setLoading(false);
           router.push('/login');
           return;
         }
 
-        console.log('[AUTH] Session found for:', session.user.email);
+        authLogger.info('Session found');
         setUser(session.user);
 
         // Hae käyttäjäprofiili
-        console.log('[AUTH] Fetching user profile...');
+        authLogger.info('Fetching user profile...');
         const { data: profile, error: profileError } = await supabase
           .from('user_profiles')
           .select('*')
@@ -148,20 +151,18 @@ export default function Home() {
           .single();
 
         if (profileError) {
-          console.error('[AUTH] Profile error:', profileError);
+          authLogger.error('Profile error:', profileError);
           // Jatka silti - profiili ei ole pakollinen
-          console.log('[AUTH] Continuing without profile');
+          authLogger.info('Continuing without profile');
         } else {
-          console.log('[AUTH] Profile loaded:', profile.full_name);
-          console.log('[AUTH] Profile is_admin:', profile.is_admin);
-          console.log('[AUTH] Full profile:', profile);
+          authLogger.info('Profile loaded');
           setUserProfile(profile);
         }
 
-        console.log('[AUTH] Auth check complete, setting loading=false');
+        authLogger.info('Auth check complete');
         setLoading(false);
       } catch (error) {
-        console.error('[AUTH] Unexpected error:', error);
+        authLogger.error('Unexpected error:', error);
         // ÄLÄ ohjaa loginiin - anna käyttäjän nähdä virhe
         setLoading(false);
       }
@@ -171,12 +172,12 @@ export default function Home() {
 
     // Kuuntele kirjautumisen muutoksia
     const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('[AUTH] State change:', event);
+      authLogger.info('State change:', event);
       if (event === 'SIGNED_OUT') {
-        console.log('[AUTH] User signed out, redirecting to login');
+        authLogger.info('User signed out, redirecting to login');
         router.push('/login');
       } else if (event === 'SIGNED_IN' && session) {
-        console.log('[AUTH] User signed in:', session.user.email);
+        authLogger.info('User signed in');
         setUser(session.user);
         setLoading(false);
 
@@ -188,9 +189,7 @@ export default function Home() {
           .single();
 
         if (profile) {
-          console.log('[AUTH] Profile updated');
-          console.log('[AUTH] Updated is_admin:', profile.is_admin);
-          console.log('[AUTH] Updated full profile:', profile);
+          authLogger.info('Profile updated');
           setUserProfile(profile);
         }
       }

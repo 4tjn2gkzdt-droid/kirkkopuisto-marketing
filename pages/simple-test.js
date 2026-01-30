@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import logger from '../lib/logger';
 
 export default function SimpleTest() {
   // Estä pääsy production-ympäristössä
@@ -27,28 +28,30 @@ export default function SimpleTest() {
   }, []);
 
   const checkSession = async () => {
+    const authLogger = logger.withPrefix('AUTH');
+
     try {
-      console.log('1. Getting session...');
+      authLogger.info('1. Getting session...');
       const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
 
       if (sessionError) {
-        console.error('Session error:', sessionError);
+        authLogger.error('Session error:', sessionError);
         setError('Session error: ' + sessionError.message);
         setLoading(false);
         return;
       }
 
       if (!currentSession) {
-        console.log('2. No session found');
+        authLogger.info('2. No session found');
         setError('Ei sessiota - kirjaudu ensin');
         setLoading(false);
         return;
       }
 
-      console.log('2. Session found:', currentSession.user.email);
+      authLogger.info('2. Session found');
       setSession(currentSession);
 
-      console.log('3. Fetching profile...');
+      authLogger.info('3. Fetching profile...');
       const { data: profileData, error: profileError } = await supabase
         .from('user_profiles')
         .select('*')
@@ -56,16 +59,16 @@ export default function SimpleTest() {
         .single();
 
       if (profileError) {
-        console.error('Profile error:', profileError);
+        authLogger.error('Profile error:', profileError);
         setError('Profile error: ' + profileError.message + ' (Code: ' + profileError.code + ')');
       } else {
-        console.log('4. Profile loaded:', profileData);
+        authLogger.info('4. Profile loaded');
         setProfile(profileData);
       }
 
       setLoading(false);
     } catch (err) {
-      console.error('Unexpected error:', err);
+      authLogger.error('Unexpected error:', err);
       setError('Unexpected error: ' + err.message);
       setLoading(false);
     }

@@ -4,14 +4,17 @@
 
 import { supabaseAdmin } from '../../../lib/supabase-admin'
 import { downloadAndReadFile } from '../../../lib/api/brandGuidelineService'
+import logger from '../../../lib/logger'
 
 export default async function handler(req, res) {
+  const testLogger = logger.withPrefix('test-download');
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  console.log('[test-download] ==========================================')
-  console.log('[test-download] Aloitetaan tiedoston lataus ja luku')
+  testLogger.info('==========================================');
+  testLogger.info('Aloitetaan tiedoston lataus ja luku');
 
   try {
     // Tarkista autentikointi
@@ -29,7 +32,7 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Unauthorized' })
     }
 
-    console.log(`[test-download] ✅ Käyttäjä: ${user.email}`)
+    testLogger.info('✅ Käyttäjä tunnistettu');
 
     // Hae filePath requestista
     const { filePath } = req.body
@@ -42,15 +45,15 @@ export default async function handler(req, res) {
       })
     }
 
-    console.log(`[test-download] Ladataan tiedostoa: ${filePath}`)
+    testLogger.info(`Ladataan tiedostoa: ${filePath}`);
 
     // Lataa ja lue tiedosto
     const content = await downloadAndReadFile(filePath)
 
-    console.log(`[test-download] ✅ Tiedosto ladattu ja luettu!`)
-    console.log(`[test-download] Sisällön pituus: ${content.length} merkkiä`)
-    console.log(`[test-download] Ensimmäiset 100 merkkiä: ${content.substring(0, 100)}...`)
-    console.log('[test-download] ==========================================')
+    testLogger.info('✅ Tiedosto ladattu ja luettu!');
+    testLogger.debug(`Sisällön pituus: ${content.length} merkkiä`);
+    testLogger.debug(`Ensimmäiset 100 merkkiä: ${content.substring(0, 100)}...`);
+    testLogger.info('==========================================');
 
     return res.status(200).json({
       success: true,
@@ -64,8 +67,8 @@ export default async function handler(req, res) {
     })
 
   } catch (error) {
-    console.error('[test-download] ❌❌❌ Kriittinen virhe:', error)
-    console.log('[test-download] ==========================================')
+    testLogger.error('❌❌❌ Kriittinen virhe:', error);
+    testLogger.info('==========================================');
     return res.status(500).json({
       success: false,
       error: 'Tiedoston lataus epäonnistui',

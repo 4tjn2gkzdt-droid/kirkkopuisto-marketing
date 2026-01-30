@@ -4,14 +4,17 @@
  */
 
 import { supabaseAdmin } from '../../../lib/supabase-admin'
+import logger from '../../../lib/logger'
 
 export default async function handler(req, res) {
+  const storageLogger = logger.withPrefix('storage-test');
+
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  console.log('[storage-test] ==========================================')
-  console.log('[storage-test] Aloitetaan Storage bucket -testi')
+  storageLogger.info('==========================================');
+  storageLogger.info('Aloitetaan Storage bucket -testi');
 
   try {
     // Tarkista autentikointi
@@ -29,14 +32,14 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Unauthorized' })
     }
 
-    console.log(`[storage-test] ✅ Käyttäjä: ${user.email}`)
+    storageLogger.info('✅ Käyttäjä tunnistettu');
 
     // Testi 1: Listaa kaikki bucketit
-    console.log('[storage-test] Testi 1: Listaa kaikki bucketit')
+    storageLogger.info('Testi 1: Listaa kaikki bucketit');
     const { data: buckets, error: bucketsError } = await supabaseAdmin.storage.listBuckets()
 
     if (bucketsError) {
-      console.error('[storage-test] ❌ Bucket-listaus epäonnistui:', bucketsError)
+      storageLogger.error('❌ Bucket-listaus epäonnistui:', bucketsError);
       return res.status(500).json({
         success: false,
         error: 'Bucket-listaus epäonnistui',
@@ -44,13 +47,13 @@ export default async function handler(req, res) {
       })
     }
 
-    console.log('[storage-test] ✅ Buckets löytyi:', buckets?.length)
+    storageLogger.info('✅ Buckets löytyi:', buckets?.length);
 
     const hasBrandGuidelines = buckets?.some(b => b.name === 'brand-guidelines')
-    console.log('[storage-test] brand-guidelines bucket:', hasBrandGuidelines ? 'LÖYTYI' : 'PUUTTUU')
+    storageLogger.info('brand-guidelines bucket:', hasBrandGuidelines ? 'LÖYTYI' : 'PUUTTUU');
 
     // Testi 2: Listaa tiedostot brand-guidelines bucketista
-    console.log('[storage-test] Testi 2: Listaa tiedostot brand-guidelines bucketista')
+    storageLogger.info('Testi 2: Listaa tiedostot brand-guidelines bucketista');
     const { data: files, error: filesError } = await supabaseAdmin.storage
       .from('brand-guidelines')
       .list('', {
@@ -60,7 +63,7 @@ export default async function handler(req, res) {
       })
 
     if (filesError) {
-      console.error('[storage-test] ❌ Tiedostojen listaus epäonnistui:', filesError)
+      storageLogger.error('❌ Tiedostojen listaus epäonnistui:', filesError);
       return res.status(500).json({
         success: false,
         error: 'Tiedostojen listaus epäonnistui',
@@ -69,13 +72,13 @@ export default async function handler(req, res) {
       })
     }
 
-    console.log('[storage-test] ✅ Tiedostoja löytyi:', files?.length)
+    storageLogger.info('✅ Tiedostoja löytyi:', files?.length);
     files?.forEach((file, i) => {
-      console.log(`[storage-test]   ${i + 1}. ${file.name} (${(file.metadata?.size / 1024).toFixed(2)} KB, ${file.created_at})`)
+      storageLogger.debug(`  ${i + 1}. ${file.name} (${(file.metadata?.size / 1024).toFixed(2)} KB, ${file.created_at})`);
     })
 
     // Testi 3: Hae public URL:t tiedostoille
-    console.log('[storage-test] Testi 3: Generoi public URL:t')
+    storageLogger.info('Testi 3: Generoi public URL:t');
     const filesWithUrls = files?.map(file => {
       const { data: urlData } = supabaseAdmin.storage
         .from('brand-guidelines')
@@ -91,7 +94,7 @@ export default async function handler(req, res) {
       }
     })
 
-    console.log('[storage-test] ==========================================')
+    storageLogger.info('==========================================');
 
     return res.status(200).json({
       success: true,
@@ -106,8 +109,8 @@ export default async function handler(req, res) {
     })
 
   } catch (error) {
-    console.error('[storage-test] ❌❌❌ Kriittinen virhe:', error)
-    console.log('[storage-test] ==========================================')
+    storageLogger.error('❌❌❌ Kriittinen virhe:', error);
+    storageLogger.info('==========================================');
     return res.status(500).json({
       success: false,
       error: 'Storage-testi epäonnistui',

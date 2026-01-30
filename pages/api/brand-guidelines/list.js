@@ -4,20 +4,23 @@
 
 import { supabaseAdmin } from '../../../lib/supabase-admin'
 import { loadBrandGuidelines } from '../../../lib/api/brandGuidelineService'
+import logger from '../../../lib/logger'
 
 export default async function handler(req, res) {
+  const listLogger = logger.withPrefix('list');
+
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  console.log('[list] ==========================================')
-  console.log('[list] Haetaan aktiiviset dokumentit')
+  listLogger.info('==========================================');
+  listLogger.info('Haetaan aktiiviset dokumentit');
 
   try {
     // Tarkista autentikointi
     const authHeader = req.headers.authorization
     if (!authHeader) {
-      console.log('[list] ❌ Authorization header puuttuu')
+      listLogger.error('❌ Authorization header puuttuu');
       return res.status(401).json({ error: 'Unauthorized' })
     }
 
@@ -27,20 +30,20 @@ export default async function handler(req, res) {
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
 
     if (authError || !user) {
-      console.log('[list] ❌ Auth error:', authError)
+      listLogger.error('❌ Auth error:', authError);
       return res.status(401).json({ error: 'Unauthorized' })
     }
 
-    console.log(`[list] ✅ Käyttäjä: ${user.email}`)
+    listLogger.info('✅ Käyttäjä tunnistettu');
 
     // Hae dokumentit
     const guidelines = await loadBrandGuidelines()
 
-    console.log(`[list] ✅ Löytyi ${guidelines?.length || 0} dokumenttia`)
+    listLogger.info(`✅ Löytyi ${guidelines?.length || 0} dokumenttia`);
     guidelines?.forEach((doc, i) => {
-      console.log(`[list]   ${i + 1}. ${doc.title} (status: ${doc.status})`)
+      listLogger.debug(`  ${i + 1}. ${doc.title} (status: ${doc.status})`);
     })
-    console.log('[list] ==========================================')
+    listLogger.info('==========================================');
 
     return res.status(200).json({
       success: true,
@@ -48,8 +51,8 @@ export default async function handler(req, res) {
     })
 
   } catch (error) {
-    console.error('[list] ❌ Error:', error)
-    console.log('[list] ==========================================')
+    listLogger.error('❌ Error:', error);
+    listLogger.info('==========================================');
     return res.status(500).json({
       error: 'Dokumenttien haku epäonnistui',
       details: error.message

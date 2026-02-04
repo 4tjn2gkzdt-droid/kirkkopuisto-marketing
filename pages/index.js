@@ -1620,7 +1620,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
     try {
       // Käytä ensimmäistä päivää vuoden määrittämiseen
-      const eventYear = new Date(newEvent.dates[0].date).getFullYear();
+      const eventYear = parseLocalDate(newEvent.dates[0].date).getFullYear();
       const currentPosts = posts[eventYear] || [];
 
       if (supabase) {
@@ -1729,6 +1729,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
           title: '',
           dates: [{ date: '', startTime: '', endTime: '' }],
           artist: '',
+          url: '',
           eventType: 'artist',
           summary: '',
           tasks: []
@@ -1767,6 +1768,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
           title: '',
           dates: [{ date: '', startTime: '', endTime: '' }],
           artist: '',
+          url: '',
           eventType: 'artist',
           summary: '',
           tasks: []
@@ -4193,7 +4195,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                     }
 
                     // Luo tehtävät valittujen kanavien perusteella
-                    const eventDate = new Date(firstDate);
+                    const eventDate = parseLocalDate(firstDate);
                     const tasks = selectedMarketingChannels.map(opId => {
                       const op = marketingOperations.find(o => o.id === opId);
                       if (!op) {
@@ -4202,12 +4204,13 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                       }
                       const deadline = new Date(eventDate);
                       deadline.setDate(eventDate.getDate() - op.daysBeforeEvent);
+                      const deadlineStr = `${deadline.getFullYear()}-${String(deadline.getMonth() + 1).padStart(2, '0')}-${String(deadline.getDate()).padStart(2, '0')}`;
 
                       return {
                         id: `temp-${Date.now()}-${Math.random()}`,
                         title: op.name,
                         channel: op.channel,
-                        dueDate: deadline.toISOString().split('T')[0],
+                        dueDate: deadlineStr,
                         dueTime: op.defaultTime,
                         assignee: defaultAssignee,
                         content: '',
@@ -4229,6 +4232,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                       title: '',
                       dates: [{ date: '', startTime: '', endTime: '' }],
                       artist: '',
+                      url: '',
                       eventType: 'artist',
                       summary: '',
                       tasks: []

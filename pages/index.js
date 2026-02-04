@@ -465,10 +465,7 @@ export default function Home() {
                 date: post.date,
                 time: post.time || null,
                 artist: post.artist || null,
-                images: post.images || {},
-                updated_by_id: user?.id || null,
-                updated_by_email: user?.email || null,
-                updated_by_name: userProfile?.full_name || user?.email || null
+                images: post.images || {}
               })
               .eq('id', post.id);
 
@@ -1139,11 +1136,11 @@ export default function Home() {
   };
 
   const generateTasksForEventSize = (size, eventDate) => {
-    const baseDate = new Date(eventDate);
+    const baseDate = parseLocalDate(eventDate);
     const formatDate = (daysOffset) => {
       const date = new Date(baseDate);
       date.setDate(date.getDate() + daysOffset);
-      return date.toISOString().split('T')[0];
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     };
 
     const baseTasks = {
@@ -1888,16 +1885,27 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
       // Ilman tätä ensimmäinen INSERT voi jumittaa >15 s kylmässä yhteydessä.
       try {
         // Päivitetään auth-token ensin – vanhentunut token aiheuttaa 401 warming-kyselyyn
-        const { error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError) {
-          console.warn('[saveNewEventV2] Session refresh warning:', refreshError.message);
+        try {
+          const { error: refreshError } = await withTimeout(
+            supabase.auth.refreshSession(),
+            10000,
+            'token-päivitys'
+          );
+          if (refreshError) {
+            console.warn('[saveNewEventV2] Session refresh warning:', refreshError.message);
+          }
+        } catch (refreshTimeout) {
+          console.warn('[saveNewEventV2] Token-päivitys aikakatkosi – jatketaan vanalla tokenilla');
         }
 
-        await withTimeout(
+        const { error: warmError } = await withTimeout(
           supabase.from('events').select('id').limit(0),
-          15000,
+          10000,
           'yhteys'
         );
+        if (warmError) {
+          console.warn('[saveNewEventV2] Yhteyslämmitys palautti virhen:', warmError.message);
+        }
       } catch (warmErr) {
         console.error('[saveNewEventV2] Yhteyslämmitys epäonnistui:', warmErr.message, warmErr);
         const detail = warmErr.message?.includes('Aikakatkos')
@@ -3197,7 +3205,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                               <div className="w-full bg-gray-200 rounded-full h-2">
                                 <div 
                                   className="bg-green-600 h-2 rounded-full"
-                                  style={{ width: `${(completed / total) * 100}%` }}
+                                  style={{ width: `${total > 0 ? (completed / total) * 100 : 0}%` }}
                                 ></div>
                               </div>
                             </div>
@@ -3556,7 +3564,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                     <div className="flex-1 bg-gray-200 rounded-full h-1 md:h-1.5">
                                       <div
                                         className="bg-green-600 h-1 md:h-1.5 rounded-full"
-                                        style={{ width: `${(completed / total) * 100}%` }}
+                                        style={{ width: `${total > 0 ? (completed / total) * 100 : 0}%` }}
                                       ></div>
                                     </div>
                                     <span className="text-xs sm:text-xs">{completed}/{total}</span>
@@ -3672,7 +3680,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                 <div className="flex-1 bg-gray-200 rounded-full h-1.5">
                                   <div
                                     className="bg-green-600 h-1.5 rounded-full"
-                                    style={{ width: `${(completed / total) * 100}%` }}
+                                    style={{ width: `${total > 0 ? (completed / total) * 100 : 0}%` }}
                                   ></div>
                                 </div>
                                 <span className="text-xs">{completed}/{total}</span>
@@ -4085,8 +4093,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                 type="date"
                                 value={dateEntry.date}
                                 onChange={(e) => {
-                                  const newDates = [...newEvent.dates];
-                                  newDates[index].date = e.target.value;
+                                  const newDates = newEvent.dates.map((d, i) => i === index ? { ...d, date: e.target.value } : d);
                                   setNewEvent({ ...newEvent, dates: newDates });
                                 }}
                                 className="w-full p-2 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
@@ -4099,8 +4106,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                               <select
                                 value={dateEntry.startTime}
                                 onChange={(e) => {
-                                  const newDates = [...newEvent.dates];
-                                  newDates[index].startTime = e.target.value;
+                                  const newDates = newEvent.dates.map((d, i) => i === index ? { ...d, startTime: e.target.value } : d);
                                   setNewEvent({ ...newEvent, dates: newDates });
                                 }}
                                 className="w-full p-2 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
@@ -4123,8 +4129,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                               <select
                                 value={dateEntry.endTime}
                                 onChange={(e) => {
-                                  const newDates = [...newEvent.dates];
-                                  newDates[index].endTime = e.target.value;
+                                  const newDates = newEvent.dates.map((d, i) => i === index ? { ...d, endTime: e.target.value } : d);
                                   setNewEvent({ ...newEvent, dates: newDates });
                                 }}
                                 className="w-full p-2 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
@@ -4601,7 +4606,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   <span className="text-sm font-normal text-gray-600">({newEvent.tasks?.length || 0} kpl)</span>
                 </h4>
                 <div className="space-y-3">
-                  {newEvent.tasks?.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate)).map((task, index) => {
+                  {[...(newEvent.tasks || [])].sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate)).map((task, index) => {
                     const channel = channels.find(c => c.id === task.channel);
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
@@ -4762,8 +4767,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                 value={dateEntry.date}
                                 onChange={(e) => {
                                   const currentDates = editingEvent.dates || [{ date: editingEvent.date || '', startTime: editingEvent.time || '', endTime: '' }];
-                                  const newDates = [...currentDates];
-                                  newDates[index].date = e.target.value;
+                                  const newDates = currentDates.map((d, i) => i === index ? { ...d, date: e.target.value } : d);
                                   setEditingEvent({ ...editingEvent, dates: newDates });
                                 }}
                                 className="w-full p-2 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
@@ -4777,8 +4781,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                 value={dateEntry.startTime || ''}
                                 onChange={(e) => {
                                   const currentDates = editingEvent.dates || [{ date: editingEvent.date || '', startTime: editingEvent.time || '', endTime: '' }];
-                                  const newDates = [...currentDates];
-                                  newDates[index].startTime = e.target.value;
+                                  const newDates = currentDates.map((d, i) => i === index ? { ...d, startTime: e.target.value } : d);
                                   setEditingEvent({ ...editingEvent, dates: newDates });
                                 }}
                                 className="w-full p-2 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
@@ -4802,8 +4805,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                 value={dateEntry.endTime || ''}
                                 onChange={(e) => {
                                   const currentDates = editingEvent.dates || [{ date: editingEvent.date || '', startTime: editingEvent.time || '', endTime: '' }];
-                                  const newDates = [...currentDates];
-                                  newDates[index].endTime = e.target.value;
+                                  const newDates = currentDates.map((d, i) => i === index ? { ...d, endTime: e.target.value } : d);
                                   setEditingEvent({ ...editingEvent, dates: newDates });
                                 }}
                                 className="w-full p-2 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"

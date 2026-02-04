@@ -8,8 +8,13 @@ CREATE TABLE IF NOT EXISTS events (
   date DATE, -- DEPRECATED: Käytä event_instances-taulua monipäiväisille tapahtumille
   time TEXT, -- DEPRECATED: Käytä event_instances-taulua
   artist TEXT,
+  summary TEXT,
+  url TEXT,
   year INTEGER NOT NULL,
   images JSONB DEFAULT '{}',
+  created_by_id UUID,
+  created_by_email TEXT,
+  created_by_name TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -36,6 +41,11 @@ CREATE TABLE IF NOT EXISTS tasks (
   due_time TEXT,
   completed BOOLEAN DEFAULT FALSE,
   content TEXT,
+  assignee TEXT,
+  notes TEXT,
+  created_by_id UUID,
+  created_by_email TEXT,
+  created_by_name TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );

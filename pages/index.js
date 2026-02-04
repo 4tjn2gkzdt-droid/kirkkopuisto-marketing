@@ -19,6 +19,29 @@ function parseLocalDate(dateString) {
   return new Date(year, month - 1, day)
 }
 
+// Turvallinen INSERT: automaattisesti poistaa sarakkeita jos Supabase palauttaa
+// 42703-virhekoodi ("column X does not exist") ja tekee uuden yrityksen.
+// Tämä korjaa käynnissä olevan ongelman, joissa puuttuvat migraatiot (summary,
+// notes, created_by_*) rikkovat saveNewEvent()-tallennuksen.
+async function insertSafe(client, table, payload, useSingle = false, depth = 0) {
+  if (depth > 8) return { data: null, error: { message: 'Liikaa puuttuvia sarakkeita taulusta ' + table } }
+  const result = useSingle
+    ? await client.from(table).insert(payload).select().single()
+    : await client.from(table).insert(payload)
+  if (result.error && result.error.message && result.error.message.includes('does not exist')) {
+    const match = result.error.message.match(/column "(\w+)"/)
+    if (match) {
+      const col = match[1]
+      console.warn(`[insertSafe] "${col}" puuttee "${table}" – poistetaan ja yritetään (yritys ${depth + 1})`)
+      const stripped = Array.isArray(payload)
+        ? payload.map(p => { const copy = { ...p }; delete copy[col]; return copy })
+        : (() => { const copy = { ...payload }; delete copy[col]; return copy })()
+      return insertSafe(client, table, stripped, useSingle, depth + 1)
+    }
+  }
+  return result
+}
+
 export default function Home() {
   const router = useRouter();
   const [user, setUser] = useState(null);
@@ -344,9 +367,7 @@ export default function Home() {
               year: year
             });
 
-            const { data: newEvent, error: eventError } = await supabase
-              .from('events')
-              .insert({
+            const { data: newEvent, error: eventError } = await insertSafe(supabase, 'events', {
                 title: post.title,
                 date: post.date,
                 time: post.time || null,
@@ -356,9 +377,7 @@ export default function Home() {
                 created_by_id: user?.id || null,
                 created_by_email: user?.email || null,
                 created_by_name: userProfile?.full_name || user?.email || null
-              })
-              .select()
-              .single();
+              }, true);
 
             if (eventError) {
               console.error('Virhe tallentaessa tapahtumaa:', eventError);
@@ -415,9 +434,7 @@ export default function Home() {
                 created_by_name: userProfile?.full_name || user?.email || null
               }));
 
-              const { error: tasksError } = await supabase
-                .from('tasks')
-                .insert(tasksToInsert);
+              const { error: tasksError } = await insertSafe(supabase, 'tasks', tasksToInsert);
 
               if (tasksError) {
                 console.error('Virhe tallentaessa tehtäviä:', tasksError);
@@ -659,9 +676,7 @@ export default function Home() {
           console.log(`📝 Tallennetaan tapahtuma ${i + 1}:`, event.title);
 
           // Tallenna tapahtuma ilman ID:tä (Supabase generoi sen)
-          const { data: newEvent, error: eventError } = await supabase
-            .from('events')
-            .insert({
+          const { data: newEvent, error: eventError } = await insertSafe(supabase, 'events', {
               title: event.title,
               date: event.date,
               time: event.time || null,
@@ -671,9 +686,7 @@ export default function Home() {
               created_by_id: user?.id || null,
               created_by_email: user?.email || null,
               created_by_name: userProfile?.full_name || user?.email || null
-            })
-            .select()
-            .single();
+            }, true);
 
           if (eventError) {
             console.error(`❌ Virhe tallennettaessa tapahtumaa ${i + 1}:`, eventError);
@@ -716,9 +729,7 @@ export default function Home() {
               created_by_name: userProfile?.full_name || user?.email || null
             }));
 
-            const { error: tasksError } = await supabase
-              .from('tasks')
-              .insert(tasksToInsert);
+            const { error: tasksError } = await insertSafe(supabase, 'tasks', tasksToInsert);
 
             if (tasksError) {
               console.error(`⚠️ Virhe tallennettaessa tehtäviä:`, tasksError);
@@ -1626,9 +1637,9 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
       if (supabase) {
         // Tallenna Supabaseen
         // Tallenna tapahtuma (master event)
-        const { data: savedEvent, error: eventError } = await supabase
-          .from('events')
-          .insert({
+        // insertSafe hoitaa automaattisesti puuttuvien sarakkeiden poistettujen
+        // ja uudelleen yrityksen (korjaa 42703 summary/created_by virheit)
+        const { data: savedEvent, error: eventError } = await insertSafe(supabase, 'events', {
             title: newEvent.title,
             artist: newEvent.artist || null,
             summary: newEvent.summary || null,
@@ -1638,9 +1649,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             created_by_id: user?.id || null,
             created_by_email: user?.email || null,
             created_by_name: userProfile?.full_name || user?.email || null
-          })
-          .select()
-          .single();
+          }, true);
 
         if (eventError) throw eventError;
 
@@ -1679,9 +1688,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             created_by_name: userProfile?.full_name || user?.email || null
           }));
 
-          const { error: tasksError } = await supabase
-            .from('tasks')
-            .insert(tasksToInsert);
+          const { error: tasksError } = await insertSafe(supabase, 'tasks', tasksToInsert);
 
           if (tasksError) throw tasksError;
         }
@@ -4069,7 +4076,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                     let deadlineText = '';
                     const firstDate = newEvent.dates?.[0]?.date;
                     if (firstDate) {
-                      const eventDate = new Date(firstDate);
+                      const eventDate = parseLocalDate(firstDate);
                       const deadline = new Date(eventDate);
                       deadline.setDate(eventDate.getDate() - op.daysBeforeEvent);
                       deadlineText = `📅 ${deadline.toLocaleDateString('fi-FI', { day: 'numeric', month: 'short' })}`;

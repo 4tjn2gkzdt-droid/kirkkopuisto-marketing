@@ -402,15 +402,22 @@ export default function DebugJuneEvent() {
         </p>
 
         {/* Tunnetut epäilykset */}
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-          <h3 className="font-semibold text-amber-800 mb-2">Selvitettävät epäilykset</h3>
-          <ul className="text-sm text-amber-700 space-y-1 list-disc list-inside">
-            <li><code className="bg-amber-100 px-1 rounded">summary</code> — käytetään INSERTissä, migraatiota ei löydy</li>
-            <li><code className="bg-amber-100 px-1 rounded">created_by_id / email / name</code> — events ja tasks tauluissa, ei schemassa</li>
-            <li><code className="bg-amber-100 px-1 rounded">assignee / notes</code> — tasks-taulussa, ei schemassa</li>
-            <li>Aikavyöhykevira: <code className="bg-amber-100 px-1 rounded">toISOString()</code> vs <code className="bg-amber-100 px-1 rounded">getDate()</code> deadline-laskennassa</li>
-            <li><code className="bg-amber-100 px-1 rounded">url</code> — puuttuu lomakkeen resetistä (rivi 1728)</li>
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+          <h3 className="font-semibold text-green-800 mb-2">Korjatut ongelmat</h3>
+          <ul className="text-sm text-green-700 space-y-1 list-disc list-inside">
+            <li>✅ <code className="bg-green-100 px-1 rounded">insertSafe()</code> — automaattinen retry puuttuville sarakkeille (42703-virhe)</li>
+            <li>✅ Migraatio <code className="bg-green-100 px-1 rounded">add_summary_notes_audit_columns.sql</code> luotu</li>
+            <li>✅ Aikavyöhykevira deadline-esikatselu korjattu (<code className="bg-green-100 px-1 rounded">parseLocalDate</code>)</li>
+            <li>✅ <code className="bg-green-100 px-1 rounded">url</code> lomakkeen resetissä</li>
           </ul>
+        </div>
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+          <h3 className="font-semibold text-amber-800 mb-2">Huom: Jos migraatiota ei ole ajettu</h3>
+          <p className="text-sm text-amber-700">
+            <code className="bg-amber-100 px-1 rounded">insertSafe()</code> hoitaa automaattisesti puuttuvien sarakkeiden poistettujen ja uudelleen yrityksen.
+            Migraatio <code className="bg-amber-100 px-1 rounded">migrations/add_summary_notes_audit_columns.sql</code> ajama Supabase SQL Editorissa
+            tallentaa myös <code className="bg-amber-100 px-1 rounded">summary</code>-kentän.
+          </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -441,6 +448,27 @@ export default function DebugJuneEvent() {
                     🗑️ Poista testitapahtuma (id={savedEventId})
                   </button>
                 )}
+                <hr className="my-2" />
+                <button onClick={async () => {
+                  setLoading(true);
+                  addLog('\n── LISÄÄ: Soi torpat ja salongit (API) ──', 'info');
+                  try {
+                    const res = await fetch('/api/seed-soi-torpat', { method: 'POST' });
+                    const body = await res.json();
+                    if (res.ok) {
+                      addLog('✅ Tapahtuma lisättiin onnistuneesti!', 'success', body.event);
+                      body.logs?.forEach(l => addLog('  ' + l, 'success'));
+                    } else {
+                      addLog('❌ Virhe: ' + (body.error || 'tuntematon'), 'error', body);
+                    }
+                  } catch (e) {
+                    addLog('❌ Fetch-virhe: ' + e.message, 'error');
+                  }
+                  setLoading(false);
+                }} disabled={loading}
+                  className="w-full bg-teal-600 hover:bg-teal-700 text-white py-2 px-4 rounded disabled:bg-gray-300 text-sm font-bold">
+                  🎻 Lisää: Soi torpat ja salongit
+                </button>
                 <button onClick={() => setLogs([])}
                   className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 px-4 rounded text-sm font-medium">
                   Tyhjennä lokit

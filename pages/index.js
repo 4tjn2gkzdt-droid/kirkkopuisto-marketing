@@ -1859,7 +1859,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
     setIsSaving(true);
     setSavingError(null);
     setSavingPhase(1);
-    setSavingStatus('Tallennetaan tapahtumaa...');
+    setSavingStatus('Tarkistetaan yhteyttä...');
 
     try {
       const eventYear = parseLocalDate(eventToSave.dates[0].date).getFullYear();
@@ -1883,22 +1883,53 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
         return;
       }
 
-      // === Vaihe 1 / 3: master-tapahtuma (15 s aikakatkos) ===
-      const { data: savedEvent, error: eventError } = await withTimeout(
-        insertSafe(supabase, 'events', {
-          title: eventToSave.title,
-          artist: eventToSave.artist || null,
-          summary: eventToSave.summary || null,
-          url: eventToSave.url || null,
-          year: eventYear,
-          images: {},
-          created_by_id: user?.id || null,
-          created_by_email: user?.email || null,
-          created_by_name: userProfile?.full_name || user?.email || null
-        }, true),
-        15000,
-        'tapahtuma'
-      );
+      // === Yhteyslämmitys: kevyä SELECT ennen INSERTiä ===
+      // Varmistaa TCP/SSL-yhteyden ja auth-tokenin päivityksen ensilyönnillä.
+      // Ilman tätä ensimmäinen INSERT voi jumittaa >15 s kylmässä yhteydessä.
+      try {
+        await withTimeout(
+          supabase.from('events').select('id').limit(0),
+          10000,
+          'yhteys'
+        );
+      } catch {
+        throw new Error('Supabase-yhteys epäonnistui – tarkista verkkoyhteys ja yritä uudelleen');
+      }
+
+      // === Vaihe 1 / 3: master-tapahtuma ===
+      setSavingStatus('Tallennetaan tapahtumaa...');
+
+      const eventPayload = {
+        title: eventToSave.title,
+        artist: eventToSave.artist || null,
+        summary: eventToSave.summary || null,
+        url: eventToSave.url || null,
+        year: eventYear,
+        images: {},
+        created_by_id: user?.id || null,
+        created_by_email: user?.email || null,
+        created_by_name: userProfile?.full_name || user?.email || null
+      };
+
+      // Automaattinen uusinta: jos ensimmäinen yritys jumittaa, odota 2 s ja yritä uudelleen
+      let savedEvent = null;
+      let eventError = null;
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const result = await withTimeout(
+            insertSafe(supabase, 'events', eventPayload, true),
+            15000,
+            'tapahtuma'
+          );
+          savedEvent = result.data;
+          eventError = result.error;
+          break; // onnistui tai Supabase palauttoi virheen (ei timeout)
+        } catch (timeoutErr) {
+          if (attempt === 2) throw timeoutErr; // molemmat yritykset epäonnistuivat
+          setSavingStatus('Aikakatkos – yritetään uudelleen (2/2)...');
+          await new Promise(r => setTimeout(r, 2000));
+        }
+      }
       if (eventError) throw eventError;
 
       // === Vaihe 2 / 3: päivämäärät ===

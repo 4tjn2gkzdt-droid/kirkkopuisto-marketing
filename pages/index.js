@@ -1850,13 +1850,11 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
       if (!task.dueDate) { alert('Kaikilla tehtävillä täytyy olla deadline'); return; }
     }
 
-    const hasTasks = eventToSave.tasks.length > 0;
-
     // Aloita tallennus
     setIsSaving(true);
     setSavingError(null);
     setSavingPhase(1);
-    setSavingStatus('Tarkistetaan yhteyttä...');
+    setSavingStatus('Tallennetaan tapahtumaa...');
 
     try {
       const eventYear = parseLocalDate(eventToSave.dates[0].date).getFullYear();
@@ -1880,147 +1878,57 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
         return;
       }
 
-      // === Yhteyslämmitys: kevyä SELECT ennen INSERTiä ===
-      // Varmistaa TCP/SSL-yhteyden ja auth-tokenin päivityksen ensilyönnillä.
-      // Ilman tätä ensimmäinen INSERT voi jumittaa >15 s kylmässä yhteydessä.
-      try {
-        // Päivitetään auth-token ensin – vanhentunut token aiheuttaa 401 warming-kyselyyn
-        try {
-          const { error: refreshError } = await withTimeout(
-            supabase.auth.refreshSession(),
-            10000,
-            'token-päivitys'
-          );
-          if (refreshError) {
-            console.warn('[saveNewEventV2] Session refresh warning:', refreshError.message);
-          }
-        } catch (refreshTimeout) {
-          console.warn('[saveNewEventV2] Token-päivitys aikakatkosi – jatketaan vanalla tokenilla');
-        }
+      // === Server-side API kutsu – yhteyslämmitys/retry ei tarvitsi ===
+      // Tapahtuma + päivämäärät + tehtävät luodaan ykseä API-kyselyä kohti.
+      // Server käyttää service_role-avaimella lämpimää yhteyttä → nopea ja luotettava.
+      const response = await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: eventToSave.title,
+          artist: eventToSave.artist || null,
+          summary: eventToSave.summary || null,
+          url: eventToSave.url || null,
+          year: eventYear,
+          dates: eventToSave.dates,
+          tasks: eventToSave.tasks,
+          createdBy: {
+            id: user?.id || null,
+            email: user?.email || null,
+            name: userProfile?.full_name || user?.email || null,
+          },
+        }),
+      });
 
-        const { error: warmError } = await withTimeout(
-          supabase.from('events').select('id').limit(0),
-          10000,
-          'yhteys'
-        );
-        if (warmError) {
-          console.warn('[saveNewEventV2] Yhteyslämmitys palautti virhen:', warmError.message);
-        }
-      } catch (warmErr) {
-        console.error('[saveNewEventV2] Yhteyslämmitys epäonnistui:', warmErr.message, warmErr);
-        const detail = warmErr.message?.includes('Aikakatkos')
-          ? 'Yhteys on hidas – yritä uudelleen tai tarkista verkkoyhteytys.'
-          : warmErr.message?.includes('401') || warmErr.message?.includes('Unauthorized')
-            ? 'Istunto on vanhentunut – päivitä sivu ja kirjaudu uudelleen.'
-            : warmErr.message || 'Tuntematon verkkovirhe';
-        throw new Error(`Supabase-yhteys epäonnistui: ${detail}`);
-      }
-
-      // === Vaihe 1 / 3: master-tapahtuma ===
-      setSavingStatus('Tallennetaan tapahtumaa...');
-
-      const eventPayload = {
-        title: eventToSave.title,
-        artist: eventToSave.artist || null,
-        summary: eventToSave.summary || null,
-        url: eventToSave.url || null,
-        year: eventYear,
-        images: {},
-        created_by_id: user?.id || null,
-        created_by_email: user?.email || null,
-        created_by_name: userProfile?.full_name || user?.email || null
-      };
-
-      // Automaattinen uusinta: jos ensimmäinen yritys jumittaa, odota 2 s ja yritä uudelleen
-      let savedEvent = null;
-      let eventError = null;
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
-          const result = await withTimeout(
-            insertSafe(supabase, 'events', eventPayload, true),
-            15000,
-            'tapahtuma'
-          );
-          savedEvent = result.data;
-          eventError = result.error;
-          break; // onnistui tai Supabase palauttoi virheen (ei timeout)
-        } catch (timeoutErr) {
-          if (attempt === 2) throw timeoutErr; // molemmat yritykset epäonnistuivat
-          setSavingStatus('Aikakatkos – yritetään uudelleen (2/2)...');
-          await new Promise(r => setTimeout(r, 2000));
-        }
-      }
-      if (eventError) throw eventError;
-
-      // === Vaihe 2 / 3: päivämäärät ===
-      setSavingPhase(2);
-      setSavingStatus(`Tallennetaan päivämääriä (${eventToSave.dates.length} kpl)...`);
-
-      const instancesToInsert = eventToSave.dates.map(dateEntry => ({
-        event_id: savedEvent.id,
-        date: dateEntry.date,
-        start_time: dateEntry.startTime || null,
-        end_time: dateEntry.endTime || null
-      }));
-
-      const { error: instancesError } = await withTimeout(
-        supabase.from('event_instances').insert(instancesToInsert),
-        15000,
-        'päivämäärät'
-      );
-      if (instancesError) throw instancesError;
-
-      // === Vaihe 3 / 3: tehtävät ===
-      if (hasTasks) {
-        setSavingPhase(3);
-        setSavingStatus(`Tallennetaan tehtäviä (${eventToSave.tasks.length} kpl)...`);
-
-        const tasksToInsert = eventToSave.tasks.map(task => ({
-          event_id: savedEvent.id,
-          title: task.title,
-          channel: task.channel,
-          due_date: task.dueDate,
-          due_time: task.dueTime || null,
-          completed: false,
-          content: task.content || null,
-          assignee: task.assignee || null,
-          notes: task.notes || null,
-          created_by_id: user?.id || null,
-          created_by_email: user?.email || null,
-          created_by_name: userProfile?.full_name || user?.email || null
-        }));
-
-        const { error: tasksError } = await withTimeout(
-          insertSafe(supabase, 'tasks', tasksToInsert),
-          15000,
-          'tehtävät'
-        );
-        if (tasksError) throw tasksError;
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Tapahtumaa ei voitu tallentaa');
       }
 
       // === Tallennus valmis – päivitä UI ja tyhjennä lomake ===
+      const savedEvent = result.event;
       const sortedDates = [...eventToSave.dates].sort((a, b) => new Date(a.date) - new Date(b.date));
       const createdEvent = {
         id: savedEvent.id,
-        title: eventToSave.title,
-        artist: eventToSave.artist,
-        summary: eventToSave.summary,
-        url: eventToSave.url,
-        images: {},
+        title: savedEvent.title,
+        artist: savedEvent.artist,
+        summary: savedEvent.summary,
+        url: savedEvent.url,
+        images: savedEvent.images || {},
         dates: sortedDates,
         date: sortedDates[0].date,
         time: sortedDates[0].startTime,
-        tasks: eventToSave.tasks.map((task, idx) => ({
-          id: savedEvent.id * 1000 + idx,
+        tasks: (savedEvent.tasks || []).map(task => ({
+          id: task.id,
           title: task.title,
           channel: task.channel,
-          dueDate: task.dueDate,
-          dueTime: task.dueTime,
-          completed: false,
-          content: task.content || null,
+          dueDate: task.due_date,
+          dueTime: task.due_time,
+          completed: task.completed,
+          content: task.content,
           assignee: task.assignee,
-          notes: task.notes
-        }))
+          notes: task.notes,
+        })),
       };
 
       setPosts(prev => {

@@ -42,6 +42,17 @@ async function insertSafe(client, table, payload, useSingle = false, depth = 0) 
   return result
 }
 
+// Lupaus aikakatkosella – estää tarpeettoman odottamisenfunction
+// jos Supabase-kutsu jumittaa, heitetään selkeä virhe (ei jää ikäiseksi)
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`Aikakatkos: ${label} (${ms / 1000}s) – tarkista yhteys`)), ms)
+    )
+  ]);
+}
+
 export default function Home() {
   const router = useRouter();
   const [user, setUser] = useState(null);
@@ -95,6 +106,8 @@ export default function Home() {
   const [generatingProgress, setGeneratingProgress] = useState({ current: 0, total: 0, isGenerating: false });
   const [isSaving, setIsSaving] = useState(false);
   const [savingStatus, setSavingStatus] = useState('');
+  const [savingPhase, setSavingPhase] = useState(0); // 0=idle, 1=event, 2=dates, 3=tasks
+  const [savingError, setSavingError] = useState(null); // string | null
   const [isImporting, setIsImporting] = useState(false);
   const [importingStatus, setImportingStatus] = useState('');
   const [polishingEventSummary, setPolishingEventSummary] = useState(false);
@@ -1796,6 +1809,188 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
       setIsSaving(false);
       setSavingStatus('Virhe: ' + error.message);
       setTimeout(() => setSavingStatus(''), 8000);
+    }
+  };
+
+  // === TAPAHTUMIEN LISÄYS V2 – aikakatkos + vaiheittainen progress ===
+
+  // Apufunktio: luo tehtävät valittujen markkinointikanavien perusteella
+  const prepareTasksFromChannels = () => {
+    const firstDate = newEvent.dates?.[0]?.date;
+    if (!firstDate) return [];
+    const eventDate = parseLocalDate(firstDate);
+    return selectedMarketingChannels.map(opId => {
+      const op = marketingOperations.find(o => o.id === opId);
+      if (!op) return null;
+      const deadline = new Date(eventDate);
+      deadline.setDate(eventDate.getDate() - op.daysBeforeEvent);
+      const deadlineStr = `${deadline.getFullYear()}-${String(deadline.getMonth() + 1).padStart(2, '0')}-${String(deadline.getDate()).padStart(2, '0')}`;
+      return {
+        id: `temp-${Date.now()}-${Math.random()}`,
+        title: op.name,
+        channel: op.channel,
+        dueDate: deadlineStr,
+        dueTime: op.defaultTime,
+        assignee: defaultAssignee,
+        content: '',
+        completed: false
+      };
+    }).filter(Boolean);
+  };
+
+  // V2-tallennusfunktio: jokaisella Supabase-kutsulla on aikakatkos,
+  // edistys näkyy vaiheittain ja virhe näytetään käyttäjälle selkeästi.
+  // tasksParam – suoraan kutsujalta lähetetyt tehtävät (React state ei ole päivitetty vielä)
+  const saveNewEventV2 = async (tasksParam) => {
+    const eventToSave = { ...newEvent, tasks: tasksParam || newEvent.tasks };
+
+    // Validointi
+    if (!eventToSave.title.trim()) { alert('Anna tapahtumalle nimi'); return; }
+    if (!eventToSave.dates || eventToSave.dates.length === 0) { alert('Lisää vähintään yksi päivämäärä'); return; }
+    if (eventToSave.dates.some(d => !d.date)) { alert('Täytä kaikki päivämäärät'); return; }
+    for (const task of eventToSave.tasks) {
+      if (!task.title.trim()) { alert('Kaikilla tehtävillä täytyy olla nimi'); return; }
+      if (!task.dueDate) { alert('Kaikilla tehtävillä täytyy olla deadline'); return; }
+    }
+
+    const hasTasks = eventToSave.tasks.length > 0;
+
+    // Aloita tallennus
+    setIsSaving(true);
+    setSavingError(null);
+    setSavingPhase(1);
+    setSavingStatus('Tallennetaan tapahtumaa...');
+
+    try {
+      const eventYear = parseLocalDate(eventToSave.dates[0].date).getFullYear();
+
+      if (!supabase) {
+        // localStorage fallback
+        const newPost = {
+          id: Date.now(),
+          ...eventToSave,
+          images: {},
+          tasks: eventToSave.tasks.map(t => ({ ...t, id: Date.now() + Math.random() }))
+        };
+        savePosts(eventYear, [...(posts[eventYear] || []), newPost].sort((a, b) =>
+          new Date(a.date) - new Date(b.date)
+        ));
+        setIsSaving(false); setSavingPhase(0); setSavingStatus(''); setSavingError(null);
+        setNewEvent({ title: '', dates: [{ date: '', startTime: '', endTime: '' }], artist: '', url: '', eventType: 'artist', summary: '', tasks: [] });
+        setSelectedMarketingChannels([]); setDefaultAssignee('');
+        setShowPreview(false); setPolishedEventVersions(null); setShowAddEventModal(false);
+        if (eventYear !== selectedYear) setSelectedYear(eventYear);
+        return;
+      }
+
+      // === Vaihe 1 / 3: master-tapahtuma (15 s aikakatkos) ===
+      const { data: savedEvent, error: eventError } = await withTimeout(
+        insertSafe(supabase, 'events', {
+          title: eventToSave.title,
+          artist: eventToSave.artist || null,
+          summary: eventToSave.summary || null,
+          url: eventToSave.url || null,
+          year: eventYear,
+          images: {},
+          created_by_id: user?.id || null,
+          created_by_email: user?.email || null,
+          created_by_name: userProfile?.full_name || user?.email || null
+        }, true),
+        15000,
+        'tapahtuma'
+      );
+      if (eventError) throw eventError;
+
+      // === Vaihe 2 / 3: päivämäärät ===
+      setSavingPhase(2);
+      setSavingStatus(`Tallennetaan päivämääriä (${eventToSave.dates.length} kpl)...`);
+
+      const instancesToInsert = eventToSave.dates.map(dateEntry => ({
+        event_id: savedEvent.id,
+        date: dateEntry.date,
+        start_time: dateEntry.startTime || null,
+        end_time: dateEntry.endTime || null
+      }));
+
+      const { error: instancesError } = await withTimeout(
+        supabase.from('event_instances').insert(instancesToInsert),
+        15000,
+        'päivämäärät'
+      );
+      if (instancesError) throw instancesError;
+
+      // === Vaihe 3 / 3: tehtävät ===
+      if (hasTasks) {
+        setSavingPhase(3);
+        setSavingStatus(`Tallennetaan tehtäviä (${eventToSave.tasks.length} kpl)...`);
+
+        const tasksToInsert = eventToSave.tasks.map(task => ({
+          event_id: savedEvent.id,
+          title: task.title,
+          channel: task.channel,
+          due_date: task.dueDate,
+          due_time: task.dueTime || null,
+          completed: false,
+          content: task.content || null,
+          assignee: task.assignee || null,
+          notes: task.notes || null,
+          created_by_id: user?.id || null,
+          created_by_email: user?.email || null,
+          created_by_name: userProfile?.full_name || user?.email || null
+        }));
+
+        const { error: tasksError } = await withTimeout(
+          insertSafe(supabase, 'tasks', tasksToInsert),
+          15000,
+          'tehtävät'
+        );
+        if (tasksError) throw tasksError;
+      }
+
+      // === Tallennus valmis – päivitä UI ja tyhjennä lomake ===
+      const sortedDates = [...eventToSave.dates].sort((a, b) => new Date(a.date) - new Date(b.date));
+      const createdEvent = {
+        id: savedEvent.id,
+        title: eventToSave.title,
+        artist: eventToSave.artist,
+        summary: eventToSave.summary,
+        url: eventToSave.url,
+        images: {},
+        dates: sortedDates,
+        date: sortedDates[0].date,
+        time: sortedDates[0].startTime,
+        tasks: eventToSave.tasks.map((task, idx) => ({
+          id: savedEvent.id * 1000 + idx,
+          title: task.title,
+          channel: task.channel,
+          dueDate: task.dueDate,
+          dueTime: task.dueTime,
+          completed: false,
+          content: task.content || null,
+          assignee: task.assignee,
+          notes: task.notes
+        }))
+      };
+
+      setPosts(prev => {
+        const yearPosts = prev[eventYear] || [];
+        const updatedPosts = [...yearPosts, createdEvent]
+          .sort((a, b) => new Date(a.date) - new Date(b.date));
+        return { ...prev, [eventYear]: updatedPosts };
+      });
+
+      setIsSaving(false); setSavingPhase(0); setSavingStatus(''); setSavingError(null);
+      setNewEvent({ title: '', dates: [{ date: '', startTime: '', endTime: '' }], artist: '', url: '', eventType: 'artist', summary: '', tasks: [] });
+      setSelectedMarketingChannels([]); setDefaultAssignee('');
+      setShowPreview(false); setPolishedEventVersions(null); setShowAddEventModal(false);
+      if (eventYear !== selectedYear) setSelectedYear(eventYear);
+
+    } catch (error) {
+      console.error('Virhe tallennettaessa (V2):', error);
+      setIsSaving(false);
+      setSavingPhase(0);
+      setSavingError(error.message || 'Tuntematon virhe');
+      setSavingStatus('');
     }
   };
 
@@ -3685,22 +3880,78 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             <div className="bg-white rounded-lg max-w-4xl w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
               <h3 className="text-2xl font-bold mb-6">➕ Lisää uusi tapahtuma</h3>
 
-              {/* Progress- / virhe-ilmoitus tallennukselle */}
-              {(isSaving || savingStatus) && (
-                <div className={`mb-6 rounded-lg p-4 ${savingStatus?.startsWith('Virhe:') ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'}`}>
-                  <div className="flex items-center gap-3">
-                    <div className={savingStatus?.startsWith('Virhe:') ? 'text-2xl' : 'animate-spin text-2xl'}>
-                      {savingStatus?.startsWith('Virhe:') ? '❌' : '💾'}
+              {/* Vaiheittainen progress + virheviesti (V2) */}
+              {(isSaving || savingError) && (
+                <div className="mb-6">
+                  {savingError ? (
+                    // Virhetila – selkeä viesti + yritä uudelleen
+                    <div className="bg-red-50 border border-red-300 rounded-lg p-4">
+                      <div className="flex items-start gap-3">
+                        <div className="text-2xl">❌</div>
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-red-900">Tallennusvirhe</h4>
+                          <p className="text-sm text-red-700 mt-1">{savingError}</p>
+                          <div className="flex gap-2 mt-3">
+                            <button
+                              type="button"
+                              onClick={() => saveNewEventV2(newEvent.tasks)}
+                              className="text-sm bg-red-600 text-white px-4 py-1.5 rounded-lg font-medium hover:bg-red-700 transition-colors"
+                            >
+                              🔄 Yritä uudelleen
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSavingError(null)}
+                              className="text-sm text-red-600 font-medium hover:text-red-800 underline"
+                            >
+                              Sulje
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <h4 className={`font-semibold ${savingStatus?.startsWith('Virhe:') ? 'text-red-900' : 'text-green-900'}`}>
-                        {savingStatus || 'Tallennetaan...'}
-                      </h4>
-                      <p className={`text-sm ${savingStatus?.startsWith('Virhe:') ? 'text-red-700' : 'text-green-700'}`}>
-                        {savingStatus?.startsWith('Virhe:') ? 'Tarkista yhteys ja yritä uudelleen.' : 'Ole hyvä ja odota...'}
-                      </p>
+                  ) : (
+                    // Tallennustila – vaiheittainen progress
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-semibold text-green-900 flex items-center gap-2">
+                          <span className="animate-spin inline-block">⏳</span>
+                          {savingStatus || 'Tallennetaan...'}
+                        </h4>
+                        <span className="text-xs text-green-700 font-medium">
+                          {savingPhase} / {newEvent.tasks.length > 0 ? 3 : 2}
+                        </span>
+                      </div>
+                      {/* Vaihe-indikaatorit */}
+                      <div className="flex gap-2 mb-3">
+                        {[
+                          { step: 1, label: 'Tapahtuma' },
+                          { step: 2, label: 'Päivämäärät' },
+                          ...(newEvent.tasks.length > 0 ? [{ step: 3, label: 'Tehtävät' }] : [])
+                        ].map(({ step, label }) => (
+                          <div
+                            key={step}
+                            className={`flex-1 text-center text-xs font-semibold py-1.5 rounded-full transition-colors ${
+                              savingPhase > step
+                                ? 'bg-green-600 text-white'
+                                : savingPhase === step
+                                  ? 'bg-blue-500 text-white animate-pulse'
+                                  : 'bg-gray-200 text-gray-600'
+                            }`}
+                          >
+                            {savingPhase > step ? '✓ ' : ''}{label}
+                          </div>
+                        ))}
+                      </div>
+                      {/* Progress-palkki */}
+                      <div className="w-full bg-green-200 rounded-full h-2.5">
+                        <div
+                          className="bg-green-600 h-2.5 rounded-full transition-all duration-500"
+                          style={{ width: `${savingPhase > 0 ? ((savingPhase - 0.5) / (newEvent.tasks.length > 0 ? 3 : 2)) * 100 : 0}%` }}
+                        ></div>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
 
@@ -4188,72 +4439,49 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                 </div>
               </div>
 
-              {/* Napit */}
+              {/* Napit – Esikatselu | Tallenna suoraan | Peruuta */}
               <div className="flex gap-3 mt-6 border-t pt-6">
                 <button
                   onClick={() => {
-                    if (!newEvent.title.trim()) {
-                      alert('Anna tapahtumalle nimi');
-                      return;
-                    }
-                    // Tarkista dates-taulukko monipäiväisille tapahtumille
-                    const firstDate = newEvent.dates?.[0]?.date;
-                    if (!firstDate) {
-                      alert('Lisää vähintään yksi päivämäärä');
-                      return;
-                    }
-                    if (selectedMarketingChannels.length === 0) {
-                      alert('Valitse vähintään yksi markkinointikanava');
-                      return;
-                    }
-
-                    // Luo tehtävät valittujen kanavien perusteella
-                    const eventDate = parseLocalDate(firstDate);
-                    const tasks = selectedMarketingChannels.map(opId => {
-                      const op = marketingOperations.find(o => o.id === opId);
-                      if (!op) {
-                        console.error(`Markkinointitoimenpidettä ei löytynyt: ${opId}`);
-                        return null;
-                      }
-                      const deadline = new Date(eventDate);
-                      deadline.setDate(eventDate.getDate() - op.daysBeforeEvent);
-                      const deadlineStr = `${deadline.getFullYear()}-${String(deadline.getMonth() + 1).padStart(2, '0')}-${String(deadline.getDate()).padStart(2, '0')}`;
-
-                      return {
-                        id: `temp-${Date.now()}-${Math.random()}`,
-                        title: op.name,
-                        channel: op.channel,
-                        dueDate: deadlineStr,
-                        dueTime: op.defaultTime,
-                        assignee: defaultAssignee,
-                        content: '',
-                        completed: false
-                      };
-                    }).filter(task => task !== null);
-
+                    if (!newEvent.title.trim()) { alert('Anna tapahtumalle nimi'); return; }
+                    if (!newEvent.dates?.[0]?.date) { alert('Lisää vähintään yksi päivämäärä'); return; }
+                    if (selectedMarketingChannels.length === 0) { alert('Valitse vähintään yksi markkinointikanava'); return; }
+                    const tasks = prepareTasksFromChannels();
                     setNewEvent({ ...newEvent, tasks });
                     setShowPreview(true);
                   }}
-                  className="flex-1 bg-blue-600 text-white py-4 rounded-lg hover:bg-blue-700 font-bold text-lg shadow-lg hover:shadow-xl transition-all"
+                  disabled={isSaving}
+                  className={`flex-1 py-4 rounded-lg font-bold text-lg shadow-lg transition-all ${
+                    isSaving ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-xl'
+                  }`}
                 >
                   👀 Esikatselu
                 </button>
                 <button
                   onClick={() => {
+                    if (!newEvent.title.trim()) { alert('Anna tapahtumalle nimi'); return; }
+                    if (!newEvent.dates?.[0]?.date) { alert('Lisää vähintään yksi päivämäärä'); return; }
+                    if (selectedMarketingChannels.length === 0) { alert('Valitse vähintään yksi markkinointikanava'); return; }
+                    const tasks = prepareTasksFromChannels();
+                    setNewEvent({ ...newEvent, tasks });
+                    saveNewEventV2(tasks);
+                  }}
+                  disabled={isSaving}
+                  className={`flex-1 py-4 rounded-lg font-bold text-lg shadow-lg transition-all ${
+                    isSaving ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-green-600 text-white hover:bg-green-700 hover:shadow-xl'
+                  }`}
+                >
+                  💾 Tallenna suoraan
+                </button>
+                <button
+                  onClick={() => {
                     setShowAddEventModal(false);
-                    setNewEvent({
-                      title: '',
-                      dates: [{ date: '', startTime: '', endTime: '' }],
-                      artist: '',
-                      url: '',
-                      eventType: 'artist',
-                      summary: '',
-                      tasks: []
-                    });
+                    setNewEvent({ title: '', dates: [{ date: '', startTime: '', endTime: '' }], artist: '', url: '', eventType: 'artist', summary: '', tasks: [] });
                     setSelectedMarketingChannels([]);
                     setDefaultAssignee('');
                     setShowPreview(false);
                     setPolishedEventVersions(null);
+                    setSavingError(null);
                   }}
                   className="bg-gray-200 px-6 py-4 rounded-lg hover:bg-gray-300 font-semibold"
                 >
@@ -4399,7 +4627,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   onClick={() => {
                     if (isSaving) return;
                     setShowPreview(false);
-                    saveNewEvent();
+                    saveNewEventV2(newEvent.tasks);
                   }}
                   disabled={isSaving}
                   className={`flex-1 py-4 rounded-lg font-bold text-lg shadow-lg transition-all ${

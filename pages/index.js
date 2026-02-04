@@ -1795,7 +1795,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
       console.error('Virhe tallennettaessa:', error);
       setIsSaving(false);
       setSavingStatus('Virhe: ' + error.message);
-      setTimeout(() => setSavingStatus(''), 3000);
+      setTimeout(() => setSavingStatus(''), 8000);
     }
   };
 
@@ -3685,14 +3685,20 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             <div className="bg-white rounded-lg max-w-4xl w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
               <h3 className="text-2xl font-bold mb-6">➕ Lisää uusi tapahtuma</h3>
 
-              {/* Progress-ilmoitus tallennukselle */}
-              {isSaving && (
-                <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
+              {/* Progress- / virhe-ilmoitus tallennukselle */}
+              {(isSaving || savingStatus) && (
+                <div className={`mb-6 rounded-lg p-4 ${savingStatus?.startsWith('Virhe:') ? 'bg-red-50 border border-red-200' : 'bg-green-50 border border-green-200'}`}>
                   <div className="flex items-center gap-3">
-                    <div className="animate-spin text-2xl">💾</div>
+                    <div className={savingStatus?.startsWith('Virhe:') ? 'text-2xl' : 'animate-spin text-2xl'}>
+                      {savingStatus?.startsWith('Virhe:') ? '❌' : '💾'}
+                    </div>
                     <div className="flex-1">
-                      <h4 className="font-semibold text-green-900">{savingStatus || 'Tallennetaan...'}</h4>
-                      <p className="text-sm text-green-700">Ole hyvä ja odota...</p>
+                      <h4 className={`font-semibold ${savingStatus?.startsWith('Virhe:') ? 'text-red-900' : 'text-green-900'}`}>
+                        {savingStatus || 'Tallennetaan...'}
+                      </h4>
+                      <p className={`text-sm ${savingStatus?.startsWith('Virhe:') ? 'text-red-700' : 'text-green-700'}`}>
+                        {savingStatus?.startsWith('Virhe:') ? 'Tarkista yhteys ja yritä uudelleen.' : 'Ole hyvä ja odota...'}
+                      </p>
                     </div>
                   </div>
                 </div>

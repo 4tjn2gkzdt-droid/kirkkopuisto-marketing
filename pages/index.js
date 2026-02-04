@@ -1887,13 +1887,25 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
       // Varmistaa TCP/SSL-yhteyden ja auth-tokenin päivityksen ensilyönnillä.
       // Ilman tätä ensimmäinen INSERT voi jumittaa >15 s kylmässä yhteydessä.
       try {
+        // Päivitetään auth-token ensin – vanhentunut token aiheuttaa 401 warming-kyselyyn
+        const { error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError) {
+          console.warn('[saveNewEventV2] Session refresh warning:', refreshError.message);
+        }
+
         await withTimeout(
           supabase.from('events').select('id').limit(0),
-          10000,
+          15000,
           'yhteys'
         );
-      } catch {
-        throw new Error('Supabase-yhteys epäonnistui – tarkista verkkoyhteys ja yritä uudelleen');
+      } catch (warmErr) {
+        console.error('[saveNewEventV2] Yhteyslämmitys epäonnistui:', warmErr.message, warmErr);
+        const detail = warmErr.message?.includes('Aikakatkos')
+          ? 'Yhteys on hidas – yritä uudelleen tai tarkista verkkoyhteytys.'
+          : warmErr.message?.includes('401') || warmErr.message?.includes('Unauthorized')
+            ? 'Istunto on vanhentunut – päivitä sivu ja kirjaudu uudelleen.'
+            : warmErr.message || 'Tuntematon verkkovirhe';
+        throw new Error(`Supabase-yhteys epäonnistui: ${detail}`);
       }
 
       // === Vaihe 1 / 3: master-tapahtuma ===

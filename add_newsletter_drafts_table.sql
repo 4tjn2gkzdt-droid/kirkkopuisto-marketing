@@ -8,8 +8,8 @@ CREATE TABLE IF NOT EXISTS newsletter_drafts (
   -- Uutiskirjeen sisältö (JSON)
   content JSONB NOT NULL,
 
-  -- Valitut tapahtumat
-  selected_event_ids UUID[] DEFAULT '{}',
+  -- Valitut tapahtumat (event ID:t ovat BIGINT-tyyppisiä)
+  selected_event_ids BIGINT[] DEFAULT '{}',
 
   -- Sävy (casual, formal, energetic)
   tone TEXT DEFAULT 'casual',

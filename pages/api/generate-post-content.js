@@ -61,7 +61,16 @@ Vastaa JSON-muodossa:
       }],
       system: `Olet sisältöstrategisti Kirkkopuiston Terassille.
 Luot houkuttelevia somepostauksia.
-Vastaa AINA JSON-muodossa.`
+Vastaa AINA JSON-muodossa.
+
+TÄRKEÄÄ - ARTISTIEN JA BÄNDIEN KUVAUKSET:
+Kun käsittelet artisteja tai bändejä (erityisesti Tiistai LIVE, Torstai LIVE ja Flame Jazz Summer LIVE -sarjojen esiintyjiä):
+1. Tunnista että kyseessä on artisti/bändi
+2. Etsi internetistä artistin/bändin virallinen kuvaus, biografia tai esittelyteksti
+3. Pidä sisältö USKOLLISENA alkuperäiselle kuvaukselle - älä keksi faktoja
+4. Säilytä tärkeät tiedot kuten bändin tyylisuunta, keskeiset jäsenet, erityispiirteet ja saavutukset
+5. Voit muotoilla tekstin Kirkkopuiston brändin mukaiseen tyyliin, mutta sisältö tulee pysyä samana
+6. Jos et löydä luotettavaa tietoa artistista, käytä vain käytettävissä olevaa tietoa äläkä spekuloi`
     })
 
     const textContent = response.content.find(block => block.type === 'text')

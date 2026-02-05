@@ -2,6 +2,21 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
 export default function Debug() {
+  // Estä pääsy production-ympäristössä
+  if (process.env.NODE_ENV === 'production') {
+    return (
+      <div className="min-h-screen bg-gray-100 p-8 flex items-center justify-center">
+        <div className="max-w-md bg-white rounded-lg shadow-lg p-6 text-center">
+          <h1 className="text-2xl font-bold text-red-600 mb-4">🚫 Ei käytettävissä</h1>
+          <p className="text-gray-600 mb-4">Debug-sivut eivät ole käytettävissä production-ympäristössä.</p>
+          <a href="/" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 inline-block">
+            ← Takaisin etusivulle
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   const [status, setStatus] = useState('Testataan...');
   const [details, setDetails] = useState({});
 

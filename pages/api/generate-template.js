@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase'
+import { withCorsAndErrorHandling, AppError, ErrorTypes } from '../../lib/errorHandler'
+import { createClaudeMessage } from '../../lib/api/claudeService'
 import Anthropic from '@anthropic-ai/sdk'
-import cors from '../../lib/cors'
 
 // Configure API route
 export const config = {
@@ -65,14 +66,21 @@ PÄIVÄMÄÄRÄ: ${data.eventDate ? new Date(data.eventDate).toLocaleDateString(
 GENRE/TYYLI: ${data.genre || 'live-musiikki'}
 ${data.bio ? `TAUSTA: ${data.bio}` : ''}
 
+KRIITTISEN TÄRKEÄÄ:
+1. Etsi ENSIN internetistä artistin virallinen kuvaus, biografia tai esittelyteksti
+2. Käytä VAIN oikeaa, faktapohjaista tietoa artistista
+3. ÄLÄ KEKSI tai spekuloi artistin tyylisuunnasta, taustasta tai saavutuksista
+4. Jos et löydä luotettavaa tietoa, käytä vain annettuja tietoja (artistName, genre, bio)
+5. Säilytä alkuperäisen kuvauksen sisältö - voit muotoilla tyyliin mutta FAKTAT PYSYVÄT SAMOINA
+
 LUO POSTAUS JOKA:
 - Alkaa "Meet the Artist 🎤" -teemalla
-- Kertoo lyhyesti artistista (kuka, mistä, mitä musiikkia)
+- Kertoo lyhyesti artistista FAKTATIEDON pohjalta (kuka, mistä, mitä musiikkia)
 - Luo odotusta: "Älä missaa!"
-- Jos tietoa ei ole, luo yleinen mutta houkutteleva kuvaus
+- Jos tietoa ei löydy netistä eikä ole annettu, luo yleinen mutta houkutteleva kuvaus ILMAN keksittyjä faktoja
 - Sisältää hashtagit: #meettheartist #livemusic #kirkkopuistonterassi
 
-Tyyli: Informatiivinen mutta innostava
+Tyyli: Informatiivinen mutta innostava, FAKTUAALINEN
 Max: 250 merkkiä`
       },
       'behind-the-scenes': {
@@ -227,7 +235,16 @@ Max: 200 merkkiä`
       system: `Olet luova sisällöntuottaja Kirkkopuiston Terassille Turussa.
 Luo houkuttelevia, napakkoja ja aitoja somepostauksia.
 Käytä suomea ja sopivasti emojeja.
-Pidä tyyli rentona mutta ammattimaisena.`
+Pidä tyyli rentona mutta ammattimaisena.
+
+TÄRKEÄÄ - ARTISTIEN JA BÄNDIEN KUVAUKSET:
+Kun käsittelet artisteja tai bändejä (erityisesti Tiistai LIVE, Torstai LIVE ja Flame Jazz Summer LIVE -sarjojen esiintyjiä):
+1. Tunnista että kyseessä on artisti/bändi
+2. Etsi internetistä artistin/bändin virallinen kuvaus, biografia tai esittelyteksti
+3. Pidä sisältö USKOLLISENA alkuperäiselle kuvaukselle - älä keksi faktoja
+4. Säilytä tärkeät tiedot kuten bändin tyylisuunta, keskeiset jäsenet, erityispiirteet ja saavutukset
+5. Voit muotoilla tekstin Kirkkopuiston brändin mukaiseen tyyliin, mutta sisältö tulee pysyä samana
+6. Jos et löydä luotettavaa tietoa artistista, käytä vain käytettävissä olevaa tietoa äläkä spekuloi`
     })
 
     const textContent = response.content.find(block => block.type === 'text')
@@ -249,4 +266,4 @@ Pidä tyyli rentona mutta ammattimaisena.`
   }
 }
 
-export default cors(handler)
+export default withCorsAndErrorHandling(handler)

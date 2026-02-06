@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import toast from 'react-hot-toast'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
@@ -46,11 +47,11 @@ export default function ContentAlerts() {
         setAlerts(data.alerts || [])
         setSummary(data.summary || { total: 0, high: 0, medium: 0, low: 0 })
       } else {
-        alert('Virhe haettaessa hälytyksiä: ' + (data.error || 'Tuntematon virhe'))
+        toast.error('Virhe haettaessa hälytyksiä: ' + (data.error || 'Tuntematon virhe'))
       }
     } catch (error) {
       console.error('Error loading alerts:', error)
-      alert('Virhe haettaessa hälytyksiä: ' + error.message)
+      toast.error('Virhe haettaessa hälytyksiä: ' + error.message)
     } finally {
       setRefreshing(false)
     }

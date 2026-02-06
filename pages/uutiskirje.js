@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
 import { sanitizeRichHtml } from '../lib/sanitize'
+import toast from 'react-hot-toast'
 
 // Apufunktio: Parsii YYYY-MM-DD stringin paikalliseksi Date-objektiksi (ei UTC)
 // Välttää aikavyöhykeongelmia, joissa päivämäärä siirtyy päivällä
@@ -119,12 +120,12 @@ export default function NewsletterGenerator() {
 
   const saveDraft = async () => {
     if (!draftName.trim()) {
-      alert('Anna luonnokselle nimi')
+      toast('Anna luonnokselle nimi')
       return
     }
 
     if (variants.length === 0) {
-      alert('Ei tallennettavaa sisältöä')
+      toast('Ei tallennettavaa sisältöä')
       return
     }
 
@@ -144,13 +145,13 @@ export default function NewsletterGenerator() {
 
       if (error) throw error
 
-      alert('✅ Luonnos tallennettu!')
+      toast.success('✅ Luonnos tallennettu!')
       setDraftName('')
       setShowSaveDialog(false)
       loadDrafts()
     } catch (error) {
       console.error('Error saving draft:', error)
-      alert('Virhe tallennuksessa: ' + error.message)
+      toast.error('Virhe tallennuksessa: ' + error.message)
     }
   }
 
@@ -180,10 +181,10 @@ export default function NewsletterGenerator() {
       setTone(draft.tone)
 
       setShowDraftsPanel(false)
-      alert('✅ Luonnos ladattu!')
+      toast.success('✅ Luonnos ladattu!')
     } catch (error) {
       console.error('Error loading draft:', error)
-      alert('Virhe ladattaessa: ' + error.message)
+      toast.error('Virhe ladattaessa: ' + error.message)
     }
   }
 
@@ -200,11 +201,11 @@ export default function NewsletterGenerator() {
 
       if (error) throw error
 
-      alert('✅ Luonnos poistettu')
+      toast.success('✅ Luonnos poistettu')
       loadDrafts()
     } catch (error) {
       console.error('Error deleting draft:', error)
-      alert('Virhe poistossa: ' + error.message)
+      toast.error('Virhe poistossa: ' + error.message)
     }
   }
 
@@ -308,11 +309,11 @@ export default function NewsletterGenerator() {
         setSelectedEventIds(data.map(e => e.id))
       } else if (error) {
         console.error('Error loading events:', error)
-        alert('Virhe tapahtumien latauksessa: ' + error.message)
+        toast.error('Virhe tapahtumien latauksessa: ' + error.message)
       }
     } catch (error) {
       console.error('Error loading events:', error)
-      alert('Virhe tapahtumien latauksessa: ' + error.message)
+      toast.error('Virhe tapahtumien latauksessa: ' + error.message)
     } finally {
       setLoadingEvents(false)
     }
@@ -330,7 +331,7 @@ export default function NewsletterGenerator() {
 
   const handleGenerate = async () => {
     if (selectedEventIds.length === 0) {
-      alert('Valitse vähintään yksi tapahtuma!')
+      toast('Valitse vähintään yksi tapahtuma!')
       return
     }
 
@@ -423,14 +424,14 @@ export default function NewsletterGenerator() {
               alertMsg += `Valitut IDit: ${data.debug.selectedEventIds.join(', ')}`
             }
           }
-          alert(alertMsg)
+          toast.success(alertMsg)
         }
       } else {
-        alert('Virhe generoinnissa: ' + (data.error || 'Tuntematon virhe'))
+        toast.error('Virhe generoinnissa: ' + (data.error || 'Tuntematon virhe'))
       }
     } catch (error) {
       console.error('Error generating newsletter:', error)
-      alert('Virhe generoinnissa: ' + error.message)
+      toast.error('Virhe generoinnissa: ' + error.message)
     } finally {
       setGenerating(false)
     }
@@ -481,13 +482,13 @@ export default function NewsletterGenerator() {
       const data = await response.json()
 
       if (data.success && data.sent) {
-        alert(`✅ Uutiskirje lähetetty!\n\nLähetetty: ${data.emailsSent}\nEpäonnistui: ${data.emailsFailed}`)
+        toast.success(`✅ Uutiskirje lähetetty!\n\nLähetetty: ${data.emailsSent}\nEpäonnistui: ${data.emailsFailed}`)
       } else {
-        alert('Virhe lähetyksessä: ' + (data.error || 'Tuntematon virhe'))
+        toast.error('Virhe lähetyksessä: ' + (data.error || 'Tuntematon virhe'))
       }
     } catch (error) {
       console.error('Error sending:', error)
-      alert('Virhe lähetyksessä: ' + error.message)
+      toast.error('Virhe lähetyksessä: ' + error.message)
     } finally {
       setSending(false)
     }
@@ -500,7 +501,7 @@ export default function NewsletterGenerator() {
       setTimeout(() => setCopySuccess(false), 2000)
     } catch (error) {
       console.error('Error copying:', error)
-      alert('Virhe kopioinnissa. Kokeile uudelleen.')
+      toast.error('Virhe kopioinnissa. Kokeile uudelleen.')
     }
   }
 

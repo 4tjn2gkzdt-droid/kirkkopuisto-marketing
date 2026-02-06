@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase';
 import Link from 'next/link';
 
@@ -39,7 +40,7 @@ export default function Materiaalit() {
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
-    alert('Kopioitu leikepöydälle: ' + text);
+    toast.success('Kopioitu leikepöydälle: ' + text);
   };
 
   if (loading) {

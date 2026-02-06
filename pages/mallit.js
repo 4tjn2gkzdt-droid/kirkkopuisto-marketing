@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import toast from 'react-hot-toast'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
@@ -166,7 +167,7 @@ export default function ContentTemplates() {
 
   const saveSocialPost = async () => {
     if (!newSocialPost.title || !newSocialPost.date) {
-      alert('Täytä vähintään otsikko ja päivämäärä')
+      toast('Täytä vähintään otsikko ja päivämäärä')
       return
     }
 
@@ -193,7 +194,7 @@ export default function ContentTemplates() {
 
       if (error) throw error
 
-      alert('✅ Somepostaus lisätty!')
+      toast.success('✅ Somepostaus lisätty!')
 
       // Sulje modaali ja tyhjennä lomake
       setShowAddSocialPostModal(false)
@@ -215,7 +216,7 @@ export default function ContentTemplates() {
 
     } catch (error) {
       console.error('Error saving social post:', error)
-      alert('Virhe tallennuksessa: ' + error.message)
+      toast.error('Virhe tallennuksessa: ' + error.message)
     }
   }
 
@@ -246,7 +247,7 @@ export default function ContentTemplates() {
 
   const handleGenerate = async () => {
     if (!selectedTemplate) {
-      alert('Valitse mallipohja')
+      toast('Valitse mallipohja')
       return
     }
 
@@ -277,11 +278,11 @@ export default function ContentTemplates() {
       if (data.success) {
         setGeneratedContent(data.content)
       } else {
-        alert('Virhe generoinnissa: ' + (data.error || 'Tuntematon virhe'))
+        toast.error('Virhe generoinnissa: ' + (data.error || 'Tuntematon virhe'))
       }
     } catch (error) {
       console.error('Error generating template:', error)
-      alert('Virhe generoinnissa: ' + error.message)
+      toast.error('Virhe generoinnissa: ' + error.message)
     } finally {
       setGenerating(false)
     }
@@ -289,7 +290,7 @@ export default function ContentTemplates() {
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generatedContent)
-    alert('📋 Kopioitu leikepöydälle!')
+    toast.success('📋 Kopioitu leikepöydälle!')
   }
 
   const resetForm = () => {

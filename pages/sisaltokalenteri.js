@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
 import { socialPostTypes, socialChannels } from '../lib/constants'
+import toast from 'react-hot-toast'
 
 // Apufunktio: Parsii YYYY-MM-DD stringin paikalliseksi Date-objektiksi (ei UTC)
 // Välttää aikavyöhykeongelmia, joissa päivämäärä siirtyy päivällä
@@ -73,7 +74,7 @@ export default function ContentCalendar() {
 
   const handleAnalyze = async () => {
     if (!startDate || !endDate) {
-      alert('Valitse aikaväli')
+      toast('Valitse aikaväli')
       return
     }
 
@@ -108,17 +109,17 @@ export default function ContentCalendar() {
             errorMsg += data.message + '\n\n'
           }
           errorMsg += 'Käy Debug-sivulla (🐛 Debug -nappi ylhäällä) saadaksesi lisätietoja.'
-          alert(errorMsg)
+          toast.success(errorMsg)
         } else if (data.aiError) {
           // AI-ehdotukset saatiin mutta oli virheitä
-          alert('⚠️ ' + data.aiError + '\n\nKäy Debug-sivulla saadaksesi lisätietoja.')
+          toast.success('⚠️ ' + data.aiError + '\n\nKäy Debug-sivulla saadaksesi lisätietoja.')
         }
       } else {
-        alert('Virhe analyysissä: ' + (data.error || 'Tuntematon virhe') + '\n\nKäy Debug-sivulla saadaksesi lisätietoja.')
+        toast.error('Virhe analyysissä: ' + (data.error || 'Tuntematon virhe') + '\n\nKäy Debug-sivulla saadaksesi lisätietoja.')
       }
     } catch (error) {
       console.error('Error analyzing calendar:', error)
-      alert('Virhe analyysissä: ' + error.message)
+      toast.error('Virhe analyysissä: ' + error.message)
     } finally {
       setAnalyzing(false)
     }
@@ -200,7 +201,7 @@ export default function ContentCalendar() {
 
       if (error) throw error
 
-      alert('✅ Ehdotus lisätty kalenteriin!')
+      toast.success('✅ Ehdotus lisätty kalenteriin!')
 
       // ÄLÄ poista ehdotusta listasta - käyttäjä haluaa että ne jäävät näkyviin
       // Tyhjennä vain muokattava kenttä
@@ -208,7 +209,7 @@ export default function ContentCalendar() {
 
     } catch (error) {
       console.error('Error saving suggestion:', error)
-      alert('Virhe tallennuksessa: ' + error.message)
+      toast.error('Virhe tallennuksessa: ' + error.message)
     } finally {
       setSavingSuggestion(null)
     }
@@ -234,7 +235,7 @@ export default function ContentCalendar() {
 
   const polishCaptionWithAI = async () => {
     if (!newSocialPost.caption || newSocialPost.caption.trim().length === 0) {
-      alert('Kirjoita ensin teksti ennen AI-viimeistelyä')
+      toast.success('Kirjoita ensin teksti ennen AI-viimeistelyä')
       return
     }
 
@@ -255,11 +256,11 @@ export default function ContentCalendar() {
       if (data.success) {
         setPolishedVersions(data.versions)
       } else {
-        alert('Virhe AI-viimeistelyss\u00e4: ' + (data.error || 'Tuntematon virhe'))
+        toast.error('Virhe AI-viimeistelyss\u00e4: ' + (data.error || 'Tuntematon virhe'))
       }
     } catch (error) {
       console.error('Error polishing caption:', error)
-      alert('Virhe AI-viimeistelyss\u00e4: ' + error.message)
+      toast.error('Virhe AI-viimeistelyss\u00e4: ' + error.message)
     } finally {
       setPolishingCaption(false)
     }
@@ -271,7 +272,7 @@ export default function ContentCalendar() {
 
   const saveSocialPost = async () => {
     if (!newSocialPost.title || !newSocialPost.date) {
-      alert('Täytä vähintään otsikko ja päivämäärä')
+      toast.success('Täytä vähintään otsikko ja päivämäärä')
       return
     }
 
@@ -298,7 +299,7 @@ export default function ContentCalendar() {
 
       if (error) throw error
 
-      alert('✅ Somepostaus lisätty!')
+      toast.success('✅ Somepostaus lisätty!')
 
       // Sulje modaali ja tyhjennä lomake
       setShowAddSocialPostModal(false)
@@ -320,7 +321,7 @@ export default function ContentCalendar() {
 
     } catch (error) {
       console.error('Error saving social post:', error)
-      alert('Virhe tallennuksessa: ' + error.message)
+      toast.error('Virhe tallennuksessa: ' + error.message)
     }
   }
 

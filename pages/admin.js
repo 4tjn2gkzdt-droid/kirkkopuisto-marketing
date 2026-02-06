@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { supabase } from '../lib/supabase';
+import toast from 'react-hot-toast';
 
 export default function AdminPanel() {
   const router = useRouter();
@@ -64,7 +65,7 @@ export default function AdminPanel() {
 
     if (!profile || !profile.is_admin) {
       // Ei ole admin, ohjaa etusivulle
-      alert('Sinulla ei ole oikeuksia admin-paneeliin');
+      toast.error('Sinulla ei ole oikeuksia admin-paneeliin');
       router.push('/');
       return;
     }
@@ -166,12 +167,12 @@ export default function AdminPanel() {
     e.preventDefault();
 
     if (!newUserEmail || !newUserPassword || !newUserName) {
-      alert('Täytä kaikki kentät');
+      toast('Täytä kaikki kentät');
       return;
     }
 
     if (!supabase) {
-      alert('Supabase-yhteyttä ei ole konfiguroitu');
+      toast.error('Supabase-yhteyttä ei ole konfiguroitu');
       return;
     }
 
@@ -191,7 +192,7 @@ export default function AdminPanel() {
 
       if (error) {
         // Jos admin API ei toimi, näytä ohjeet
-        alert(`
+        toast(`
 Käyttäjän luonti vaatii admin-oikeudet.
 
 Luo käyttäjä Supabase Dashboard:ssa:
@@ -216,7 +217,7 @@ WHERE email = '${newUserEmail}';
         .update({ is_admin: newUserIsAdmin, full_name: newUserName })
         .eq('id', data.user.id);
 
-      alert(`✅ Käyttäjä ${newUserEmail} luotu!`);
+      toast.success(`✅ Käyttäjä ${newUserEmail} luotu!`);
       setShowAddUserModal(false);
       setNewUserEmail('');
       setNewUserName('');
@@ -225,7 +226,7 @@ WHERE email = '${newUserEmail}';
       loadUsers();
     } catch (err) {
       console.error('Virhe luotaessa käyttäjää:', err);
-      alert('Virhe luotaessa käyttäjää: ' + err.message);
+      toast.error('Virhe luotaessa käyttäjää: ' + err.message);
     }
   };
 
@@ -241,9 +242,9 @@ WHERE email = '${newUserEmail}';
 
       if (error) throw error;
 
-      alert(`✅ Salasanan resetointilinkki lähetetty osoitteeseen ${userEmail}`);
+      toast.success(`✅ Salasanan resetointilinkki lähetetty osoitteeseen ${userEmail}`);
     } catch (err) {
-      alert('Virhe: ' + err.message);
+      toast.error('Virhe: ' + err.message);
     }
   };
 
@@ -270,11 +271,11 @@ WHERE email = '${newUserEmail}';
 
       if (error) throw error;
 
-      alert(`✅ Käyttäjä ${userEmail} ja hänen luomansa data poistettu`);
+      toast.success(`✅ Käyttäjä ${userEmail} ja hänen luomansa data poistettu`);
       loadUsers();
       loadStats();
     } catch (err) {
-      alert('Virhe poistaessa käyttäjää: ' + err.message);
+      toast.error('Virhe poistaessa käyttäjää: ' + err.message);
     }
   };
 
@@ -287,10 +288,10 @@ WHERE email = '${newUserEmail}';
 
       if (error) throw error;
 
-      alert(`✅ Käyttäjän ${userEmail} admin-oikeudet ${!currentIsAdmin ? 'lisätty' : 'poistettu'}`);
+      toast.success(`✅ Käyttäjän ${userEmail} admin-oikeudet ${!currentIsAdmin ? 'lisätty' : 'poistettu'}`);
       loadUsers();
     } catch (err) {
-      alert('Virhe: ' + err.message);
+      toast.error('Virhe: ' + err.message);
     }
   };
 
@@ -339,7 +340,7 @@ WHERE email = '${newUserEmail}';
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        alert('Sessio puuttuu - kirjaudu uudelleen');
+        toast.error('Sessio puuttuu - kirjaudu uudelleen');
         return;
       }
 
@@ -357,16 +358,16 @@ WHERE email = '${newUserEmail}';
         const message = created > 0
           ? `✅ Synkronointi onnistui! Luotiin ${created} uutta dokumenttia.`
           : '✅ Kaikki tiedostot ovat jo synkronoitu.';
-        alert(message);
+        toast.success(message);
 
         // Päivitä dokumenttilista
         await loadGuidelines();
       } else {
-        alert(`❌ Synkronointi epäonnistui: ${result.error || 'Tuntematon virhe'}`);
+        toast.error(`❌ Synkronointi epäonnistui: ${result.error || 'Tuntematon virhe'}`);
       }
     } catch (err) {
       console.error('Virhe synkronoinnissa:', err);
-      alert(`❌ Virhe synkronoinnissa: ${err.message}`);
+      toast.error(`❌ Virhe synkronoinnissa: ${err.message}`);
     } finally {
       setSyncLoading(false);
     }
@@ -378,7 +379,7 @@ WHERE email = '${newUserEmail}';
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        alert('Sessio puuttuu - kirjaudu uudelleen');
+        toast.error('Sessio puuttuu - kirjaudu uudelleen');
         return;
       }
 
@@ -394,11 +395,11 @@ WHERE email = '${newUserEmail}';
         setDebugInfo(result);
         console.log('📋 Debug info:', result);
       } else {
-        alert(`❌ Debug epäonnistui: ${result.error || 'Tuntematon virhe'}`);
+        toast.error(`❌ Debug epäonnistui: ${result.error || 'Tuntematon virhe'}`);
       }
     } catch (err) {
       console.error('Virhe debugissa:', err);
-      alert(`❌ Virhe debugissa: ${err.message}`);
+      toast.error(`❌ Virhe debugissa: ${err.message}`);
     }
   };
 
@@ -409,7 +410,7 @@ WHERE email = '${newUserEmail}';
 
     if (!uploadFile || !uploadTitle) {
       console.error('❌ Virhe: Tiedosto tai otsikko puuttuu');
-      alert('Valitse tiedosto ja anna otsikko');
+      toast('Valitse tiedosto ja anna otsikko');
       return;
     }
 
@@ -424,7 +425,7 @@ WHERE email = '${newUserEmail}';
     const maxSize = 50 * 1024 * 1024; // 50 MB
     if (uploadFile.size > maxSize) {
       console.error(`❌ Virhe: Tiedosto liian suuri (${(uploadFile.size / 1024 / 1024).toFixed(2)} MB)`);
-      alert(`❌ Tiedosto on liian suuri!\n\nTiedoston koko: ${(uploadFile.size / 1024 / 1024).toFixed(2)} MB\nMaksimi koko: 50 MB\n\nValitse pienempi tiedosto.`);
+      toast.error(`❌ Tiedosto on liian suuri!\n\nTiedoston koko: ${(uploadFile.size / 1024 / 1024).toFixed(2)} MB\nMaksimi koko: 50 MB\n\nValitse pienempi tiedosto.`);
       return;
     }
 
@@ -437,7 +438,7 @@ WHERE email = '${newUserEmail}';
 
     if (!isValidType) {
       console.error(`❌ Virhe: Väärä tiedostotyyppi (${uploadFile.type}, ${fileExtension})`);
-      alert('❌ Vain PDF, Markdown (.md) ja JSON (.json) tiedostot ovat sallittuja!\n\nValittu tiedostotyyppi: ' + (uploadFile.type || 'tuntematon') + '\nTiedostopääte: ' + fileExtension);
+      toast.error('❌ Vain PDF, Markdown (.md) ja JSON (.json) tiedostot ovat sallittuja!\n\nValittu tiedostotyyppi: ' + (uploadFile.type || 'tuntematon') + '\nTiedostopääte: ' + fileExtension);
       return;
     }
 
@@ -451,7 +452,7 @@ WHERE email = '${newUserEmail}';
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         console.error('❌ Virhe: Session puuttuu');
-        alert('Kirjaudu sisään ensin');
+        toast.error('Kirjaudu sisään ensin');
         setUploadLoading(false);
         return;
       }
@@ -501,7 +502,7 @@ WHERE email = '${newUserEmail}';
           errorMsg = 'Tiedosto on liian suuri. Maksimi koko on 50 MB.';
         }
 
-        alert('❌ Lataus epäonnistui:\n\n' + errorMsg);
+        toast.error('❌ Lataus epäonnistui:\n\n' + errorMsg);
         setUploadLoading(false);
         setUploadProgress(0);
         return;
@@ -516,7 +517,7 @@ WHERE email = '${newUserEmail}';
 
       if (!urlData || !urlData.publicUrl) {
         console.error('❌ Public URL:n hakeminen epäonnistui');
-        alert('❌ Public URL:n hakeminen epäonnistui');
+        toast.error('❌ Public URL:n hakeminen epäonnistui');
         setUploadLoading(false);
         setUploadProgress(0);
         return;
@@ -545,7 +546,7 @@ WHERE email = '${newUserEmail}';
 
       if (result.success) {
         console.log('✅ Dokumentti rekisteröity onnistuneesti!');
-        alert('✅ Dokumentti ladattu onnistuneesti! Prosessoi se nyt AI:lla.');
+        toast.success('✅ Dokumentti ladattu onnistuneesti! Prosessoi se nyt AI:lla.');
         setShowUploadModal(false);
         setUploadFile(null);
         setUploadTitle('');
@@ -554,7 +555,7 @@ WHERE email = '${newUserEmail}';
       } else {
         const errorMsg = result.error || result.details || 'Tuntematon virhe';
         console.error('❌ API virhe:', result);
-        alert('❌ Lataus epäonnistui:\n\n' + errorMsg + (result.details ? '\n\nLisätiedot:\n' + result.details : ''));
+        toast.error('❌ Lataus epäonnistui:\n\n' + errorMsg + (result.details ? '\n\nLisätiedot:\n' + result.details : ''));
       }
 
       setUploadLoading(false);
@@ -563,7 +564,7 @@ WHERE email = '${newUserEmail}';
       console.error('Error name:', err.name);
       console.error('Error message:', err.message);
       console.error('Error stack:', err.stack);
-      alert('❌ Kriittinen virhe:\n\n' + err.message + '\n\nKatso selaimen console (F12) lisätiedoille');
+      toast.error('❌ Kriittinen virhe:\n\n' + err.message + '\n\nKatso selaimen console (F12) lisätiedoille');
       setUploadLoading(false);
       setUploadProgress(0);
     }
@@ -588,13 +589,13 @@ WHERE email = '${newUserEmail}';
       const result = await response.json();
 
       if (result.success) {
-        alert('✅ Dokumentti poistettu');
+        toast.success('✅ Dokumentti poistettu');
         loadGuidelines();
       } else {
-        alert('Virhe: ' + (result.error || 'Tuntematon virhe'));
+        toast.error('Virhe: ' + (result.error || 'Tuntematon virhe'));
       }
     } catch (err) {
-      alert('Virhe: ' + err.message);
+      toast.error('Virhe: ' + err.message);
     }
   };
 
@@ -619,13 +620,13 @@ WHERE email = '${newUserEmail}';
       const result = await response.json();
 
       if (result.success) {
-        alert('✅ Dokumentti prosessoitu onnistuneesti');
+        toast.success('✅ Dokumentti prosessoitu onnistuneesti');
         loadGuidelines();
       } else {
-        alert('Virhe: ' + (result.error || 'Tuntematon virhe'));
+        toast.error('Virhe: ' + (result.error || 'Tuntematon virhe'));
       }
     } catch (err) {
-      alert('Virhe: ' + err.message);
+      toast.error('Virhe: ' + err.message);
     }
   };
 

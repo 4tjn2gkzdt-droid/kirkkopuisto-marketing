@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast'
 import { supabase } from '../lib/supabase';
 
 export default function DebugEventInsert() {
@@ -427,7 +428,7 @@ export default function DebugEventInsert() {
 
   const deleteTestData = async () => {
     if (!savedEventId) {
-      alert('Ei poistettavaa dataa');
+      toast('Ei poistettavaa dataa');
       return;
     }
 

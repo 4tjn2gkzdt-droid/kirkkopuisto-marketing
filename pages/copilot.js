@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import toast from 'react-hot-toast'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
@@ -68,11 +69,11 @@ export default function ContentCopilot() {
       if (data.success) {
         setMessages([...newMessages, { role: 'assistant', content: data.message }])
       } else {
-        alert('Virhe: ' + (data.error || 'Tuntematon virhe'))
+        toast.error('Virhe: ' + (data.error || 'Tuntematon virhe'))
       }
     } catch (error) {
       console.error('Error sending message:', error)
-      alert('Virhe: ' + error.message)
+      toast.error('Virhe: ' + error.message)
     } finally {
       setSending(false)
       // Focus takaisin input-kenttään
@@ -89,7 +90,7 @@ export default function ContentCopilot() {
 
   const copyToClipboard = (content) => {
     navigator.clipboard.writeText(content)
-    alert('📋 Kopioitu leikepöydälle!')
+    toast.success('📋 Kopioitu leikepöydälle!')
   }
 
   const clearConversation = () => {

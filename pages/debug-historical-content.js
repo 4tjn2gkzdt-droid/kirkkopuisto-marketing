@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import toast from 'react-hot-toast'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
@@ -301,12 +302,12 @@ export default function DebugHistoricalContent() {
             }
           })
         }
-        alert(`Poistettu ${allContent.length} testisisältöä`)
+        toast.success(`Poistettu ${allContent.length} testisisältöä`)
       } else {
-        alert('Ei testisisältöä poistettavaksi')
+        toast('Ei testisisältöä poistettavaksi')
       }
     } catch (error) {
-      alert('Virhe siivouksessa: ' + error.message)
+      toast.error('Virhe siivouksessa: ' + error.message)
     }
   }
 

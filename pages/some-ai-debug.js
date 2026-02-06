@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import toast from 'react-hot-toast'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
@@ -50,7 +51,7 @@ export default function SomeAIDebug() {
 
   const handleAnalyze = async () => {
     if (!startDate || !endDate) {
-      alert('Valitse aikaväli')
+      toast('Valitse aikaväli')
       return
     }
 

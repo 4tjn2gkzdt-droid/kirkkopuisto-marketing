@@ -10,6 +10,7 @@ import logger from '../lib/logger';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
+import toast from 'react-hot-toast';
 
 // Apufunktio: Parsii YYYY-MM-DD stringin paikalliseksi Date-objektiksi (ei UTC)
 // Välttää aikavyöhykeongelmia, joissa päivämäärä siirtyy päivällä
@@ -660,7 +661,7 @@ export default function Home() {
     console.log('📊 Parsittu:', parsed.length, 'tapahtumaa');
 
     if (parsed.length === 0) {
-      alert('❌ Ei voitu lukea tapahtumia.\n\nTarkista että:\n- Liitit taulukon Excelistä (Tab-erotettuna)\n- Ensimmäinen sarake on päivämäärä (esim. 1.2.2026)\n- Toinen sarake on tapahtuman nimi\n\nKatso konsolista (F12) lisätietoja.');
+      toast.error('❌ Ei voitu lukea tapahtumia.\n\nTarkista että:\n- Liitit taulukon Excelistä (Tab-erotettuna)\n- Ensimmäinen sarake on päivämäärä (esim. 1.2.2026)\n- Toinen sarake on tapahtuman nimi\n\nKatso konsolista (F12) lisätietoja.');
       return;
     }
 
@@ -807,15 +808,15 @@ export default function Home() {
       setImportText('');
 
       if (errorCount > 0) {
-        alert(`✅ Lisätty ${savedCount}/${parsed.length} tapahtumaa!\n\n⚠️ ${errorCount} tapahtumaa epäonnistui. Katso konsolista (F12) lisätietoja.\n\n💡 Voit generoida AI-sisällön myöhemmin tapahtuman muokkausnäkymästä.`);
+        toast.success(`✅ Lisätty ${savedCount}/${parsed.length} tapahtumaa!\n\n⚠️ ${errorCount} tapahtumaa epäonnistui. Katso konsolista (F12) lisätietoja.\n\n💡 Voit generoida AI-sisällön myöhemmin tapahtuman muokkausnäkymästä.`);
       } else {
-        alert(`✅ Lisätty ${savedCount} tapahtumaa onnistuneesti!\n\n💡 Voit generoida AI-sisällön myöhemmin tapahtuman muokkausnäkymästä.`);
+        toast.success(`✅ Lisätty ${savedCount} tapahtumaa onnistuneesti!\n\n💡 Voit generoida AI-sisällön myöhemmin tapahtuman muokkausnäkymästä.`);
       }
     } catch (error) {
       console.error('❌ Virhe tuotaessa tapahtumia:', error);
       setIsImporting(false);
       setImportingStatus('');
-      alert('❌ Virhe tuotaessa tapahtumia: ' + error.message + '\n\nKatso konsolista (F12) lisätietoja.');
+      toast.error('❌ Virhe tuotaessa tapahtumia: ' + error.message + '\n\nKatso konsolista (F12) lisätietoja.');
     }
   };
 
@@ -1257,7 +1258,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
       setPosts(prev => ({ ...prev, [selectedYear]: updatedPosts }));
 
-      alert('✨ Sisältö generoitu! Voit muokata sitä tehtävän muokkauksessa.');
+      toast.success('✨ Sisältö generoitu! Voit muokata sitä tehtävän muokkauksessa.');
 
     } catch (error) {
       console.error('Virhe sisällön generoinnissa:', error);
@@ -1288,7 +1289,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
         errorMessage += '4. Redeploy sovellus\n';
       }
 
-      alert(errorMessage);
+      toast.error(errorMessage);
 
       // Logataan myös konsoliin kaikki tiedot
       console.log('Full error details:', error);
@@ -1300,7 +1301,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
   // Viimeistele tapahtuman yhteenveto AI:lla
   const polishEventSummaryWithAI = async (summary, isEditMode = false, eventUrl = null) => {
     if (!summary || summary.trim().length === 0) {
-      alert('Kirjoita ensin yhteenveto ennen AI-viimeistelyä');
+      toast('Kirjoita ensin yhteenveto ennen AI-viimeistelyä');
       return;
     }
 
@@ -1322,11 +1323,11 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
       if (data.success) {
         setPolishedEventVersions(data.versions);
       } else {
-        alert('Virhe AI-viimeistelyss\u00e4: ' + (data.error || 'Tuntematon virhe'));
+        toast.error('Virhe AI-viimeistelyss\u00e4: ' + (data.error || 'Tuntematon virhe'));
       }
     } catch (error) {
       console.error('Error polishing event summary:', error);
-      alert('Virhe AI-viimeistelyss\u00e4: ' + error.message);
+      toast.error('Virhe AI-viimeistelyss\u00e4: ' + error.message);
     } finally {
       setPolishingEventSummary(false);
     }
@@ -1467,7 +1468,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
   // Uusi: Generoi sisältö kaikille kanaville kerralla optimoituna
   const generateMultichannelContent = async (event) => {
     if (!event || !event.tasks || event.tasks.length === 0) {
-      alert('Tapahtumalla ei ole tehtäviä');
+      toast('Tapahtumalla ei ole tehtäviä');
       return;
     }
 
@@ -1490,7 +1491,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
       .filter(ch => ch && availableChannels.includes(ch));
 
     if (selectedChannels.length === 0) {
-      alert('Ei tuettuja kanavia tälle tapahtumalle');
+      toast('Ei tuettuja kanavia tälle tapahtumalle');
       return;
     }
 
@@ -1560,11 +1561,11 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
         }
       }
 
-      alert(`✨ Luotu optimoitu sisältö ${updatedCount} tehtävälle!`);
+      toast.success(`✨ Luotu optimoitu sisältö ${updatedCount} tehtävälle!`);
 
     } catch (error) {
       console.error('Error generating multichannel content:', error);
-      alert('Virhe sisällön generoinnissa: ' + error.message);
+      toast.error('Virhe sisällön generoinnissa: ' + error.message);
     } finally {
       setIsGenerating(false);
     }
@@ -1606,31 +1607,31 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
   const saveNewEvent = async () => {
     // Validointi
     if (!newEvent.title.trim()) {
-      alert('Anna tapahtumalle nimi');
+      toast('Anna tapahtumalle nimi');
       return;
     }
 
     // Tarkista että vähintään yksi päivä on annettu
     if (!newEvent.dates || newEvent.dates.length === 0) {
-      alert('Lisää vähintään yksi päivämäärä');
+      toast('Lisää vähintään yksi päivämäärä');
       return;
     }
 
     // Tarkista että kaikilla päivillä on päivämäärä
     const hasEmptyDate = newEvent.dates.some(d => !d.date);
     if (hasEmptyDate) {
-      alert('Täytä kaikki päivämäärät');
+      toast('Täytä kaikki päivämäärät');
       return;
     }
 
     // Tarkista että kaikilla tehtävillä on nimi ja deadline
     for (const task of newEvent.tasks) {
       if (!task.title.trim()) {
-        alert('Kaikilla tehtävillä täytyy olla nimi');
+        toast('Kaikilla tehtävillä täytyy olla nimi');
         return;
       }
       if (!task.dueDate) {
-        alert('Kaikilla tehtävillä täytyy olla deadline');
+        toast('Kaikilla tehtävillä täytyy olla deadline');
         return;
       }
     }
@@ -1842,12 +1843,12 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
     const eventToSave = { ...newEvent, tasks: tasksParam || newEvent.tasks };
 
     // Validointi
-    if (!eventToSave.title.trim()) { alert('Anna tapahtumalle nimi'); return; }
-    if (!eventToSave.dates || eventToSave.dates.length === 0) { alert('Lisää vähintään yksi päivämäärä'); return; }
-    if (eventToSave.dates.some(d => !d.date)) { alert('Täytä kaikki päivämäärät'); return; }
+    if (!eventToSave.title.trim()) { toast('Anna tapahtumalle nimi'); return; }
+    if (!eventToSave.dates || eventToSave.dates.length === 0) { toast('Lisää vähintään yksi päivämäärä'); return; }
+    if (eventToSave.dates.some(d => !d.date)) { toast('Täytä kaikki päivämäärät'); return; }
     for (const task of eventToSave.tasks) {
-      if (!task.title.trim()) { alert('Kaikilla tehtävillä täytyy olla nimi'); return; }
-      if (!task.dueDate) { alert('Kaikilla tehtävillä täytyy olla deadline'); return; }
+      if (!task.title.trim()) { toast('Kaikilla tehtävillä täytyy olla nimi'); return; }
+      if (!task.dueDate) { toast('Kaikilla tehtävillä täytyy olla deadline'); return; }
     }
 
     // Aloita tallennus
@@ -1958,17 +1959,17 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
   const saveSocialPost = async () => {
     // Validointi
     if (!newSocialPost.title.trim()) {
-      alert('Anna postaukselle otsikko');
+      toast('Anna postaukselle otsikko');
       return;
     }
     if (!newSocialPost.date) {
-      alert('Valitse postauksen päivämäärä');
+      toast('Valitse postauksen päivämäärä');
       return;
     }
 
     // Validoi toisto
     if ((newSocialPost.recurrence === 'weekly' || newSocialPost.recurrence === 'monthly') && !newSocialPost.recurrenceEndDate) {
-      alert('Valitse mihin päivään asti toistoa jatketaan');
+      toast('Valitse mihin päivään asti toistoa jatketaan');
       return;
     }
 
@@ -2060,7 +2061,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                 .in('id', childIds);
             }
 
-            alert(`✅ Luotiin ${postsToCreate.length} somepostausta!`);
+            toast.success(`✅ Luotiin ${postsToCreate.length} somepostausta!`);
           } else {
             // Tavallinen yksittäinen postaus
             const { error } = await supabase
@@ -2098,7 +2099,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
       } catch (error) {
         console.error('Virhe tallennettaessa somepostausta:', error);
-        alert('Virhe tallennettaessa: ' + error.message);
+        toast.error('Virhe tallennettaessa: ' + error.message);
         return;
       }
     }
@@ -2139,7 +2140,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
       if (error) {
         console.error('Virhe poistettaessa:', error);
-        alert('Virhe poistettaessa somepostausta');
+        toast.error('Virhe poistettaessa somepostausta');
         return;
       }
     }
@@ -2168,7 +2169,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
   const polishCaptionWithAI = async () => {
     if (!newSocialPost.caption || newSocialPost.caption.trim().length === 0) {
-      alert('Kirjoita ensin teksti ennen AI-viimeistelyä');
+      toast('Kirjoita ensin teksti ennen AI-viimeistelyä');
       return;
     }
 
@@ -2189,11 +2190,11 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
       if (data.success) {
         setPolishedVersions(data.versions);
       } else {
-        alert('Virhe AI-viimeistelyss\u00e4: ' + (data.error || 'Tuntematon virhe'));
+        toast.error('Virhe AI-viimeistelyss\u00e4: ' + (data.error || 'Tuntematon virhe'));
       }
     } catch (error) {
       console.error('Error polishing caption:', error);
-      alert('Virhe AI-viimeistelyss\u00e4: ' + error.message);
+      toast.error('Virhe AI-viimeistelyss\u00e4: ' + error.message);
     } finally {
       setPolishingCaption(false);
     }
@@ -4399,9 +4400,9 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
               <div className="flex gap-3 mt-6 border-t pt-6">
                 <button
                   onClick={() => {
-                    if (!newEvent.title.trim()) { alert('Anna tapahtumalle nimi'); return; }
-                    if (!newEvent.dates?.[0]?.date) { alert('Lisää vähintään yksi päivämäärä'); return; }
-                    if (selectedMarketingChannels.length === 0) { alert('Valitse vähintään yksi markkinointikanava'); return; }
+                    if (!newEvent.title.trim()) { toast('Anna tapahtumalle nimi'); return; }
+                    if (!newEvent.dates?.[0]?.date) { toast('Lisää vähintään yksi päivämäärä'); return; }
+                    if (selectedMarketingChannels.length === 0) { toast('Valitse vähintään yksi markkinointikanava'); return; }
                     const tasks = prepareTasksFromChannels();
                     setNewEvent({ ...newEvent, tasks });
                     setShowPreview(true);
@@ -4415,9 +4416,9 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                 </button>
                 <button
                   onClick={() => {
-                    if (!newEvent.title.trim()) { alert('Anna tapahtumalle nimi'); return; }
-                    if (!newEvent.dates?.[0]?.date) { alert('Lisää vähintään yksi päivämäärä'); return; }
-                    if (selectedMarketingChannels.length === 0) { alert('Valitse vähintään yksi markkinointikanava'); return; }
+                    if (!newEvent.title.trim()) { toast('Anna tapahtumalle nimi'); return; }
+                    if (!newEvent.dates?.[0]?.date) { toast('Lisää vähintään yksi päivämäärä'); return; }
+                    if (selectedMarketingChannels.length === 0) { toast('Valitse vähintään yksi markkinointikanava'); return; }
                     const tasks = prepareTasksFromChannels();
                     setNewEvent({ ...newEvent, tasks });
                     saveNewEventV2(tasks);
@@ -4935,7 +4936,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
                             const emptyTasks = editingEvent.tasks.filter(t => !t.content || t.content.trim() === '');
                             if (emptyTasks.length === 0) {
-                              alert('Kaikille tehtäville on jo luotu sisältö!');
+                              toast('Kaikille tehtäville on jo luotu sisältö!');
                               return;
                             }
 
@@ -4994,12 +4995,12 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                     )
                                   }));
 
-                                  alert('✅ AI-sisältö luotu onnistuneesti!');
+                                  toast.success('✅ AI-sisältö luotu onnistuneesti!');
                                 }
                               }
                             } catch (error) {
                               console.error('Virhe generoitaessa sisältöä:', error);
-                              alert('Virhe AI-sisällön luomisessa: ' + error.message);
+                              toast.error('Virhe AI-sisällön luomisessa: ' + error.message);
                             }
                           }}
                           disabled={generatingProgress.isGenerating}
@@ -5025,19 +5026,19 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                 <button
                   onClick={async () => {
                     if (!editingEvent.title.trim()) {
-                      alert('Anna tapahtumalle nimi');
+                      toast('Anna tapahtumalle nimi');
                       return;
                     }
 
                     // Validoi dates-array
                     const dates = editingEvent.dates || [];
                     if (dates.length === 0) {
-                      alert('Lisää vähintään yksi päivämäärä');
+                      toast('Lisää vähintään yksi päivämäärä');
                       return;
                     }
                     const hasEmptyDate = dates.some(d => !d.date);
                     if (hasEmptyDate) {
-                      alert('Täytä kaikki päivämäärät');
+                      toast('Täytä kaikki päivämäärät');
                       return;
                     }
 
@@ -5272,11 +5273,11 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
                               task: { ...editingTask.task, content: data.response }
                             });
                           } else {
-                            alert('Virhe generoitaessa sisältöä: ' + (data.error || 'Tuntematon virhe'));
+                            toast.error('Virhe generoitaessa sisältöä: ' + (data.error || 'Tuntematon virhe'));
                           }
                         } catch (error) {
                           console.error('Virhe:', error);
-                          alert('Virhe generoitaessa sisältöä');
+                          toast.error('Virhe generoitaessa sisältöä');
                         } finally {
                           setIsGenerating(false);
                         }

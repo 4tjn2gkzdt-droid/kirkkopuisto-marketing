@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import toast from 'react-hot-toast'
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabase';
@@ -178,7 +179,7 @@ export default function Ideoi() {
 
   const saveSocialPost = async () => {
     if (!newSocialPost.title || !newSocialPost.date) {
-      alert('Täytä vähintään otsikko ja päivämäärä')
+      toast('Täytä vähintään otsikko ja päivämäärä')
       return
     }
 
@@ -205,7 +206,7 @@ export default function Ideoi() {
 
       if (error) throw error
 
-      alert('✅ Somepostaus lisätty!')
+      toast.success('✅ Somepostaus lisätty!')
 
       // Sulje modaali ja tyhjennä lomake
       setShowAddSocialPostModal(false)
@@ -227,7 +228,7 @@ export default function Ideoi() {
 
     } catch (error) {
       console.error('Error saving social post:', error)
-      alert('Virhe tallennuksessa: ' + error.message)
+      toast.error('Virhe tallennuksessa: ' + error.message)
     }
   }
 

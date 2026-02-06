@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import toast from 'react-hot-toast'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
@@ -146,11 +147,11 @@ export default function Brainstorming() {
           loadSessions() // Päivitä sessioiden lista
         }
       } else {
-        alert('Virhe: ' + (data.error || 'Tuntematon virhe'))
+        toast.error('Virhe: ' + (data.error || 'Tuntematon virhe'))
       }
     } catch (error) {
       console.error('Error sending message:', error)
-      alert('Virhe: ' + error.message)
+      toast.error('Virhe: ' + error.message)
     } finally {
       setSending(false)
       setTimeout(() => inputRef.current?.focus(), 100)
@@ -166,7 +167,7 @@ export default function Brainstorming() {
 
   const copyToClipboard = (content) => {
     navigator.clipboard.writeText(content)
-    alert('📋 Kopioitu leikepöydälle!')
+    toast.success('📋 Kopioitu leikepöydälle!')
   }
 
   const saveAsIdea = (content) => {
@@ -179,7 +180,7 @@ export default function Brainstorming() {
 
   const submitSaveIdea = async () => {
     if (!ideaTitle.trim() || !ideaToSave.trim()) {
-      alert('Anna idealle otsikko')
+      toast('Anna idealle otsikko')
       return
     }
 
@@ -206,15 +207,15 @@ export default function Brainstorming() {
       const data = await response.json()
 
       if (data.success) {
-        alert('💡 Idea tallennettu!')
+        toast.success('💡 Idea tallennettu!')
         setShowSaveIdeaForm(false)
         loadSavedIdeas()
       } else {
-        alert('Virhe: ' + (data.error || 'Tallennus epäonnistui'))
+        toast.error('Virhe: ' + (data.error || 'Tallennus epäonnistui'))
       }
     } catch (error) {
       console.error('Error saving idea:', error)
-      alert('Virhe: ' + error.message)
+      toast.error('Virhe: ' + error.message)
     }
   }
 
@@ -256,7 +257,7 @@ export default function Brainstorming() {
       }
     } catch (error) {
       console.error('Error loading session:', error)
-      alert('Virhe: ' + error.message)
+      toast.error('Virhe: ' + error.message)
     }
   }
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
+import toast from 'react-hot-toast'
 
 export default function AdminHistoricalContent() {
   const router = useRouter()
@@ -66,7 +67,7 @@ export default function AdminHistoricalContent() {
       .single()
 
     if (!profile?.is_admin) {
-      alert('Vain admin-käyttäjillä on pääsy tälle sivulle')
+      toast.error('Vain admin-käyttäjillä on pääsy tälle sivulle')
       router.push('/')
       return
     }
@@ -100,7 +101,7 @@ export default function AdminHistoricalContent() {
       }
     } catch (error) {
       console.error('Error loading contents:', error)
-      alert('Virhe sisältöjen latauksessa: ' + error.message)
+      toast.error('Virhe sisältöjen latauksessa: ' + error.message)
     }
   }
 
@@ -108,7 +109,7 @@ export default function AdminHistoricalContent() {
     e.preventDefault()
 
     if (!formData.title || !formData.content) {
-      alert('Otsikko ja sisältö ovat pakollisia')
+      toast('Otsikko ja sisältö ovat pakollisia')
       return
     }
 
@@ -134,16 +135,16 @@ export default function AdminHistoricalContent() {
       const data = await response.json()
 
       if (data.success) {
-        alert(editingId ? 'Sisältö päivitetty!' : 'Sisältö lisätty!')
+        toast.success(editingId ? 'Sisältö päivitetty!' : 'Sisältö lisätty!')
         setShowForm(false)
         resetForm()
         loadContents()
       } else {
-        alert('Virhe: ' + (data.error || 'Tuntematon virhe'))
+        toast.error('Virhe: ' + (data.error || 'Tuntematon virhe'))
       }
     } catch (error) {
       console.error('Error saving content:', error)
-      alert('Virhe: ' + error.message)
+      toast.error('Virhe: ' + error.message)
     }
   }
 
@@ -178,14 +179,14 @@ export default function AdminHistoricalContent() {
       const data = await response.json()
 
       if (data.success) {
-        alert('Sisältö poistettu!')
+        toast.success('Sisältö poistettu!')
         loadContents()
       } else {
-        alert('Virhe: ' + (data.error || 'Poisto epäonnistui'))
+        toast.error('Virhe: ' + (data.error || 'Poisto epäonnistui'))
       }
     } catch (error) {
       console.error('Error deleting content:', error)
-      alert('Virhe: ' + error.message)
+      toast.error('Virhe: ' + error.message)
     }
   }
 
@@ -209,12 +210,12 @@ export default function AdminHistoricalContent() {
       .filter(url => url.length > 0)
 
     if (urls.length === 0) {
-      alert('Syötä vähintään yksi URL')
+      toast('Syötä vähintään yksi URL')
       return
     }
 
     if (urls.length > 10) {
-      alert('Voit hakea maksimissaan 10 URL:ia kerralla')
+      toast('Voit hakea maksimissaan 10 URL:ia kerralla')
       return
     }
 
@@ -245,16 +246,16 @@ export default function AdminHistoricalContent() {
         }
 
         if (failed.length > 0) {
-          alert(`Onnistui: ${successful.length}, Epäonnistui: ${failed.length}\n\nEpäonnistuneet:\n${failed.map(f => `${f.url}: ${f.error}`).join('\n')}`)
+          toast(`Onnistui: ${successful.length}, Epäonnistui: ${failed.length}\n\nEpäonnistuneet:\n${failed.map(f => `${f.url}: ${f.error}`).join('\n')}`)
         } else {
-          alert(`Haettu onnistuneesti ${successful.length} sisältöä!`)
+          toast.success(`Haettu onnistuneesti ${successful.length} sisältöä!`)
         }
       } else {
-        alert('Virhe sisällön hakemisessa: ' + (data.error || 'Tuntematon virhe'))
+        toast.error('Virhe sisällön hakemisessa: ' + (data.error || 'Tuntematon virhe'))
       }
     } catch (error) {
       console.error('Error fetching URLs:', error)
-      alert('Virhe: ' + error.message)
+      toast.error('Virhe: ' + error.message)
     } finally {
       setIsFetching(false)
     }
@@ -262,7 +263,7 @@ export default function AdminHistoricalContent() {
 
   const handleSaveFetchedContent = async () => {
     if (fetchedContent.length === 0) {
-      alert('Ei sisältöä tallennettavaksi')
+      toast('Ei sisältöä tallennettavaksi')
       return
     }
 
@@ -296,17 +297,17 @@ export default function AdminHistoricalContent() {
       const data = await response.json()
 
       if (data.success) {
-        alert(`Tallennettu ${fetchedContent.length} sisältöä!`)
+        toast.success(`Tallennettu ${fetchedContent.length} sisältöä!`)
         setShowUrlImport(false)
         setUrlInput('')
         setFetchedContent([])
         loadContents()
       } else {
-        alert('Virhe tallennuksessa: ' + (data.error || 'Tuntematon virhe'))
+        toast.error('Virhe tallennuksessa: ' + (data.error || 'Tuntematon virhe'))
       }
     } catch (error) {
       console.error('Error saving content:', error)
-      alert('Virhe: ' + error.message)
+      toast.error('Virhe: ' + error.message)
     } finally {
       setIsSaving(false)
     }
@@ -370,7 +371,7 @@ export default function AdminHistoricalContent() {
     if (!file) return
 
     if (file.type !== 'application/json' && !file.name.endsWith('.json')) {
-      alert('Valitse JSON-tiedosto')
+      toast('Valitse JSON-tiedosto')
       return
     }
 
@@ -381,7 +382,7 @@ export default function AdminHistoricalContent() {
 
         // Tarkista että JSON on array
         if (!Array.isArray(json)) {
-          alert('JSON-tiedoston pitää sisältää lista postauksia')
+          toast.error('JSON-tiedoston pitää sisältää lista postauksia')
           return
         }
 
@@ -406,10 +407,10 @@ export default function AdminHistoricalContent() {
 
         setJsonContent(validated)
         setShowJsonImport(true)
-        alert(`Ladattu ${validated.length} kohdetta JSON-tiedostosta!`)
+        toast.success(`Ladattu ${validated.length} kohdetta JSON-tiedostosta!`)
       } catch (error) {
         console.error('JSON parse error:', error)
-        alert('Virhe JSON-tiedoston lukemisessa: ' + error.message)
+        toast.error('Virhe JSON-tiedoston lukemisessa: ' + error.message)
       }
     }
 
@@ -420,7 +421,7 @@ export default function AdminHistoricalContent() {
 
   const handleSaveJsonContent = async () => {
     if (jsonContent.length === 0) {
-      alert('Ei sisältöä tallennettavaksi')
+      toast('Ei sisältöä tallennettavaksi')
       return
     }
 
@@ -445,16 +446,16 @@ export default function AdminHistoricalContent() {
       const data = await response.json()
 
       if (data.success) {
-        alert(`Tallennettu ${jsonContent.length} kohdetta tietokantaan!`)
+        toast.success(`Tallennettu ${jsonContent.length} kohdetta tietokantaan!`)
         setShowJsonImport(false)
         setJsonContent([])
         loadContents()
       } else {
-        alert('Virhe tallennuksessa: ' + (data.error || 'Tuntematon virhe'))
+        toast.error('Virhe tallennuksessa: ' + (data.error || 'Tuntematon virhe'))
       }
     } catch (error) {
       console.error('Error saving JSON content:', error)
-      alert('Virhe: ' + error.message)
+      toast.error('Virhe: ' + error.message)
     } finally {
       setIsImportingJson(false)
     }

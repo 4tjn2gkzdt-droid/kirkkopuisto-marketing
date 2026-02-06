@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabase';
+import { sanitizeHtml } from '../lib/sanitize';
 
 export default function Perehdytys() {
   const router = useRouter();
@@ -274,7 +275,7 @@ export default function Perehdytys() {
                     </div>
                     <div
                       className="flex-1 text-gray-700"
-                      dangerouslySetInnerHTML={{ __html: point }}
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtml(point) }}
                     />
                   </div>
                 ))}

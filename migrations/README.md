@@ -1,39 +1,42 @@
 # Tietokantamigraatiot
 
-## Monipäiväisten tapahtumien tuki
+## Atomic Event Insert (20260206)
 
-Tämä migraatio lisää tuen monipäiväisille tapahtumille, joilla jokaisella päivällä voi olla omat kellonaikansa.
+Luo Supabase RPC-funktion joka tallentaa tapahtumat atomisesti yhdessä transaktiossa.
 
-### Muutokset:
+### Asennus
 
-1. **Uusi taulu: `event_instances`**
-   - Sisältää yksittäisen tapahtumapäivän tiedot
-   - Kentät: `id`, `event_id`, `date`, `start_time`, `end_time`
-   - Yksi tapahtuma (events) voi sisältää useita päiviä (event_instances)
+1. Avaa Supabase Dashboard: https://supabase.com/dashboard
+2. Navigoi projektiin
+3. Klikkaa SQL Editor
+4. Kopioi `20260206_atomic_event_insert.sql` sisältö
+5. Liitä SQL Editoriin
+6. Klikkaa "Run"
 
-2. **Muutokset `events`-tauluun:**
-   - `date` ja `time` kentät muutettu optionaalisiksi (backward compatibility)
-   - Uudet tapahtumat käyttävät `event_instances`-taulua
+### Mitä tämä tekee?
 
-### Migraation ajaminen:
+- Luo `create_event_atomic()` RPC-funktion
+- Tallentaa tapahtuman, päivämäärät ja tehtävät yhdessä transaktiossa
+- Jos mikä tahansa vaihe epäonnistuu, koko operaatio peruutetaan (rollback)
+- Palauttaa luodun tapahtuman kaikkine liitoksineen JSON-muodossa
 
-1. Kirjaudu Supabase-konsoliin: https://supabase.com/dashboard
-2. Valitse projektisi
-3. Siirry **SQL Editor** -osioon
-4. Kopioi `add-event-instances.sql` tiedoston sisältö
-5. Liitä se SQL-editoriin
-6. Paina **Run** tai **F5**
+### Testaus
 
-### Mitä migraatio tekee:
+Testaa että funktio toimii:
 
-- ✅ Luo `event_instances` taulun
-- ✅ Luo tarvittavat indeksit
-- ✅ Asettaa Row Level Security (RLS) policyt
-- ✅ Migroi vanhat tapahtumat uuteen rakenteeseen
-- ✅ Säilyttää backward compatibility
+```sql
+SELECT create_event_atomic(
+  'Test Event',
+  'Test Artist',
+  'Test Summary',
+  'https://example.com',
+  2026,
+  '[{"date":"2026-06-01","startTime":"18:00","endTime":"22:00"}]'::jsonb,
+  '[{"title":"Test Task","channel":"instagram","dueDate":"2026-05-25"}]'::jsonb,
+  NULL,
+  NULL,
+  NULL
+);
+```
 
-### Käyttö frontendin kanssa:
-
-Ei tarvita mitään lisätoimenpiteitä - frontend on jo päivitetty käyttämään uutta rakennetta!
-
-**Huom:** Migraatio on turvallinen ajaa useita kertoja (`IF NOT EXISTS` ja `ON CONFLICT DO NOTHING`).
+Jos tämä palauttaa JSONB-objektin, funktio toimii!

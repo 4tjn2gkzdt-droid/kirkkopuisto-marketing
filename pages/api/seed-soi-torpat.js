@@ -6,7 +6,7 @@
  *
  * Käyttö: fetch('/api/seed-soi-torpat', { method: 'POST' })
  */
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '../../lib/supabase-admin';
 
 // insertSafe – automaattinen retry puuttuville sarakkeille
 async function insertSafe(client, table, payload, useSingle = false, depth = 0) {
@@ -53,14 +53,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Käytä POST-metodia' });
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!supabaseUrl || !supabaseKey) {
-    return res.status(500).json({ error: 'Supabase env-muuttujat puuttevat' });
+  if (!supabaseAdmin) {
+    return res.status(500).json({ error: 'Supabase admin ei ole konfiguroitu' });
   }
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
+  const supabase = supabaseAdmin;
 
   try {
     const logs = [];

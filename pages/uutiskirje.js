@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
+import { sanitizeRichHtml } from '../lib/sanitize'
 
 // Apufunktio: Parsii YYYY-MM-DD stringin paikalliseksi Date-objektiksi (ei UTC)
 // Välttää aikavyöhykeongelmia, joissa päivämäärä siirtyy päivällä
@@ -1302,7 +1303,7 @@ export default function NewsletterGenerator() {
                 <div
                   className="bg-white shadow-lg mx-auto"
                   style={{ maxWidth: '600px' }}
-                  dangerouslySetInnerHTML={{ __html: previewHtml }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(previewHtml) }}
                 />
               </div>
 

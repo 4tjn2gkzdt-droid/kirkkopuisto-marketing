@@ -1,37 +1,18 @@
 /**
  * POST /api/events
  *
- * Luo uuden tapahtuman + päivämäärät + tehtävät ykseä server-side kyselyä kohti.
+ * Luo uuden tapahtuman + päivämäärät + tehtävät ATOMISESTI yhden RPC-funktion kautta.
  * Käyttää supabaseAdmin (service_role) → ei token-refresh -ongelmia, nopea yhteys.
- * Epäonnistuessaan rollback: poistetaan luodut rivit.
+ * Atominen transaktio: joko kaikki onnistuu tai mikään ei tallennu.
  */
 import { supabaseAdmin } from '../../lib/supabase-admin'
 
-// Käsittele puuttuvat sarakkeet automaattisesti (migraatioita ei ole ajettu).
-// Palauttaa { data, error } kuten supabase-kutsu normaalisti.
-async function insertWithFallback(client, table, payload, single = false) {
-  let current = payload
-  for (let i = 0; i < 4; i++) {
-    const query = client.from(table).insert(current)
-    const result = single ? await query.select().single() : await query
-    if (!result.error) return result
-
-    const msg = result.error.message || ''
-    if (msg.includes('does not exist')) {
-      const match = msg.match(/column "(\w+)"/)
-      if (match) {
-        const col = match[1]
-        console.warn(`[events] sarake "${col}" puuttee "${table}" – poistetaan ja yritetään`)
-        current = Array.isArray(current)
-          ? current.map(row => { const { [col]: _, ...rest } = row; return rest })
-          : (() => { const { [col]: _, ...rest } = current; return rest })()
-        continue
-      }
-    }
-    return result // muu virhe – palautetaan sellaisenaan
-  }
-  return { data: null, error: { message: `Liikaa puuttuvia sarakkeita taulusta ${table}` } }
-}
+// Sallitut alkuperät CORS:lle
+const ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'https://kirkkopuisto-marketing.vercel.app',
+  process.env.NEXT_PUBLIC_SITE_URL,
+].filter(Boolean)
 
 export const config = {
   api: {
@@ -40,9 +21,17 @@ export const config = {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*')
+  // CORS-turvallisuus: Tarkista että pyyntö tulee sallitusta alkuperästä
+  const origin = req.headers.origin
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin)
+  } else if (!origin) {
+    // Same-origin pyynnöt (ei origin-headeria)
+    res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGINS[0] || 'http://localhost:3000')
+  }
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  res.setHeader('Access-Control-Allow-Credentials', 'true')
 
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'Käytä POST-metodia' })
@@ -64,92 +53,36 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Vuosi tarvitaan' })
   }
 
-  let createdEventId = null
-
   try {
-    // --- Vaihe 1: master-tapahtuma ---
-    const eventPayload = {
-      title: title.trim(),
-      artist: artist || null,
-      summary: summary || null,
-      url: url || null,
-      year,
-      images: {},
-      created_by_id: createdBy?.id || null,
-      created_by_email: createdBy?.email || null,
-      created_by_name: createdBy?.name || null,
+    // Käytä atomista RPC-funktiota - joko kaikki onnistuu tai mikään ei tallennu
+    const { data, error } = await supabaseAdmin.rpc('create_event_atomic', {
+      p_title: title.trim(),
+      p_artist: artist || null,
+      p_summary: summary || null,
+      p_url: url || null,
+      p_year: year,
+      p_dates: JSON.stringify(dates),
+      p_tasks: tasks && tasks.length > 0 ? JSON.stringify(tasks) : null,
+      p_created_by_id: createdBy?.id || null,
+      p_created_by_email: createdBy?.email || null,
+      p_created_by_name: createdBy?.name || null,
+    })
+
+    if (error) {
+      console.error('[POST /api/events] RPC error:', error)
+      return res.status(500).json({
+        error: 'Tapahtumaa ei voitu tallentaa',
+        details: error.message
+      })
     }
 
-    const { data: savedEvent, error: eventError } = await insertWithFallback(
-      supabaseAdmin, 'events', eventPayload, true
-    )
-    if (eventError) {
-      return res.status(500).json({ error: 'Tapahtumaa ei voitu tallentaa', details: eventError.message })
-    }
-    createdEventId = savedEvent.id
-
-    // --- Vaihe 2: päivämäärät (event_instances) ---
-    const instances = dates.map(d => ({
-      event_id: savedEvent.id,
-      date: d.date,
-      start_time: d.startTime || null,
-      end_time: d.endTime || null,
-    }))
-
-    const { error: instancesError } = await supabaseAdmin
-      .from('event_instances')
-      .insert(instances)
-
-    if (instancesError) {
-      await supabaseAdmin.from('events').delete().eq('id', savedEvent.id)
-      return res.status(500).json({ error: 'Päivämääriä ei voitu tallentaa', details: instancesError.message })
-    }
-
-    // --- Vaihe 3: tehtävät ---
-    if (tasks && Array.isArray(tasks) && tasks.length > 0) {
-      const tasksPayload = tasks.map(task => ({
-        event_id: savedEvent.id,
-        title: task.title,
-        channel: task.channel,
-        due_date: task.dueDate,
-        due_time: task.dueTime || null,
-        completed: false,
-        content: task.content || null,
-        assignee: task.assignee || null,
-        notes: task.notes || null,
-        created_by_id: createdBy?.id || null,
-        created_by_email: createdBy?.email || null,
-        created_by_name: createdBy?.name || null,
-      }))
-
-      const { error: tasksError } = await insertWithFallback(supabaseAdmin, 'tasks', tasksPayload)
-      if (tasksError) {
-        // Rollback: poista instances + event
-        await supabaseAdmin.from('event_instances').delete().eq('event_id', savedEvent.id)
-        await supabaseAdmin.from('events').delete().eq('id', savedEvent.id)
-        return res.status(500).json({ error: 'Tehtäviä ei voitu tallentaa', details: tasksError.message })
-      }
-    }
-
-    // --- Hae lutettu tapahtuma ---
-    const { data: createdEvent } = await supabaseAdmin
-      .from('events')
-      .select('*, event_instances(*), tasks(*)')
-      .eq('id', savedEvent.id)
-      .single()
-
-    return res.status(201).json({ success: true, event: createdEvent })
+    return res.status(201).json({ success: true, event: data })
 
   } catch (err) {
-    console.error('[POST /api/events]', err)
-    // Cleanup partial inserts
-    if (createdEventId) {
-      try {
-        await supabaseAdmin.from('tasks').delete().eq('event_id', createdEventId)
-        await supabaseAdmin.from('event_instances').delete().eq('event_id', createdEventId)
-        await supabaseAdmin.from('events').delete().eq('id', createdEventId)
-      } catch (_) { /* cleanup-virhe ei saa kaataa vastausta */ }
-    }
-    return res.status(500).json({ error: 'Odottamaton virhe', details: err.message })
+    console.error('[POST /api/events] Exception:', err)
+    return res.status(500).json({
+      error: 'Odottamaton virhe',
+      details: err.message
+    })
   }
 }

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
+import { sanitizeRichHtml } from '../lib/sanitize'
 
 export default function Tiimi() {
   const [teamMembers, setTeamMembers] = useState([])
@@ -340,7 +341,7 @@ export default function Tiimi() {
                 <h4 className="font-bold text-gray-900 mb-2">Sähköpostin sisältö:</h4>
                 <div
                   className="border-2 border-gray-200 rounded-lg p-4 bg-gray-50"
-                  dangerouslySetInnerHTML={{ __html: emailPreview.html }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(emailPreview.html) }}
                 />
               </div>
 

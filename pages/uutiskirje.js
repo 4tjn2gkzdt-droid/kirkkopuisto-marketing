@@ -156,11 +156,11 @@ export default function NewsletterGenerator() {
 
   const loadDraft = async (draft) => {
     try {
-      // Lataa valitut tapahtumat
+      // Lataa valitut tapahtumat (JOIN tasks ja event_instances välttääksemme N+1 query -ongelman)
       if (draft.selected_event_ids && draft.selected_event_ids.length > 0) {
         const { data: eventData, error: eventError } = await supabase
           .from('events')
-          .select('*')
+          .select('*, tasks (*), event_instances (*)')
           .in('id', draft.selected_event_ids)
           .order('date', { ascending: true })
 

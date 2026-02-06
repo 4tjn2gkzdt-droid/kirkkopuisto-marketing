@@ -98,17 +98,16 @@ export default function AdminPanel() {
     if (!supabase) return;
 
     // Hae tilastot: tapahtumat, tehtävät, somepostaukset per käyttäjä
-    const { data: events } = await supabase
-      .from('events')
-      .select('created_by_id, created_by_email, created_by_name');
-
-    const { data: tasks } = await supabase
-      .from('tasks')
-      .select('created_by_id, created_by_email, created_by_name');
-
-    const { data: socialPosts } = await supabase
-      .from('social_media_posts')
-      .select('created_by_id, created_by_email, created_by_name');
+    // Käytetään Promise.all() suorittamaan kyselyt rinnakkain (M+N optimointi)
+    const [
+      { data: events },
+      { data: tasks },
+      { data: socialPosts }
+    ] = await Promise.all([
+      supabase.from('events').select('created_by_id, created_by_email, created_by_name'),
+      supabase.from('tasks').select('created_by_id, created_by_email, created_by_name'),
+      supabase.from('social_media_posts').select('created_by_id, created_by_email, created_by_name')
+    ]);
 
     const statsMap = {};
 

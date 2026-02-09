@@ -1903,7 +1903,15 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
       const result = await response.json();
       if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Tapahtumaa ei voitu tallentaa');
+        // Näytä tarkempi virheviesti jos saatavilla
+        let errorMsg = result.error || 'Tapahtumaa ei voitu tallentaa';
+        if (result.details) {
+          errorMsg += '\n\n📋 Lisätiedot: ' + result.details;
+        }
+        if (result.hint) {
+          errorMsg += '\n\n💡 Ohje: ' + result.hint;
+        }
+        throw new Error(errorMsg);
       }
 
       // === Tallennus valmis – päivitä UI ja tyhjennä lomake ===

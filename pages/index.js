@@ -820,20 +820,51 @@ export default function Home() {
     }
   };
 
-  const toggleTask = (postId, taskId) => {
-    const currentPosts = posts[selectedYear] || [];
-    const updatedPosts = currentPosts.map(post => {
+  // Vaihda tehtävän tila (completed)
+  // KORJATTU: Käyttää nyt suoraa UPDATE:a DELETE+INSERT:n sijaan
+  const toggleTask = async (postId, taskId) => {
+    // Etsi nykyinen tehtävä local statesta
+    const currentPost = posts[selectedYear]?.find(p => p.id === postId);
+    const currentTask = currentPost?.tasks.find(t => t.id === taskId);
+
+    if (!currentTask) {
+      console.error('Tehtävää ei löytynyt:', { postId, taskId });
+      return;
+    }
+
+    const newCompletedStatus = !currentTask.completed;
+
+    // Päivitä tietokantaan jos Supabase on käytössä
+    if (supabase) {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ completed: newCompletedStatus })
+        .eq('id', taskId);
+
+      if (error) {
+        console.error('Virhe päivitettäessä tehtävää:', error);
+        toast.error('Tehtävän päivitys epäonnistui: ' + error.message);
+        return;
+      }
+
+      logger.info('Tehtävän tila päivitetty:', { taskId, completed: newCompletedStatus });
+    }
+
+    // Päivitä local state
+    const updatedPosts = (posts[selectedYear] || []).map(post => {
       if (post.id === postId) {
         return {
           ...post,
-          tasks: post.tasks.map(task => 
-            task.id === taskId ? { ...task, completed: !task.completed } : task
+          tasks: post.tasks.map(task =>
+            task.id === taskId ? { ...task, completed: newCompletedStatus } : task
           )
         };
       }
       return post;
     });
-    savePosts(selectedYear, updatedPosts);
+
+    // Päivitä state suoraan ilman savePosts-kutsua (joka tekisi DELETE+INSERT)
+    setPosts(prev => ({ ...prev, [selectedYear]: updatedPosts }));
   };
 
   const openTaskEdit = (postId, task) => {

@@ -4029,7 +4029,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                 className="w-full p-2 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
                               >
                                 <option value="">Valitse aika</option>
-                                {Array.from({ length: 24 }, (_, h) => [
+                                {Array.from({ length: 13 }, (_, i) => i + 10).map(h => [
                                   <option key={`${h}:00`} value={`${String(h).padStart(2, '0')}:00`}>
                                     {String(h).padStart(2, '0')}:00
                                   </option>,
@@ -4052,7 +4052,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                 className="w-full p-2 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
                               >
                                 <option value="">Valitse aika</option>
-                                {Array.from({ length: 24 }, (_, h) => [
+                                {[...Array.from({ length: 12 }, (_, i) => i + 12), 0].map(h => [
                                   <option key={`${h}:00`} value={`${String(h).padStart(2, '0')}:00`}>
                                     {String(h).padStart(2, '0')}:00
                                   </option>,
@@ -4704,7 +4704,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                 className="w-full p-2 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
                               >
                                 <option value="">Valitse aika</option>
-                                {Array.from({ length: 24 }, (_, h) => [
+                                {Array.from({ length: 13 }, (_, i) => i + 10).map(h => [
                                   <option key={`${h}:00`} value={`${String(h).padStart(2, '0')}:00`}>
                                     {String(h).padStart(2, '0')}:00
                                   </option>,
@@ -4728,7 +4728,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                 className="w-full p-2 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none"
                               >
                                 <option value="">Valitse aika</option>
-                                {Array.from({ length: 24 }, (_, h) => [
+                                {[...Array.from({ length: 12 }, (_, i) => i + 12), 0].map(h => [
                                   <option key={`${h}:00`} value={`${String(h).padStart(2, '0')}:00`}>
                                     {String(h).padStart(2, '0')}:00
                                   </option>,

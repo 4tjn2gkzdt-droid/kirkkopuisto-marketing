@@ -8,6 +8,11 @@ export const config = {
 }
 
 export default async function handler(req, res) {
+  // Salli debug-reitit vain development-ympäristössä
+  if (process.env.NODE_ENV !== 'development') {
+    return res.status(404).json({ error: 'Not found' })
+  }
+
   const timestamp = new Date().toISOString()
 
   // Aseta CORS headers HETI

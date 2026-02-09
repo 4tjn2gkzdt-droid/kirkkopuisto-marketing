@@ -6,6 +6,11 @@
 import { supabaseAdmin } from '../../../lib/supabase-admin'
 
 export default async function handler(req, res) {
+  // Salli debug-reitit vain development-ympäristössä
+  if (process.env.NODE_ENV !== 'development') {
+    return res.status(404).json({ error: 'Not found' })
+  }
+
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
   }

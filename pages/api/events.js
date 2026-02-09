@@ -184,14 +184,15 @@ export default async function handler(req, res) {
 
   try {
     // Käytä atomista RPC-funktiota - joko kaikki onnistuu tai mikään ei tallennu
+    // HUOM: Supabase JS client hoitaa JSONB-konversion automaattisesti, älä käytä JSON.stringify()
     const { data, error } = await supabaseAdmin.rpc('create_event_atomic', {
       p_title: title.trim(),
       p_artist: artist || null,
       p_summary: summary || null,
       p_url: url || null,
       p_year: year,
-      p_dates: JSON.stringify(dates),
-      p_tasks: tasks && tasks.length > 0 ? JSON.stringify(tasks) : null,
+      p_dates: dates, // Supabase hoitaa JSONB-konversion
+      p_tasks: tasks && tasks.length > 0 ? tasks : null, // Supabase hoitaa JSONB-konversion
       p_created_by_id: createdBy?.id || null,
       p_created_by_email: createdBy?.email || null,
       p_created_by_name: createdBy?.name || null,

@@ -1,5 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk'
-import cors from '../../lib/cors'
+import { withCorsAndErrorHandling, AppError, ErrorTypes } from '../../lib/errorHandler'
+import { createClaudeMessage } from '../../lib/api/claudeService'
 
 async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -9,31 +9,23 @@ async function handler(req, res) {
   const {
     originalContent,
     originalEvent,
-    recycleType, // 'update', 'nostalgia', 'repurpose'
+    recycleType,
     newContext = {}
   } = req.body
 
   if (!originalContent) {
-    return res.status(400).json({ error: 'originalContent puuttuu' })
+    throw new AppError('originalContent puuttuu', ErrorTypes.VALIDATION)
   }
 
   if (!recycleType) {
-    return res.status(400).json({ error: 'recycleType puuttuu (update/nostalgia/repurpose)' })
+    throw new AppError('recycleType puuttuu (update/nostalgia/repurpose)', ErrorTypes.VALIDATION)
   }
 
-  try {
-    const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY puuttuu')
-    }
-
-    const anthropic = new Anthropic({ apiKey })
-
-    // Määritellään kierrätystyypit
-    const recycleInstructions = {
-      'update': {
-        name: 'Päivitä uuteen kontekstiin',
-        prompt: `Päivitä tämä vanha somepostaus uuteen kontekstiin.
+  // Määritellään kierrätystyypit
+  const recycleInstructions = {
+    'update': {
+      name: 'Päivitä uuteen kontekstiin',
+      prompt: `Päivitä tämä vanha somepostaus uuteen kontekstiin.
 
 ALKUPERÄINEN POSTAUS:
 "${originalContent}"
@@ -53,10 +45,10 @@ LUO PÄIVITETTY VERSIO:
 - Max 300 merkkiä
 
 Anna VAIN päivitetty postaus, ei muuta tekstiä.`
-      },
-      'nostalgia': {
-        name: 'Luo nostalgia-postaus',
-        prompt: `Luo nostalgia-postaus ("Muistatko kun...") vanhan tapahtuman pohjalta.
+    },
+    'nostalgia': {
+      name: 'Luo nostalgia-postaus',
+      prompt: `Luo nostalgia-postaus ("Muistatko kun...") vanhan tapahtuman pohjalta.
 
 ALKUPERÄINEN TAPAHTUMA:
 ${originalEvent ? `${originalEvent.title} - ${new Date(originalEvent.date).toLocaleDateString('fi-FI')}` : 'Menneisyydestä'}
@@ -70,17 +62,17 @@ ${newContext.currentEvent ? `Tuleva vastaava tapahtuma: ${newContext.currentEven
 LUO NOSTALGIA-POSTAUS JOKA:
 - Alkaa #throwback tai "Muistatko kun..." -tyylillä
 - Viittaa alkuperäiseen tapahtumaan
-- Herättää lämpim iä muistoja
+- Herättää lämpimiä muistoja
 - Jos on tuleva vastaava tapahtuma, linkitä siihen: "...ja nyt sama tunnelma jatkuu!"
 - Kannustaa kommentoimaan muistoja
 - Sisältää hashtagit: #throwback #memories #kirkkopuistonterassi
 - Max 250 merkkiä
 
 Anna VAIN nostalgia-postaus, ei muuta tekstiä.`
-      },
-      'repurpose': {
-        name: 'Muotoile eri kanavalle',
-        prompt: `Muotoile tämä somepostaus eri kanavalle.
+    },
+    'repurpose': {
+      name: 'Muotoile eri kanavalle',
+      prompt: `Muotoile tämä somepostaus eri kanavalle.
 
 ALKUPERÄINEN POSTAUS:
 "${originalContent}"
@@ -102,52 +94,47 @@ LUO UUSI VERSIO:
 - Optimoi pituus ja tyyli
 
 Anna VAIN uusi postaus, ei muuta tekstiä.`
-      }
     }
+  }
 
-    const instruction = recycleInstructions[recycleType]
+  const instruction = recycleInstructions[recycleType]
 
-    if (!instruction) {
-      return res.status(400).json({
-        error: 'Tuntematon kierrätystyyppi',
-        availableTypes: Object.keys(recycleInstructions)
-      })
-    }
-
-    console.log(`Recycling content with type: ${instruction.name}`)
-
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 1024,
-      temperature: 0.7,
-      messages: [{
-        role: 'user',
-        content: instruction.prompt
-      }],
-      system: `Olet sisällön kierrättäjä Kirkkopuiston Terassille.
-Muotoilet ja päivität vanhaa sisältöä uuteen käyttöön.
-Säilytä tunnelma mutta päivitä konteksti.
-Vastaa VAIN lopullisella postauksella, ei selityksiä.`
-    })
-
-    const textContent = response.content.find(block => block.type === 'text')
-    const recycledContent = textContent?.text || ''
-
-    res.status(200).json({
-      success: true,
-      recycleType: instruction.name,
-      originalContent,
-      recycledContent,
-      usage: response.usage
-    })
-
-  } catch (error) {
-    console.error('Content recycling error:', error)
-    res.status(500).json({
-      error: error.message,
-      details: error.toString()
+  if (!instruction) {
+    return res.status(400).json({
+      error: 'Tuntematon kierrätystyyppi',
+      availableTypes: Object.keys(recycleInstructions)
     })
   }
+
+  console.log(`Recycling content with type: ${instruction.name}`)
+
+  const result = await createClaudeMessage({
+    message: instruction.prompt,
+    systemPrompt: `Olet sisällön kierrättäjä Kirkkopuiston Terassille.
+Muotoilet ja päivität vanhaa sisältöä uuteen käyttöön.
+Säilytä tunnelma mutta päivitä konteksti.
+Vastaa VAIN lopullisella postauksella, ei selityksiä.`,
+    maxTokens: 1024,
+    temperature: 0.7
+  })
+
+  // Tarkista että vastaus on olemassa
+  if (!result || !result.response) {
+    console.error('Empty response from Claude API')
+    throw new AppError(
+      'AI ei palauttanut vastausta',
+      ErrorTypes.EXTERNAL_API_ERROR,
+      { help: 'Tyhjä vastaus Claude API:lta' }
+    )
+  }
+
+  return res.status(200).json({
+    success: true,
+    recycleType: instruction.name,
+    originalContent,
+    recycledContent: result.response,
+    usage: result.usage
+  })
 }
 
-export default cors(handler)
+export default withCorsAndErrorHandling(handler)

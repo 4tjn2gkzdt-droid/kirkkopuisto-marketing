@@ -1,7 +1,23 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import logger from '../lib/logger';
 
 export default function SimpleTest() {
+  // Estä pääsy production-ympäristössä
+  if (process.env.NODE_ENV === 'production') {
+    return (
+      <div className="min-h-screen bg-gray-100 p-8 flex items-center justify-center">
+        <div className="max-w-md bg-white rounded-lg shadow-lg p-6 text-center">
+          <h1 className="text-2xl font-bold text-red-600 mb-4">🚫 Ei käytettävissä</h1>
+          <p className="text-gray-600 mb-4">Debug-sivut eivät ole käytettävissä production-ympäristössä.</p>
+          <a href="/" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 inline-block">
+            ← Takaisin etusivulle
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -12,28 +28,30 @@ export default function SimpleTest() {
   }, []);
 
   const checkSession = async () => {
+    const authLogger = logger.withPrefix('AUTH');
+
     try {
-      console.log('1. Getting session...');
+      authLogger.info('1. Getting session...');
       const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
 
       if (sessionError) {
-        console.error('Session error:', sessionError);
+        authLogger.error('Session error:', sessionError);
         setError('Session error: ' + sessionError.message);
         setLoading(false);
         return;
       }
 
       if (!currentSession) {
-        console.log('2. No session found');
+        authLogger.info('2. No session found');
         setError('Ei sessiota - kirjaudu ensin');
         setLoading(false);
         return;
       }
 
-      console.log('2. Session found:', currentSession.user.email);
+      authLogger.info('2. Session found');
       setSession(currentSession);
 
-      console.log('3. Fetching profile...');
+      authLogger.info('3. Fetching profile...');
       const { data: profileData, error: profileError } = await supabase
         .from('user_profiles')
         .select('*')
@@ -41,16 +59,16 @@ export default function SimpleTest() {
         .single();
 
       if (profileError) {
-        console.error('Profile error:', profileError);
+        authLogger.error('Profile error:', profileError);
         setError('Profile error: ' + profileError.message + ' (Code: ' + profileError.code + ')');
       } else {
-        console.log('4. Profile loaded:', profileData);
+        authLogger.info('4. Profile loaded');
         setProfile(profileData);
       }
 
       setLoading(false);
     } catch (err) {
-      console.error('Unexpected error:', err);
+      authLogger.error('Unexpected error:', err);
       setError('Unexpected error: ' + err.message);
       setLoading(false);
     }

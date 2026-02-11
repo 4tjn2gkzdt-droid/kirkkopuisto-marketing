@@ -2,6 +2,16 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
+import { sanitizeRichHtml } from '../lib/sanitize'
+import toast from 'react-hot-toast'
+
+// Apufunktio: Parsii YYYY-MM-DD stringin paikalliseksi Date-objektiksi (ei UTC)
+// Välttää aikavyöhykeongelmia, joissa päivämäärä siirtyy päivällä
+function parseLocalDate(dateString) {
+  if (!dateString) return new Date()
+  const [year, month, day] = dateString.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
 
 export default function NewsletterGenerator() {
   const router = useRouter()
@@ -110,12 +120,12 @@ export default function NewsletterGenerator() {
 
   const saveDraft = async () => {
     if (!draftName.trim()) {
-      alert('Anna luonnokselle nimi')
+      toast('Anna luonnokselle nimi')
       return
     }
 
     if (variants.length === 0) {
-      alert('Ei tallennettavaa sisältöä')
+      toast('Ei tallennettavaa sisältöä')
       return
     }
 
@@ -135,23 +145,23 @@ export default function NewsletterGenerator() {
 
       if (error) throw error
 
-      alert('✅ Luonnos tallennettu!')
+      toast.success('✅ Luonnos tallennettu!')
       setDraftName('')
       setShowSaveDialog(false)
       loadDrafts()
     } catch (error) {
       console.error('Error saving draft:', error)
-      alert('Virhe tallennuksessa: ' + error.message)
+      toast.error('Virhe tallennuksessa: ' + error.message)
     }
   }
 
   const loadDraft = async (draft) => {
     try {
-      // Lataa valitut tapahtumat
+      // Lataa valitut tapahtumat (JOIN tasks ja event_instances välttääksemme N+1 query -ongelman)
       if (draft.selected_event_ids && draft.selected_event_ids.length > 0) {
         const { data: eventData, error: eventError } = await supabase
           .from('events')
-          .select('*')
+          .select('*, tasks (*), event_instances (*)')
           .in('id', draft.selected_event_ids)
           .order('date', { ascending: true })
 
@@ -171,10 +181,10 @@ export default function NewsletterGenerator() {
       setTone(draft.tone)
 
       setShowDraftsPanel(false)
-      alert('✅ Luonnos ladattu!')
+      toast.success('✅ Luonnos ladattu!')
     } catch (error) {
       console.error('Error loading draft:', error)
-      alert('Virhe ladattaessa: ' + error.message)
+      toast.error('Virhe ladattaessa: ' + error.message)
     }
   }
 
@@ -191,11 +201,11 @@ export default function NewsletterGenerator() {
 
       if (error) throw error
 
-      alert('✅ Luonnos poistettu')
+      toast.success('✅ Luonnos poistettu')
       loadDrafts()
     } catch (error) {
       console.error('Error deleting draft:', error)
-      alert('Virhe poistossa: ' + error.message)
+      toast.error('Virhe poistossa: ' + error.message)
     }
   }
 
@@ -299,11 +309,11 @@ export default function NewsletterGenerator() {
         setSelectedEventIds(data.map(e => e.id))
       } else if (error) {
         console.error('Error loading events:', error)
-        alert('Virhe tapahtumien latauksessa: ' + error.message)
+        toast.error('Virhe tapahtumien latauksessa: ' + error.message)
       }
     } catch (error) {
       console.error('Error loading events:', error)
-      alert('Virhe tapahtumien latauksessa: ' + error.message)
+      toast.error('Virhe tapahtumien latauksessa: ' + error.message)
     } finally {
       setLoadingEvents(false)
     }
@@ -321,7 +331,7 @@ export default function NewsletterGenerator() {
 
   const handleGenerate = async () => {
     if (selectedEventIds.length === 0) {
-      alert('Valitse vähintään yksi tapahtuma!')
+      toast('Valitse vähintään yksi tapahtuma!')
       return
     }
 
@@ -414,14 +424,14 @@ export default function NewsletterGenerator() {
               alertMsg += `Valitut IDit: ${data.debug.selectedEventIds.join(', ')}`
             }
           }
-          alert(alertMsg)
+          toast.success(alertMsg)
         }
       } else {
-        alert('Virhe generoinnissa: ' + (data.error || 'Tuntematon virhe'))
+        toast.error('Virhe generoinnissa: ' + (data.error || 'Tuntematon virhe'))
       }
     } catch (error) {
       console.error('Error generating newsletter:', error)
-      alert('Virhe generoinnissa: ' + error.message)
+      toast.error('Virhe generoinnissa: ' + error.message)
     } finally {
       setGenerating(false)
     }
@@ -472,13 +482,13 @@ export default function NewsletterGenerator() {
       const data = await response.json()
 
       if (data.success && data.sent) {
-        alert(`✅ Uutiskirje lähetetty!\n\nLähetetty: ${data.emailsSent}\nEpäonnistui: ${data.emailsFailed}`)
+        toast.success(`✅ Uutiskirje lähetetty!\n\nLähetetty: ${data.emailsSent}\nEpäonnistui: ${data.emailsFailed}`)
       } else {
-        alert('Virhe lähetyksessä: ' + (data.error || 'Tuntematon virhe'))
+        toast.error('Virhe lähetyksessä: ' + (data.error || 'Tuntematon virhe'))
       }
     } catch (error) {
       console.error('Error sending:', error)
-      alert('Virhe lähetyksessä: ' + error.message)
+      toast.error('Virhe lähetyksessä: ' + error.message)
     } finally {
       setSending(false)
     }
@@ -491,7 +501,7 @@ export default function NewsletterGenerator() {
       setTimeout(() => setCopySuccess(false), 2000)
     } catch (error) {
       console.error('Error copying:', error)
-      alert('Virhe kopioinnissa. Kokeile uudelleen.')
+      toast.error('Virhe kopioinnissa. Kokeile uudelleen.')
     }
   }
 
@@ -673,7 +683,7 @@ export default function NewsletterGenerator() {
   <div class="container">
     <div class="header">
       <h1>🌿 Kirkkopuiston Terassi</h1>
-      <p>${new Date(startDate).toLocaleDateString('fi-FI')} - ${new Date(endDate).toLocaleDateString('fi-FI')}</p>
+      <p>${parseLocalDate(startDate).toLocaleDateString('fi-FI')} - ${parseLocalDate(endDate).toLocaleDateString('fi-FI')}</p>
     </div>
 
     <div class="content">
@@ -861,7 +871,7 @@ export default function NewsletterGenerator() {
                     <div className="flex-1">
                       <div className="font-semibold text-gray-900">{event.title}</div>
                       <div className="text-sm text-gray-600">
-                        📅 {new Date(event.date).toLocaleDateString('fi-FI', {
+                        📅 {parseLocalDate(event.date).toLocaleDateString('fi-FI', {
                           weekday: 'long',
                           day: 'numeric',
                           month: 'long'
@@ -1294,7 +1304,7 @@ export default function NewsletterGenerator() {
                 <div
                   className="bg-white shadow-lg mx-auto"
                   style={{ maxWidth: '600px' }}
-                  dangerouslySetInnerHTML={{ __html: previewHtml }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(previewHtml) }}
                 />
               </div>
 

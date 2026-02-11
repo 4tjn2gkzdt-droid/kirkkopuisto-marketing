@@ -1,25 +1,17 @@
 import React, { useState, useEffect } from 'react'
+import toast from 'react-hot-toast'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
+import { socialPostTypes, socialChannels } from '../lib/constants'
 
-// Vakiot somepostauksille
-const socialPostTypes = [
-  { id: 'viikko-ohjelma', name: 'Viikko-ohjelma', icon: '📅' },
-  { id: 'last-minute', name: 'Last minute -markkinointi', icon: '⚡' },
-  { id: 'kiitos', name: 'Kiitos-postaus', icon: '🙏' },
-  { id: 'teaser', name: 'Teaser', icon: '🎬' },
-  { id: 'tiedote', name: 'Tiedote', icon: '📢' },
-  { id: 'tarinat', name: 'Tarinat', icon: '📖' },
-  { id: 'muu', name: 'Muu sisältö', icon: '📝' }
-]
-
-const socialChannels = [
-  { id: 'instagram', name: 'Instagram', icon: '📸' },
-  { id: 'facebook', name: 'Facebook', icon: '👥' },
-  { id: 'tiktok', name: 'TikTok', icon: '🎵' },
-  { id: 'newsletter', name: 'Uutiskirje', icon: '📧' }
-]
+// Apufunktio: Parsii YYYY-MM-DD stringin paikalliseksi Date-objektiksi (ei UTC)
+// Välttää aikavyöhykeongelmia, joissa päivämäärä siirtyy päivällä
+function parseLocalDate(dateString) {
+  if (!dateString) return new Date()
+  const [year, month, day] = dateString.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
 
 export default function ContentTemplates() {
   const router = useRouter()
@@ -175,7 +167,7 @@ export default function ContentTemplates() {
 
   const saveSocialPost = async () => {
     if (!newSocialPost.title || !newSocialPost.date) {
-      alert('Täytä vähintään otsikko ja päivämäärä')
+      toast('Täytä vähintään otsikko ja päivämäärä')
       return
     }
 
@@ -202,7 +194,7 @@ export default function ContentTemplates() {
 
       if (error) throw error
 
-      alert('✅ Somepostaus lisätty!')
+      toast.success('✅ Somepostaus lisätty!')
 
       // Sulje modaali ja tyhjennä lomake
       setShowAddSocialPostModal(false)
@@ -224,7 +216,7 @@ export default function ContentTemplates() {
 
     } catch (error) {
       console.error('Error saving social post:', error)
-      alert('Virhe tallennuksessa: ' + error.message)
+      toast.error('Virhe tallennuksessa: ' + error.message)
     }
   }
 
@@ -255,7 +247,7 @@ export default function ContentTemplates() {
 
   const handleGenerate = async () => {
     if (!selectedTemplate) {
-      alert('Valitse mallipohja')
+      toast('Valitse mallipohja')
       return
     }
 
@@ -286,11 +278,11 @@ export default function ContentTemplates() {
       if (data.success) {
         setGeneratedContent(data.content)
       } else {
-        alert('Virhe generoinnissa: ' + (data.error || 'Tuntematon virhe'))
+        toast.error('Virhe generoinnissa: ' + (data.error || 'Tuntematon virhe'))
       }
     } catch (error) {
       console.error('Error generating template:', error)
-      alert('Virhe generoinnissa: ' + error.message)
+      toast.error('Virhe generoinnissa: ' + error.message)
     } finally {
       setGenerating(false)
     }
@@ -298,7 +290,7 @@ export default function ContentTemplates() {
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generatedContent)
-    alert('📋 Kopioitu leikepöydälle!')
+    toast.success('📋 Kopioitu leikepöydälle!')
   }
 
   const resetForm = () => {
@@ -411,7 +403,7 @@ export default function ContentTemplates() {
                         <div className="flex-1">
                           <div className="font-medium text-gray-900">{event.title}</div>
                           <div className="text-sm text-gray-600">
-                            {new Date(event.date).toLocaleDateString('fi-FI')}
+                            {parseLocalDate(event.date).toLocaleDateString('fi-FI')}
                             {event.artist && ` - ${event.artist}`}
                           </div>
                         </div>
@@ -515,7 +507,7 @@ export default function ContentTemplates() {
       {/* Somepostauksen lisäysmodaali */}
       {showAddSocialPostModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-3xl w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
             <h3 className="text-2xl font-bold mb-6">📱 Lisää somepostaus</h3>
 
             <div className="space-y-4">
@@ -635,6 +627,45 @@ export default function ContentTemplates() {
                   className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
                   placeholder="Sisäiset muistiinpanot..."
                 />
+              </div>
+
+              {/* Kuvien/medioiden linkit */}
+              <div>
+                <label className="block text-sm font-semibold mb-2">Kuvat/mediat (URL-linkit)</label>
+                {newSocialPost.mediaLinks.map((link, index) => (
+                  <div key={index} className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={link}
+                      onChange={(e) => {
+                        const updatedLinks = [...newSocialPost.mediaLinks];
+                        updatedLinks[index] = e.target.value;
+                        setNewSocialPost({ ...newSocialPost, mediaLinks: updatedLinks });
+                      }}
+                      className="flex-1 p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                      placeholder="https://example.com/kuva.jpg"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updatedLinks = newSocialPost.mediaLinks.filter((_, i) => i !== index);
+                        setNewSocialPost({ ...newSocialPost, mediaLinks: updatedLinks });
+                      }}
+                      className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewSocialPost({ ...newSocialPost, mediaLinks: [...newSocialPost.mediaLinks, ''] });
+                  }}
+                  className="w-full py-2 px-4 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-indigo-500 hover:text-indigo-600 transition"
+                >
+                  ➕ Lisää kuva/media
+                </button>
               </div>
             </div>
 

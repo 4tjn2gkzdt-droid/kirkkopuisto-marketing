@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
+import toast from 'react-hot-toast'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
+import { sanitizeRichHtml } from '../lib/sanitize'
 
 export default function Tiimi() {
   const [teamMembers, setTeamMembers] = useState([])
@@ -29,7 +31,7 @@ export default function Tiimi() {
 
   const saveMember = async () => {
     if (!newMember.name.trim()) {
-      alert('Anna nimi')
+      toast('Anna nimi')
       return
     }
 
@@ -45,7 +47,7 @@ export default function Tiimi() {
           .eq('id', editingMember.id)
 
         if (error) {
-          alert('Virhe päivittäessä: ' + error.message)
+          toast.error('Virhe päivittäessä: ' + error.message)
           return
         }
       } else {
@@ -58,7 +60,7 @@ export default function Tiimi() {
           })
 
         if (error) {
-          alert('Virhe lisättäessä: ' + error.message)
+          toast.error('Virhe lisättäessä: ' + error.message)
           return
         }
       }
@@ -82,7 +84,7 @@ export default function Tiimi() {
         .eq('id', id)
 
       if (error) {
-        alert('Virhe poistettaessa: ' + error.message)
+        toast.error('Virhe poistettaessa: ' + error.message)
         return
       }
 
@@ -109,10 +111,10 @@ export default function Tiimi() {
       if (response.ok) {
         setEmailPreview(data)
       } else {
-        alert('Virhe: ' + data.error)
+        toast.error('Virhe: ' + data.error)
       }
     } catch (error) {
-      alert('Virhe: ' + error.message)
+      toast.error('Virhe: ' + error.message)
     } finally {
       setSending(false)
     }
@@ -133,12 +135,12 @@ export default function Tiimi() {
 
       const data = await response.json()
       if (response.ok) {
-        alert(`✅ Sähköpostit lähetetty!\n\nLähetetty: ${data.emailsSent}\nEpäonnistui: ${data.emailsFailed}`)
+        toast.success(`✅ Sähköpostit lähetetty!\n\nLähetetty: ${data.emailsSent}\nEpäonnistui: ${data.emailsFailed}`)
       } else {
-        alert('Virhe: ' + data.error)
+        toast.error('Virhe: ' + data.error)
       }
     } catch (error) {
-      alert('Virhe: ' + error.message)
+      toast.error('Virhe: ' + error.message)
     } finally {
       setSending(false)
     }
@@ -340,7 +342,7 @@ export default function Tiimi() {
                 <h4 className="font-bold text-gray-900 mb-2">Sähköpostin sisältö:</h4>
                 <div
                   className="border-2 border-gray-200 rounded-lg p-4 bg-gray-50"
-                  dangerouslySetInnerHTML={{ __html: emailPreview.html }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(emailPreview.html) }}
                 />
               </div>
 
@@ -359,7 +361,7 @@ export default function Tiimi() {
                   onClick={() => {
                     // Kopioi HTML leikepöydälle
                     navigator.clipboard.writeText(emailPreview.html)
-                    alert('✅ HTML kopioitu leikepöydälle!')
+                    toast.success('✅ HTML kopioitu leikepöydälle!')
                   }}
                   className="flex-1 bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-bold"
                 >

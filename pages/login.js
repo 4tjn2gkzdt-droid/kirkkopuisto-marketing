@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { createClient } from '@supabase/supabase-js';
+import logger from '../lib/logger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -43,6 +44,8 @@ export default function Login() {
     setMessage('');
     setLoading(true);
 
+    const loginLogger = logger.withPrefix('LOGIN');
+
     if (!supabase) {
       setError('Supabase-yhteyttä ei ole konfiguroitu');
       setLoading(false);
@@ -50,14 +53,14 @@ export default function Login() {
     }
 
     try {
-      console.log('[LOGIN] Attempting login for:', email);
+      loginLogger.info('Attempting login');
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (signInError) {
-        console.error('[LOGIN] Sign in error:', signInError);
+        loginLogger.error('Sign in error:', signInError);
         if (signInError.message.includes('Invalid login credentials')) {
           setError('Väärä sähköposti tai salasana');
         } else {
@@ -68,22 +71,22 @@ export default function Login() {
       }
 
       if (data?.session) {
-        console.log('[LOGIN] Login successful! Session created for:', data.session.user.email);
-        console.log('[LOGIN] Waiting for session to persist...');
+        loginLogger.info('Login successful! Session created');
+        loginLogger.info('Waiting for session to persist...');
 
         // Odota hetki että session tallentuu
         await new Promise(resolve => setTimeout(resolve, 1000));
 
-        console.log('[LOGIN] Redirecting to home page...');
+        loginLogger.info('Redirecting to home page...');
         // Käytä window.location varmistamaan että sivu latautuu uudelleen
         window.location.href = '/';
       } else {
-        console.error('[LOGIN] No session in response data');
+        loginLogger.error('No session in response data');
         setError('Kirjautuminen epäonnistui: ei sessiota');
         setLoading(false);
       }
     } catch (err) {
-      console.error('[LOGIN] Unexpected error:', err);
+      loginLogger.error('Unexpected error:', err);
       setError('Kirjautuminen epäonnistui: ' + err.message);
       setLoading(false);
     }

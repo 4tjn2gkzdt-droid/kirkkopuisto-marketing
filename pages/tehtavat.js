@@ -2,6 +2,14 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import Link from 'next/link';
 
+// Apufunktio: Parsii YYYY-MM-DD stringin paikalliseksi Date-objektiksi (ei UTC)
+// Välttää aikavyöhykeongelmia, joissa päivämäärä siirtyy päivällä
+function parseLocalDate(dateString) {
+  if (!dateString) return new Date()
+  const [year, month, day] = dateString.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
 export default function Tehtavat() {
   const [tasks, setTasks] = useState([]);
   const [filteredTasks, setFilteredTasks] = useState([]);
@@ -178,9 +186,6 @@ export default function Tehtavat() {
             <Link href="/" className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700">
               ← Etusivu
             </Link>
-            <Link href="/henkilot" className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
-              👥 Henkilöt
-            </Link>
             <Link href="/ideoi" className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
               💡 Ideoi
             </Link>
@@ -310,11 +315,11 @@ export default function Tehtavat() {
 
                       <p className="text-gray-600 text-sm mb-2">
                         📅 Tapahtuma: <span className="font-medium">{task.events?.title || 'Ei tapahtumaa'}</span>
-                        {task.events?.date && ` (${new Date(task.events.date).toLocaleDateString('fi-FI')})`}
+                        {task.events?.date && ` (${parseLocalDate(task.events.date).toLocaleDateString('fi-FI')})`}
                       </p>
 
                       <p className="text-gray-600 text-sm">
-                        ⏰ Deadline: <span className="font-medium">{new Date(task.due_date).toLocaleDateString('fi-FI')}</span>
+                        ⏰ Deadline: <span className="font-medium">{parseLocalDate(task.due_date).toLocaleDateString('fi-FI')}</span>
                         {task.due_time && ` klo ${task.due_time}`}
                       </p>
 

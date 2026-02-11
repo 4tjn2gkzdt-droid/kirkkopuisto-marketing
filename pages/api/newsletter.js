@@ -66,10 +66,10 @@ export default async function handler(req, res) {
       })
     }
 
-    // Hae tapahtumat
+    // Hae tapahtumat (JOIN tasks välttääksemme N+1 query -ongelman)
     const { data: events, error: eventsError } = await supabaseAdmin
       .from('events')
-      .select('*')
+      .select('*, tasks (*), event_instances (*)')
       .in('id', selectedEventIds)
       .order('date', { ascending: true })
 

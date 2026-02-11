@@ -1,0 +1,1137 @@
+import React, { useState, useEffect } from 'react'
+import { useRouter } from 'next/router'
+import Link from 'next/link'
+import { supabase } from '../lib/supabase'
+import toast from 'react-hot-toast'
+
+export default function AdminHistoricalContent() {
+  const router = useRouter()
+  const [user, setUser] = useState(null)
+  const [userProfile, setUserProfile] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [contents, setContents] = useState([])
+  const [filter, setFilter] = useState('all')
+
+  // Form state
+  const [showForm, setShowForm] = useState(false)
+  const [formData, setFormData] = useState({
+    type: 'news',
+    title: '',
+    content: '',
+    summary: '',
+    publishDate: '',
+    year: new Date().getFullYear(),
+    url: ''
+  })
+  const [editingId, setEditingId] = useState(null)
+
+  // URL import state
+  const [showUrlImport, setShowUrlImport] = useState(false)
+  const [urlInput, setUrlInput] = useState('')
+  const [fetchedContent, setFetchedContent] = useState([])
+  const [isFetching, setIsFetching] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+
+  // JSON import state
+  const [showJsonImport, setShowJsonImport] = useState(false)
+  const [jsonContent, setJsonContent] = useState([])
+  const [isImportingJson, setIsImportingJson] = useState(false)
+
+  // Meta sync state - DISABLED (Meta Graph API not working)
+  // const [isSyncing, setIsSyncing] = useState(false)
+  // const [syncResult, setSyncResult] = useState(null)
+  // const [showSyncModal, setShowSyncModal] = useState(false)
+
+  useEffect(() => {
+    checkUser()
+  }, [])
+
+  useEffect(() => {
+    if (user) {
+      loadContents()
+    }
+  }, [user, filter])
+
+  const checkUser = async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      router.push('/login')
+      return
+    }
+
+    // Tarkista admin-oikeudet
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile?.is_admin) {
+      toast.error('Vain admin-käyttäjillä on pääsy tälle sivulle')
+      router.push('/')
+      return
+    }
+
+    setUser(user)
+    setUserProfile(profile)
+    setLoading(false)
+  }
+
+  const loadContents = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+
+      const params = new URLSearchParams()
+      if (filter !== 'all') {
+        params.append('types', filter)
+      }
+      params.append('limit', '100')
+      params.append('isActive', 'true')
+
+      const response = await fetch(`/api/brainstorm/historical-content?${params.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      const data = await response.json()
+      if (data.content) {
+        setContents(data.content)
+      }
+    } catch (error) {
+      console.error('Error loading contents:', error)
+      toast.error('Virhe sisältöjen latauksessa: ' + error.message)
+    }
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+
+    if (!formData.title || !formData.content) {
+      toast('Otsikko ja sisältö ovat pakollisia')
+      return
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+
+      const url = editingId
+        ? '/api/brainstorm/historical-content'
+        : '/api/brainstorm/historical-content'
+
+      const method = editingId ? 'PUT' : 'POST'
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(editingId ? { id: editingId, ...formData } : formData)
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast.success(editingId ? 'Sisältö päivitetty!' : 'Sisältö lisätty!')
+        setShowForm(false)
+        resetForm()
+        loadContents()
+      } else {
+        toast.error('Virhe: ' + (data.error || 'Tuntematon virhe'))
+      }
+    } catch (error) {
+      console.error('Error saving content:', error)
+      toast.error('Virhe: ' + error.message)
+    }
+  }
+
+  const handleEdit = (content) => {
+    setFormData({
+      type: content.type,
+      title: content.title,
+      content: content.content,
+      summary: content.summary || '',
+      publishDate: content.publish_date || '',
+      year: content.year || new Date().getFullYear(),
+      url: content.url || ''
+    })
+    setEditingId(content.id)
+    setShowForm(true)
+  }
+
+  const handleDelete = async (id) => {
+    if (!confirm('Haluatko varmasti poistaa tämän sisällön?')) return
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+
+      const response = await fetch(`/api/brainstorm/historical-content?id=${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast.success('Sisältö poistettu!')
+        loadContents()
+      } else {
+        toast.error('Virhe: ' + (data.error || 'Poisto epäonnistui'))
+      }
+    } catch (error) {
+      console.error('Error deleting content:', error)
+      toast.error('Virhe: ' + error.message)
+    }
+  }
+
+  const resetForm = () => {
+    setFormData({
+      type: 'news',
+      title: '',
+      content: '',
+      summary: '',
+      publishDate: '',
+      year: new Date().getFullYear(),
+      url: ''
+    })
+    setEditingId(null)
+  }
+
+  const handleFetchUrls = async () => {
+    const urls = urlInput
+      .split('\n')
+      .map(url => url.trim())
+      .filter(url => url.length > 0)
+
+    if (urls.length === 0) {
+      toast('Syötä vähintään yksi URL')
+      return
+    }
+
+    if (urls.length > 10) {
+      toast('Voit hakea maksimissaan 10 URL:ia kerralla')
+      return
+    }
+
+    setIsFetching(true)
+    setFetchedContent([])
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+
+      const response = await fetch('/api/fetch-url-content', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ urls, saveToDatabase: false })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        const successful = data.results.filter(r => r.success)
+        const failed = data.results.filter(r => !r.success)
+
+        if (successful.length > 0) {
+          setFetchedContent(successful.map(r => r.data))
+        }
+
+        if (failed.length > 0) {
+          toast(`Onnistui: ${successful.length}, Epäonnistui: ${failed.length}\n\nEpäonnistuneet:\n${failed.map(f => `${f.url}: ${f.error}`).join('\n')}`)
+        } else {
+          toast.success(`Haettu onnistuneesti ${successful.length} sisältöä!`)
+        }
+      } else {
+        toast.error('Virhe sisällön hakemisessa: ' + (data.error || 'Tuntematon virhe'))
+      }
+    } catch (error) {
+      console.error('Error fetching URLs:', error)
+      toast.error('Virhe: ' + error.message)
+    } finally {
+      setIsFetching(false)
+    }
+  }
+
+  const handleSaveFetchedContent = async () => {
+    if (fetchedContent.length === 0) {
+      toast('Ei sisältöä tallennettavaksi')
+      return
+    }
+
+    setIsSaving(true)
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+
+      const response = await fetch('/api/brainstorm/historical-content', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          bulk: true,
+          items: fetchedContent.map(item => ({
+            type: item.type,
+            title: item.title,
+            content: item.content,
+            summary: item.summary,
+            url: item.url,
+            publish_date: item.publish_date,
+            year: item.year,
+            metadata: item.metadata
+          }))
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast.success(`Tallennettu ${fetchedContent.length} sisältöä!`)
+        setShowUrlImport(false)
+        setUrlInput('')
+        setFetchedContent([])
+        loadContents()
+      } else {
+        toast.error('Virhe tallennuksessa: ' + (data.error || 'Tuntematon virhe'))
+      }
+    } catch (error) {
+      console.error('Error saving content:', error)
+      toast.error('Virhe: ' + error.message)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleRemoveFetchedItem = (index) => {
+    setFetchedContent(fetchedContent.filter((_, i) => i !== index))
+  }
+
+  const handleEditFetchedItem = (index, field, value) => {
+    const updated = [...fetchedContent]
+    updated[index] = { ...updated[index], [field]: value }
+    setFetchedContent(updated)
+  }
+
+  // DISABLED: Meta sync not working - Meta Graph API setup failed
+  /*
+  const handleMetaSync = async (sources = ['instagram', 'facebook']) => {
+    setIsSyncing(true)
+    setSyncResult(null)
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+
+      const response = await fetch('/api/sync-social-media', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          sources: sources,
+          limit: 50,
+          saveToDatabase: true
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setSyncResult(data)
+        alert(`Synkronointi onnistui!\n\nHaettu:\n- Instagram: ${data.fetched.instagram}\n- Facebook: ${data.fetched.facebook}\n\nTallennettu: ${data.saved?.count || 0} uutta postausta`)
+        loadContents()
+      } else {
+        alert('Virhe synkronoinnissa: ' + (data.error || data.message || 'Tuntematon virhe'))
+        setSyncResult(data)
+      }
+    } catch (error) {
+      console.error('Error syncing Meta data:', error)
+      alert('Virhe: ' + error.message)
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+  */
+
+  // JSON-tiedoston tuonti
+  const handleJsonFileUpload = (event) => {
+    const file = event.target.files[0]
+    if (!file) return
+
+    if (file.type !== 'application/json' && !file.name.endsWith('.json')) {
+      toast('Valitse JSON-tiedosto')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const json = JSON.parse(e.target.result)
+
+        // Tarkista että JSON on array
+        if (!Array.isArray(json)) {
+          toast.error('JSON-tiedoston pitää sisältää lista postauksia')
+          return
+        }
+
+        // Validoi ja muunna formaattiin
+        const validated = json.map((item, index) => {
+          // Varmista että pakolliset kentät ovat olemassa
+          if (!item.title || !item.content) {
+            throw new Error(`Kohde ${index + 1}: Puuttuu title tai content`)
+          }
+
+          return {
+            type: item.type || 'social_post',
+            title: item.title,
+            content: item.content,
+            summary: item.summary || '',
+            publish_date: item.publish_date || item.date || null,
+            year: item.year || (item.publish_date ? new Date(item.publish_date).getFullYear() : new Date().getFullYear()),
+            url: item.url || null,
+            metadata: item.metadata || {}
+          }
+        })
+
+        setJsonContent(validated)
+        setShowJsonImport(true)
+        toast.success(`Ladattu ${validated.length} kohdetta JSON-tiedostosta!`)
+      } catch (error) {
+        console.error('JSON parse error:', error)
+        toast.error('Virhe JSON-tiedoston lukemisessa: ' + error.message)
+      }
+    }
+
+    reader.readAsText(file)
+    // Tyhjennä input jotta sama tiedosto voidaan ladata uudelleen
+    event.target.value = ''
+  }
+
+  const handleSaveJsonContent = async () => {
+    if (jsonContent.length === 0) {
+      toast('Ei sisältöä tallennettavaksi')
+      return
+    }
+
+    setIsImportingJson(true)
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+
+      const response = await fetch('/api/brainstorm/historical-content', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          bulk: true,
+          items: jsonContent
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast.success(`Tallennettu ${jsonContent.length} kohdetta tietokantaan!`)
+        setShowJsonImport(false)
+        setJsonContent([])
+        loadContents()
+      } else {
+        toast.error('Virhe tallennuksessa: ' + (data.error || 'Tuntematon virhe'))
+      }
+    } catch (error) {
+      console.error('Error saving JSON content:', error)
+      toast.error('Virhe: ' + error.message)
+    } finally {
+      setIsImportingJson(false)
+    }
+  }
+
+  const handleRemoveJsonItem = (index) => {
+    setJsonContent(jsonContent.filter((_, i) => i !== index))
+  }
+
+  const handleEditJsonItem = (index, field, value) => {
+    const updated = [...jsonContent]
+    updated[index] = { ...updated[index], [field]: value }
+    setJsonContent(updated)
+  }
+
+  const typeLabels = {
+    news: 'Uutinen',
+    newsletter: 'Uutiskirje',
+    article: 'Artikkeli',
+    social_post: 'Somepostaus',
+    campaign: 'Kampanja'
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-600">Ladataan...</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center space-x-4">
+              <Link href="/admin" className="text-purple-600 hover:text-purple-700">
+                ← Takaisin adminiin
+              </Link>
+              <h1 className="text-2xl font-bold text-gray-900">
+                📚 Historiallinen sisältö
+              </h1>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  resetForm()
+                  setShowForm(true)
+                }}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg"
+              >
+                ➕ Lisää sisältö
+              </button>
+              <button
+                onClick={() => {
+                  setUrlInput('')
+                  setFetchedContent([])
+                  setShowUrlImport(true)
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+              >
+                🔗 Lisää URL-linkeistä
+              </button>
+              <label className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg cursor-pointer">
+                📄 Tuo JSON-tiedosto
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={handleJsonFileUpload}
+                  className="hidden"
+                />
+              </label>
+              {/* Meta sync disabled - API not working
+              <button
+                onClick={() => setShowSyncModal(true)}
+                disabled={isSyncing}
+                className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg disabled:bg-gray-400"
+              >
+                {isSyncing ? '⏳ Synkronoi...' : '📱 Synkronoi Meta'}
+              </button>
+              */}
+              <div className="text-sm text-gray-600">
+                {user?.email}
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Info */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <h3 className="font-semibold text-blue-900 mb-2">ℹ️ Historiallinen sisältö</h3>
+          <p className="text-sm text-blue-800">
+            Tämä sisältö on käytettävissä ideointisivulla AI-kontekstina. Lisää tänne aikaisempien vuosien uutisia, uutiskirjeitä ja muuta sisältöä, jotta AI voi hyödyntää niitä inspiraationa.
+          </p>
+        </div>
+
+        {/* Filter */}
+        <div className="mb-6 flex gap-2">
+          <button
+            onClick={() => setFilter('all')}
+            className={`px-4 py-2 rounded-lg ${
+              filter === 'all' ? 'bg-green-600 text-white' : 'bg-white text-gray-700 border border-gray-300'
+            }`}
+          >
+            Kaikki ({contents.length})
+          </button>
+          {Object.entries(typeLabels).map(([type, label]) => (
+            <button
+              key={type}
+              onClick={() => setFilter(type)}
+              className={`px-4 py-2 rounded-lg ${
+                filter === type ? 'bg-green-600 text-white' : 'bg-white text-gray-700 border border-gray-300'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Contents List */}
+        <div className="space-y-4">
+          {contents.length === 0 ? (
+            <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
+              <p className="text-gray-500">Ei sisältöä. Lisää ensimmäinen sisältö yllä olevalla painikkeella.</p>
+            </div>
+          ) : (
+            contents.map((content) => (
+              <div key={content.id} className="bg-white border border-gray-200 rounded-lg p-6">
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                        {typeLabels[content.type]}
+                      </span>
+                      {content.year && (
+                        <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                          {content.year}
+                        </span>
+                      )}
+                      {content.publish_date && (
+                        <span className="text-xs text-gray-500">
+                          {new Date(content.publish_date).toLocaleDateString('fi-FI')}
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">
+                      {content.title}
+                    </h3>
+                    {content.summary && (
+                      <p className="text-sm text-gray-600 mb-2">
+                        {content.summary}
+                      </p>
+                    )}
+                    <p className="text-sm text-gray-700 line-clamp-3">
+                      {content.content}
+                    </p>
+                    {content.url && (
+                      <a
+                        href={content.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-600 hover:underline mt-2 inline-block"
+                      >
+                        🔗 {content.url}
+                      </a>
+                    )}
+                  </div>
+                  <div className="flex gap-2 ml-4">
+                    <button
+                      onClick={() => handleEdit(content)}
+                      className="text-sm text-blue-600 hover:text-blue-700 px-3 py-1 rounded hover:bg-blue-50"
+                    >
+                      ✏️ Muokkaa
+                    </button>
+                    <button
+                      onClick={() => handleDelete(content.id)}
+                      className="text-sm text-red-600 hover:text-red-700 px-3 py-1 rounded hover:bg-red-50"
+                    >
+                      🗑️ Poista
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </main>
+
+      {/* Form Modal */}
+      {showForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 max-w-3xl w-full my-8">
+            <h3 className="text-lg font-bold mb-4">
+              {editingId ? '✏️ Muokkaa sisältöä' : '➕ Lisää uusi sisältö'}
+            </h3>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Tyyppi *</label>
+                  <select
+                    value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    required
+                  >
+                    {Object.entries(typeLabels).map(([type, label]) => (
+                      <option key={type} value={type}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Vuosi</label>
+                  <input
+                    type="number"
+                    value={formData.year}
+                    onChange={(e) => setFormData({ ...formData, year: parseInt(e.target.value) })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    min="2000"
+                    max="2030"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-1">Otsikko *</label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  placeholder="Esim: Kesän 2024 jazzfestivaali - menestys"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-1">Yhteenveto (lyhyt kuvaus)</label>
+                <textarea
+                  value={formData.summary}
+                  onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  rows={2}
+                  placeholder="Lyhyt yhteenveto sisällöstä..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold mb-1">Sisältö *</label>
+                <textarea
+                  value={formData.content}
+                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  rows={8}
+                  placeholder="Koko sisältö (uutinen, uutiskirje, artikkeli...)"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold mb-1">Julkaisupäivä</label>
+                  <input
+                    type="date"
+                    value={formData.publishDate}
+                    onChange={(e) => setFormData({ ...formData, publishDate: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold mb-1">URL (linkki alkuperäiseen)</label>
+                  <input
+                    type="url"
+                    value={formData.url}
+                    onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    placeholder="https://..."
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="submit"
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold"
+                >
+                  💾 {editingId ? 'Päivitä' : 'Tallenna'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowForm(false)
+                    resetForm()
+                  }}
+                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-lg font-semibold"
+                >
+                  Peruuta
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* URL Import Modal */}
+      {showUrlImport && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 max-w-5xl w-full my-8 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-bold mb-4">
+              🔗 Lisää sisältöä URL-linkeistä
+            </h3>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-sm text-blue-800">
+                <strong>Ohje:</strong> Syötä URL-linkit uutisiin tai uutiskirjeisiin (yksi per rivi).
+                Järjestelmä hakee automaattisesti otsikot ja sisällön. Voit hakea maksimissaan 10 linkkiä kerralla.
+              </p>
+            </div>
+
+            {fetchedContent.length === 0 ? (
+              <>
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold mb-2">
+                    URL-linkit (yksi per rivi)
+                  </label>
+                  <textarea
+                    value={urlInput}
+                    onChange={(e) => setUrlInput(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm"
+                    rows={10}
+                    placeholder={'https://example.com/uutinen-1\nhttps://example.com/uutinen-2\nhttps://example.com/uutiskirje-1'}
+                    disabled={isFetching}
+                  />
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleFetchUrls}
+                    disabled={isFetching}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  >
+                    {isFetching ? '⏳ Haetaan...' : '🔍 Hae sisältö'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowUrlImport(false)
+                      setUrlInput('')
+                      setFetchedContent([])
+                    }}
+                    disabled={isFetching}
+                    className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-lg font-semibold disabled:bg-gray-200 disabled:cursor-not-allowed"
+                  >
+                    Peruuta
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mb-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="font-semibold text-gray-900">
+                      Haetut sisällöt ({fetchedContent.length})
+                    </h4>
+                    <button
+                      onClick={() => {
+                        setFetchedContent([])
+                        setUrlInput('')
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-700"
+                    >
+                      ← Takaisin URL-syöttöön
+                    </button>
+                  </div>
+
+                  <div className="space-y-4 max-h-96 overflow-y-auto">
+                    {fetchedContent.map((item, index) => (
+                      <div key={index} className="border border-gray-300 rounded-lg p-4 bg-gray-50">
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex gap-2">
+                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                              {typeLabels[item.type] || item.type}
+                            </span>
+                            {item.year && (
+                              <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                                {item.year}
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => handleRemoveFetchedItem(index)}
+                            className="text-red-600 hover:text-red-700 text-sm"
+                          >
+                            🗑️ Poista
+                          </button>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">
+                              Otsikko
+                            </label>
+                            <input
+                              type="text"
+                              value={item.title}
+                              onChange={(e) => handleEditFetchedItem(index, 'title', e.target.value)}
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">
+                              Yhteenveto
+                            </label>
+                            <textarea
+                              value={item.summary}
+                              onChange={(e) => handleEditFetchedItem(index, 'summary', e.target.value)}
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                              rows={2}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">
+                              Sisältö (pituus: {item.content.length} merkkiä)
+                            </label>
+                            <textarea
+                              value={item.content}
+                              onChange={(e) => handleEditFetchedItem(index, 'content', e.target.value)}
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm font-mono"
+                              rows={4}
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                                Tyyppi
+                              </label>
+                              <select
+                                value={item.type}
+                                onChange={(e) => handleEditFetchedItem(index, 'type', e.target.value)}
+                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                              >
+                                {Object.entries(typeLabels).map(([type, label]) => (
+                                  <option key={type} value={type}>{label}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                                Vuosi
+                              </label>
+                              <input
+                                type="number"
+                                value={item.year || ''}
+                                onChange={(e) => handleEditFetchedItem(index, 'year', parseInt(e.target.value) || null)}
+                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                                min="2000"
+                                max="2030"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">
+                              Alkuperäinen URL
+                            </label>
+                            <input
+                              type="text"
+                              value={item.url}
+                              readOnly
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-sm bg-gray-100"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={handleSaveFetchedContent}
+                    disabled={isSaving}
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  >
+                    {isSaving ? '⏳ Tallennetaan...' : `💾 Tallenna kaikki (${fetchedContent.length})`}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowUrlImport(false)
+                      setUrlInput('')
+                      setFetchedContent([])
+                    }}
+                    disabled={isSaving}
+                    className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-lg font-semibold disabled:bg-gray-200 disabled:cursor-not-allowed"
+                  >
+                    Peruuta
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* JSON Import Modal */}
+      {showJsonImport && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 max-w-5xl w-full my-8 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-bold mb-4">
+              📄 Tuo JSON-tiedostosta
+            </h3>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-sm text-blue-800">
+                <strong>Ladattu {jsonContent.length} kohdetta.</strong> Voit muokata niitä ennen tallentamista.
+              </p>
+            </div>
+
+            <div className="mb-4">
+              <div className="flex justify-between items-center mb-3">
+                <h4 className="font-semibold text-gray-900">
+                  Tuodut kohteet ({jsonContent.length})
+                </h4>
+              </div>
+
+              <div className="space-y-4 max-h-96 overflow-y-auto">
+                {jsonContent.map((item, index) => (
+                  <div key={index} className="border border-gray-300 rounded-lg p-4 bg-gray-50">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex gap-2">
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                          {typeLabels[item.type] || item.type}
+                        </span>
+                        {item.year && (
+                          <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
+                            {item.year}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleRemoveJsonItem(index)}
+                        className="text-red-600 hover:text-red-700 text-sm"
+                      >
+                        🗑️ Poista
+                      </button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                          Otsikko
+                        </label>
+                        <input
+                          type="text"
+                          value={item.title}
+                          onChange={(e) => handleEditJsonItem(index, 'title', e.target.value)}
+                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                          Yhteenveto
+                        </label>
+                        <textarea
+                          value={item.summary}
+                          onChange={(e) => handleEditJsonItem(index, 'summary', e.target.value)}
+                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                          rows={2}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                          Sisältö (pituus: {item.content.length} merkkiä)
+                        </label>
+                        <textarea
+                          value={item.content}
+                          onChange={(e) => handleEditJsonItem(index, 'content', e.target.value)}
+                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm font-mono"
+                          rows={4}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">
+                            Tyyppi
+                          </label>
+                          <select
+                            value={item.type}
+                            onChange={(e) => handleEditJsonItem(index, 'type', e.target.value)}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                          >
+                            {Object.entries(typeLabels).map(([type, label]) => (
+                              <option key={type} value={type}>{label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">
+                            Vuosi
+                          </label>
+                          <input
+                            type="number"
+                            value={item.year || ''}
+                            onChange={(e) => handleEditJsonItem(index, 'year', parseInt(e.target.value) || null)}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                            min="2000"
+                            max="2030"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">
+                            Julkaisupäivä
+                          </label>
+                          <input
+                            type="date"
+                            value={item.publish_date || ''}
+                            onChange={(e) => handleEditJsonItem(index, 'publish_date', e.target.value)}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      {item.url && (
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-600 mb-1">
+                            URL
+                          </label>
+                          <input
+                            type="text"
+                            value={item.url}
+                            onChange={(e) => handleEditJsonItem(index, 'url', e.target.value)}
+                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleSaveJsonContent}
+                disabled={isImportingJson || jsonContent.length === 0}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
+                {isImportingJson ? '⏳ Tallennetaan...' : `💾 Tallenna kaikki (${jsonContent.length})`}
+              </button>
+              <button
+                onClick={() => {
+                  setShowJsonImport(false)
+                  setJsonContent([])
+                }}
+                disabled={isImportingJson}
+                className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-lg font-semibold disabled:bg-gray-200 disabled:cursor-not-allowed"
+              >
+                Peruuta
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Meta Sync Modal - DISABLED (Meta Graph API not working) */}
+    </div>
+  )
+}

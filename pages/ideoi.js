@@ -1,25 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import toast from 'react-hot-toast'
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabase';
-
-// Vakiot somepostauksille
-const socialPostTypes = [
-  { id: 'viikko-ohjelma', name: 'Viikko-ohjelma', icon: '📅' },
-  { id: 'last-minute', name: 'Last minute -markkinointi', icon: '⚡' },
-  { id: 'kiitos', name: 'Kiitos-postaus', icon: '🙏' },
-  { id: 'teaser', name: 'Teaser', icon: '🎬' },
-  { id: 'tiedote', name: 'Tiedote', icon: '📢' },
-  { id: 'tarinat', name: 'Tarinat', icon: '📖' },
-  { id: 'muu', name: 'Muu sisältö', icon: '📝' }
-]
-
-const socialChannels = [
-  { id: 'instagram', name: 'Instagram', icon: '📸' },
-  { id: 'facebook', name: 'Facebook', icon: '👥' },
-  { id: 'tiktok', name: 'TikTok', icon: '🎵' },
-  { id: 'newsletter', name: 'Uutiskirje', icon: '📧' }
-]
+import { socialPostTypes, socialChannels } from '../lib/constants';
 
 export default function Ideoi() {
   const router = useRouter();
@@ -195,7 +179,7 @@ export default function Ideoi() {
 
   const saveSocialPost = async () => {
     if (!newSocialPost.title || !newSocialPost.date) {
-      alert('Täytä vähintään otsikko ja päivämäärä')
+      toast('Täytä vähintään otsikko ja päivämäärä')
       return
     }
 
@@ -222,7 +206,7 @@ export default function Ideoi() {
 
       if (error) throw error
 
-      alert('✅ Somepostaus lisätty!')
+      toast.success('✅ Somepostaus lisätty!')
 
       // Sulje modaali ja tyhjennä lomake
       setShowAddSocialPostModal(false)
@@ -244,7 +228,7 @@ export default function Ideoi() {
 
     } catch (error) {
       console.error('Error saving social post:', error)
-      alert('Virhe tallennuksessa: ' + error.message)
+      toast.error('Virhe tallennuksessa: ' + error.message)
     }
   }
 

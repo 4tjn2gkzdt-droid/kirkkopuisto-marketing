@@ -2,24 +2,16 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
+import { socialPostTypes, socialChannels } from '../lib/constants'
+import toast from 'react-hot-toast'
 
-// Vakiot somepostauksille
-const socialPostTypes = [
-  { id: 'viikko-ohjelma', name: 'Viikko-ohjelma', icon: '📅' },
-  { id: 'last-minute', name: 'Last minute -markkinointi', icon: '⚡' },
-  { id: 'kiitos', name: 'Kiitos-postaus', icon: '🙏' },
-  { id: 'teaser', name: 'Teaser', icon: '🎬' },
-  { id: 'tiedote', name: 'Tiedote', icon: '📢' },
-  { id: 'tarinat', name: 'Tarinat', icon: '📖' },
-  { id: 'muu', name: 'Muu sisältö', icon: '📝' }
-]
-
-const socialChannels = [
-  { id: 'instagram', name: 'Instagram', icon: '📸' },
-  { id: 'facebook', name: 'Facebook', icon: '👥' },
-  { id: 'tiktok', name: 'TikTok', icon: '🎵' },
-  { id: 'newsletter', name: 'Uutiskirje', icon: '📧' }
-]
+// Apufunktio: Parsii YYYY-MM-DD stringin paikalliseksi Date-objektiksi (ei UTC)
+// Välttää aikavyöhykeongelmia, joissa päivämäärä siirtyy päivällä
+function parseLocalDate(dateString) {
+  if (!dateString) return new Date()
+  const [year, month, day] = dateString.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
 
 export default function ContentCalendar() {
   const router = useRouter()
@@ -57,6 +49,10 @@ export default function ContentCalendar() {
     recurrenceEndDate: ''
   })
 
+  // AI caption viimeistely
+  const [polishingCaption, setPolishingCaption] = useState(false)
+  const [polishedVersions, setPolishedVersions] = useState(null)
+
   useEffect(() => {
     checkUser()
     // Aseta oletusaikavä li: tästä päivästä 30 päivää eteenpäin
@@ -78,7 +74,7 @@ export default function ContentCalendar() {
 
   const handleAnalyze = async () => {
     if (!startDate || !endDate) {
-      alert('Valitse aikaväli')
+      toast('Valitse aikaväli')
       return
     }
 
@@ -113,17 +109,17 @@ export default function ContentCalendar() {
             errorMsg += data.message + '\n\n'
           }
           errorMsg += 'Käy Debug-sivulla (🐛 Debug -nappi ylhäällä) saadaksesi lisätietoja.'
-          alert(errorMsg)
+          toast.success(errorMsg)
         } else if (data.aiError) {
           // AI-ehdotukset saatiin mutta oli virheitä
-          alert('⚠️ ' + data.aiError + '\n\nKäy Debug-sivulla saadaksesi lisätietoja.')
+          toast.success('⚠️ ' + data.aiError + '\n\nKäy Debug-sivulla saadaksesi lisätietoja.')
         }
       } else {
-        alert('Virhe analyysissä: ' + (data.error || 'Tuntematon virhe') + '\n\nKäy Debug-sivulla saadaksesi lisätietoja.')
+        toast.error('Virhe analyysissä: ' + (data.error || 'Tuntematon virhe') + '\n\nKäy Debug-sivulla saadaksesi lisätietoja.')
       }
     } catch (error) {
       console.error('Error analyzing calendar:', error)
-      alert('Virhe analyysissä: ' + error.message)
+      toast.error('Virhe analyysissä: ' + error.message)
     } finally {
       setAnalyzing(false)
     }
@@ -205,7 +201,7 @@ export default function ContentCalendar() {
 
       if (error) throw error
 
-      alert('✅ Ehdotus lisätty kalenteriin!')
+      toast.success('✅ Ehdotus lisätty kalenteriin!')
 
       // ÄLÄ poista ehdotusta listasta - käyttäjä haluaa että ne jäävät näkyviin
       // Tyhjennä vain muokattava kenttä
@@ -213,7 +209,7 @@ export default function ContentCalendar() {
 
     } catch (error) {
       console.error('Error saving suggestion:', error)
-      alert('Virhe tallennuksessa: ' + error.message)
+      toast.error('Virhe tallennuksessa: ' + error.message)
     } finally {
       setSavingSuggestion(null)
     }
@@ -237,9 +233,46 @@ export default function ContentCalendar() {
     addSuggestionToCalendar(suggestion, caption)
   }
 
+  const polishCaptionWithAI = async () => {
+    if (!newSocialPost.caption || newSocialPost.caption.trim().length === 0) {
+      toast.success('Kirjoita ensin teksti ennen AI-viimeistelyä')
+      return
+    }
+
+    setPolishingCaption(true)
+    setPolishedVersions(null)
+
+    try {
+      const response = await fetch('/api/polish-caption', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          caption: newSocialPost.caption
+        })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        setPolishedVersions(data.versions)
+      } else {
+        toast.error('Virhe AI-viimeistelyss\u00e4: ' + (data.error || 'Tuntematon virhe'))
+      }
+    } catch (error) {
+      console.error('Error polishing caption:', error)
+      toast.error('Virhe AI-viimeistelyss\u00e4: ' + error.message)
+    } finally {
+      setPolishingCaption(false)
+    }
+  }
+
+  const selectPolishedVersion = (version) => {
+    setNewSocialPost({ ...newSocialPost, caption: version })
+  }
+
   const saveSocialPost = async () => {
     if (!newSocialPost.title || !newSocialPost.date) {
-      alert('Täytä vähintään otsikko ja päivämäärä')
+      toast.success('Täytä vähintään otsikko ja päivämäärä')
       return
     }
 
@@ -266,7 +299,7 @@ export default function ContentCalendar() {
 
       if (error) throw error
 
-      alert('✅ Somepostaus lisätty!')
+      toast.success('✅ Somepostaus lisätty!')
 
       // Sulje modaali ja tyhjennä lomake
       setShowAddSocialPostModal(false)
@@ -288,7 +321,7 @@ export default function ContentCalendar() {
 
     } catch (error) {
       console.error('Error saving social post:', error)
-      alert('Virhe tallennuksessa: ' + error.message)
+      toast.error('Virhe tallennuksessa: ' + error.message)
     }
   }
 
@@ -451,7 +484,7 @@ export default function ContentCalendar() {
                               {getPriorityBadge(gap.priority)}
                             </span>
                             <span className="text-sm text-gray-600">
-                              {new Date(gap.date).toLocaleDateString('fi-FI', {
+                              {parseLocalDate(gap.date).toLocaleDateString('fi-FI', {
                                 weekday: 'short',
                                 day: 'numeric',
                                 month: 'short'
@@ -493,7 +526,7 @@ export default function ContentCalendar() {
                             {getPriorityBadge(suggestion.priority)}
                           </span>
                           <span className="text-sm font-medium text-gray-700">
-                            {new Date(suggestion.date).toLocaleDateString('fi-FI', {
+                            {parseLocalDate(suggestion.date).toLocaleDateString('fi-FI', {
                               weekday: 'long',
                               day: 'numeric',
                               month: 'long'
@@ -655,7 +688,7 @@ export default function ContentCalendar() {
       {/* Somepostauksen lisäysmodaali */}
       {showAddSocialPostModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-lg max-w-3xl w-full p-6 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg max-w-3xl w-full p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
             <h3 className="text-2xl font-bold mb-6">📱 Lisää somepostaus</h3>
 
             <div className="space-y-4">
@@ -758,11 +791,73 @@ export default function ContentCalendar() {
                 <label className="block text-sm font-semibold mb-2">Caption / Postauksen teksti</label>
                 <textarea
                   value={newSocialPost.caption}
-                  onChange={(e) => setNewSocialPost({ ...newSocialPost, caption: e.target.value })}
+                  onChange={(e) => {
+                    setNewSocialPost({ ...newSocialPost, caption: e.target.value })
+                    setPolishedVersions(null)
+                  }}
                   rows={4}
                   className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
                   placeholder="Kirjoita postauksen teksti..."
                 />
+
+                {/* AI-viimeistely nappi */}
+                <button
+                  type="button"
+                  onClick={polishCaptionWithAI}
+                  disabled={polishingCaption || !newSocialPost.caption}
+                  className={`mt-2 px-4 py-2 rounded-lg font-semibold transition ${
+                    polishingCaption || !newSocialPost.caption
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-purple-600 hover:bg-purple-700 text-white'
+                  }`}
+                >
+                  {polishingCaption ? '🤖 Viimeistellään...' : '✨ Viimeistele AI:lla'}
+                </button>
+
+                {/* Viimeistellyt versiot */}
+                {polishedVersions && (
+                  <div className="mt-4 space-y-3">
+                    <p className="text-sm font-semibold text-gray-700">Valitse versio:</p>
+
+                    {/* Lyhyt versio */}
+                    <div className="border-2 border-purple-200 rounded-lg p-3 hover:border-purple-400 cursor-pointer transition"
+                         onClick={() => selectPolishedVersion(polishedVersions.short)}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-purple-600">📱 LYHYT (klikkaa kopioidaksesi)</span>
+                        <span className="text-xs text-gray-500">{polishedVersions.short.length} merkkiä</span>
+                      </div>
+                      <p className="text-sm text-gray-700">{polishedVersions.short}</p>
+                    </div>
+
+                    {/* Keskipitkä versio */}
+                    <div className="border-2 border-purple-200 rounded-lg p-3 hover:border-purple-400 cursor-pointer transition"
+                         onClick={() => selectPolishedVersion(polishedVersions.medium)}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-purple-600">📸 KESKIPITKÄ (klikkaa kopioidaksesi)</span>
+                        <span className="text-xs text-gray-500">{polishedVersions.medium.length} merkkiä</span>
+                      </div>
+                      <p className="text-sm text-gray-700">{polishedVersions.medium}</p>
+                    </div>
+
+                    {/* Pitkä versio */}
+                    <div className="border-2 border-purple-200 rounded-lg p-3 hover:border-purple-400 cursor-pointer transition"
+                         onClick={() => selectPolishedVersion(polishedVersions.long)}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-purple-600">📝 PITKÄ (klikkaa kopioidaksesi)</span>
+                        <span className="text-xs text-gray-500">{polishedVersions.long.length} merkkiä</span>
+                      </div>
+                      <p className="text-sm text-gray-700">{polishedVersions.long}</p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setPolishedVersions(null)}
+                      className="text-sm text-gray-600 hover:text-gray-800 underline"
+                    >
+                      Sulje versiot
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Muistiinpanot */}
@@ -775,6 +870,45 @@ export default function ContentCalendar() {
                   className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
                   placeholder="Sisäiset muistiinpanot..."
                 />
+              </div>
+
+              {/* Kuvien/medioiden linkit */}
+              <div>
+                <label className="block text-sm font-semibold mb-2">Kuvat/mediat (URL-linkit)</label>
+                {newSocialPost.mediaLinks.map((link, index) => (
+                  <div key={index} className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={link}
+                      onChange={(e) => {
+                        const updatedLinks = [...newSocialPost.mediaLinks];
+                        updatedLinks[index] = e.target.value;
+                        setNewSocialPost({ ...newSocialPost, mediaLinks: updatedLinks });
+                      }}
+                      className="flex-1 p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                      placeholder="https://example.com/kuva.jpg"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updatedLinks = newSocialPost.mediaLinks.filter((_, i) => i !== index);
+                        setNewSocialPost({ ...newSocialPost, mediaLinks: updatedLinks });
+                      }}
+                      className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNewSocialPost({ ...newSocialPost, mediaLinks: [...newSocialPost.mediaLinks, ''] });
+                  }}
+                  className="w-full py-2 px-4 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-indigo-500 hover:text-indigo-600 transition"
+                >
+                  ➕ Lisää kuva/media
+                </button>
               </div>
             </div>
 

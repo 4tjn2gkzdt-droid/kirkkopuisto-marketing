@@ -41,6 +41,17 @@ export default function Ideoi() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const [sessionId] = useState(() => `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
+  const [activeTab, setActiveTab] = useState('chat'); // 'chat' | 'analyze'
+
+  // Sisältöanalyysi
+  const [analyzeStartDate, setAnalyzeStartDate] = useState('');
+  const [analyzeEndDate, setAnalyzeEndDate] = useState('');
+  const [analyzing, setAnalyzing] = useState(false);
+  const [contentGaps, setContentGaps] = useState([]);
+  const [aiSuggestions, setAiSuggestions] = useState([]);
+  const [analyzeEvents, setAnalyzeEvents] = useState([]);
+  const [analyzeSocialPosts, setAnalyzeSocialPosts] = useState([]);
+  const [savingSuggestion, setSavingSuggestion] = useState(null);
 
   // Somepostauksen lisäysmodaali
   const [showAddSocialPostModal, setShowAddSocialPostModal] = useState(false);
@@ -288,6 +299,143 @@ export default function Ideoi() {
     setShowAddSocialPostModal(true)
   }
 
+  // Sisältöanalyysi: alusta oletuspäivät
+  useEffect(() => {
+    const today = new Date();
+    const in30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    setAnalyzeStartDate(today.toISOString().split('T')[0]);
+    setAnalyzeEndDate(in30Days.toISOString().split('T')[0]);
+  }, []);
+
+  const handleAnalyze = async () => {
+    if (!analyzeStartDate || !analyzeEndDate) {
+      alert('Valitse aikaväli');
+      return;
+    }
+
+    setAnalyzing(true);
+    setContentGaps([]);
+    setAiSuggestions([]);
+
+    try {
+      const response = await fetch('/api/content-calendar-suggestions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          startDate: analyzeStartDate,
+          endDate: analyzeEndDate
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setContentGaps(data.contentGaps || []);
+        setAiSuggestions(data.aiSuggestions || []);
+        setAnalyzeEvents(data.events || []);
+        setAnalyzeSocialPosts(data.socialPosts || []);
+
+        if (!data.aiSuggestions || data.aiSuggestions.length === 0) {
+          alert('AI-ehdotuksia ei voitu generoida.' + (data.aiError ? '\nVirhe: ' + data.aiError : ''));
+        }
+      } else {
+        alert('Virhe analyysissä: ' + (data.error || 'Tuntematon virhe'));
+      }
+    } catch (error) {
+      console.error('Error analyzing calendar:', error);
+      alert('Virhe analyysissä: ' + error.message);
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const addSuggestionToCalendar = async (suggestion) => {
+    setSavingSuggestion(suggestion);
+
+    try {
+      const channelMap = {
+        'Instagram': 'instagram',
+        'Facebook': 'facebook',
+        'TikTok': 'tiktok',
+        'Uutiskirje': 'newsletter'
+      };
+
+      const channel = channelMap[suggestion.channel] || 'instagram';
+      const year = parseInt(suggestion.date.split('-')[0]);
+
+      const { error } = await supabase
+        .from('social_media_posts')
+        .insert({
+          title: suggestion.title || suggestion.type,
+          date: suggestion.date,
+          time: '12:00',
+          year: year,
+          type: suggestion.type.toLowerCase().replace(/\s+/g, '-'),
+          channels: [channel],
+          status: 'suunniteltu',
+          caption: suggestion.reason,
+          notes: 'Luotu AI-sisältöanalyysistä',
+          created_by_id: user.id,
+          created_by_email: user.email,
+          created_by_name: user.user_metadata?.full_name || user.email
+        })
+        .select();
+
+      if (error) throw error;
+      alert('Ehdotus lisätty kalenteriin!');
+    } catch (error) {
+      console.error('Error saving suggestion:', error);
+      alert('Virhe tallennuksessa: ' + error.message);
+    } finally {
+      setSavingSuggestion(null);
+    }
+  };
+
+  const openSuggestionAsPost = (suggestion) => {
+    const channelMap = {
+      'Instagram': 'instagram',
+      'Facebook': 'facebook',
+      'TikTok': 'tiktok',
+      'Uutiskirje': 'newsletter'
+    };
+    const channel = channelMap[suggestion.channel] || 'instagram';
+
+    setNewSocialPost({
+      title: suggestion.title || suggestion.type || '',
+      date: suggestion.date || '',
+      time: '12:00',
+      type: suggestion.type ? suggestion.type.toLowerCase().replace(/\s+/g, '-') : 'muu',
+      channels: [channel],
+      assignee: '',
+      linkedEventId: null,
+      status: 'suunniteltu',
+      caption: suggestion.reason || '',
+      notes: 'Luotu AI-sisältöanalyysistä',
+      mediaLinks: [],
+      recurrence: 'none',
+      recurrenceEndDate: ''
+    });
+    setShowAddSocialPostModal(true);
+  };
+
+  const getPriorityColor = (priority) => {
+    switch (priority) {
+      case 'high': return 'bg-red-100 text-red-800 border-red-300';
+      case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+      case 'low': return 'bg-blue-100 text-blue-800 border-blue-300';
+      default: return 'bg-gray-100 text-gray-800 border-gray-300';
+    }
+  };
+
+  const getPriorityBadge = (priority) => {
+    switch (priority) {
+      case 'high': return 'Kiireellinen';
+      case 'medium': return 'Keskitärkeä';
+      case 'low': return 'Matala';
+      default: return 'Normaali';
+    }
+  };
+
   const copyToClipboard = (content) => {
     navigator.clipboard.writeText(content);
     alert('📋 Kopioitu leikepöydälle!');
@@ -335,18 +483,20 @@ export default function Ideoi() {
       <div className="max-w-4xl mx-auto h-screen flex flex-col pb-4">
         {/* Header */}
         <div className="bg-white rounded-lg shadow-lg p-6 mb-4 flex-shrink-0">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center mb-4">
             <div>
               <h1 className="text-3xl font-bold text-green-800">💡 AI-avustaja</h1>
-              <p className="text-gray-600">Ideoi ja luo sisältöä Clauden kanssa • {user?.email}</p>
+              <p className="text-gray-600">Ideoi, luo ja analysoi sisältöä • {user?.email}</p>
             </div>
             <div className="flex gap-3">
-              <button
-                onClick={clearChat}
-                className="bg-red-100 text-red-700 px-4 py-2 rounded-lg hover:bg-red-200"
-              >
-                🗑️ Tyhjennä
-              </button>
+              {activeTab === 'chat' && (
+                <button
+                  onClick={clearChat}
+                  className="bg-red-100 text-red-700 px-4 py-2 rounded-lg hover:bg-red-200"
+                >
+                  🗑️ Tyhjennä
+                </button>
+              )}
               <Link href="/">
                 <button className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300">
                   ← Takaisin
@@ -354,112 +504,285 @@ export default function Ideoi() {
               </Link>
             </div>
           </div>
+
+          {/* Tab-valitsin */}
+          <div className="flex gap-2 bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setActiveTab('chat')}
+              className={`flex-1 py-2 px-4 rounded-lg font-medium transition ${
+                activeTab === 'chat' ? 'bg-green-600 text-white shadow' : 'text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              💬 Chat
+            </button>
+            <button
+              onClick={() => setActiveTab('analyze')}
+              className={`flex-1 py-2 px-4 rounded-lg font-medium transition ${
+                activeTab === 'analyze' ? 'bg-purple-600 text-white shadow' : 'text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              📊 Sisältöanalyysi
+            </button>
+          </div>
         </div>
 
-        {/* Chat messages */}
-        <div className="bg-white rounded-lg shadow-lg flex-1 overflow-hidden flex flex-col">
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
-            {/* Esimerkkipromptet näytetään vain alussa */}
-            {messages.length <= 1 && (
-              <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-5 mb-4">
-                <h3 className="font-semibold text-purple-900 mb-2">Kokeile esimerkiksi:</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {examplePrompts.map((prompt, index) => (
-                    <button
-                      key={index}
-                      onClick={() => sendMessage(prompt)}
-                      className="text-left text-sm bg-white text-purple-700 px-3 py-2 rounded-lg hover:bg-purple-100 transition"
+        {/* Chat-välilehti */}
+        {activeTab === 'chat' && (
+          <div className="bg-white rounded-lg shadow-lg flex-1 overflow-hidden flex flex-col">
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {/* Esimerkkipromptet näytetään vain alussa */}
+              {messages.length <= 1 && (
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-5 mb-4">
+                  <h3 className="font-semibold text-purple-900 mb-2">Kokeile esimerkiksi:</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    {examplePrompts.map((prompt, index) => (
+                      <button
+                        key={index}
+                        onClick={() => sendMessage(prompt)}
+                        className="text-left text-sm bg-white text-purple-700 px-3 py-2 rounded-lg hover:bg-purple-100 transition"
+                      >
+                        💡 {prompt}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {messages.map((message, index) => (
+                <div
+                  key={index}
+                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div className={`max-w-[80%] ${message.role === 'assistant' ? 'space-y-2' : ''}`}>
+                    <div
+                      className={`rounded-lg p-4 ${
+                        message.role === 'user'
+                          ? 'bg-green-600 text-white'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}
                     >
-                      💡 {prompt}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {messages.map((message, index) => (
-              <div
-                key={index}
-                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div className={`max-w-[80%] ${message.role === 'assistant' ? 'space-y-2' : ''}`}>
-                  <div
-                    className={`rounded-lg p-4 ${
-                      message.role === 'user'
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}
-                  >
-                    {message.role === 'user' && message.created_by_email && (
-                      <div className="text-xs opacity-75 mb-1">{message.created_by_email}</div>
-                    )}
-                    <div className="whitespace-pre-wrap">{message.content}</div>
-                  </div>
-
-                  {/* Toimintonapit assistentin viesteille */}
-                  {message.role === 'assistant' && message.content && !message.content.includes('❌ Virhe') && index > 0 && (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => openAddPostModal(message.content)}
-                        className="flex-1 py-2 px-3 rounded-lg font-semibold transition bg-green-600 hover:bg-green-700 text-white text-sm"
-                      >
-                        ➕ Lisää somepäivitys
-                      </button>
-                      <button
-                        onClick={() => copyToClipboard(message.content)}
-                        className="py-2 px-3 rounded-lg transition bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm"
-                      >
-                        📋 Kopioi
-                      </button>
+                      {message.role === 'user' && message.created_by_email && (
+                        <div className="text-xs opacity-75 mb-1">{message.created_by_email}</div>
+                      )}
+                      <div className="whitespace-pre-wrap">{message.content}</div>
                     </div>
-                  )}
-                </div>
-              </div>
-            ))}
-            {isLoading && (
-              <div className="flex justify-start">
-                <div className="bg-gray-100 text-gray-800 rounded-lg p-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+
+                    {/* Toimintonapit assistentin viesteille */}
+                    {message.role === 'assistant' && message.content && !message.content.includes('❌ Virhe') && index > 0 && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => openAddPostModal(message.content)}
+                          className="flex-1 py-2 px-3 rounded-lg font-semibold transition bg-green-600 hover:bg-green-700 text-white text-sm"
+                        >
+                          ➕ Lisää somepäivitys
+                        </button>
+                        <button
+                          onClick={() => copyToClipboard(message.content)}
+                          className="py-2 px-3 rounded-lg transition bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm"
+                        >
+                          📋 Kopioi
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
+              ))}
+              {isLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-gray-100 text-gray-800 rounded-lg p-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
 
-          {/* Input area */}
-          <div className="border-t p-4 flex-shrink-0">
-            <div className="flex gap-3">
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="Kirjoita viestisi... (Enter lähettää, Shift+Enter rivinvaihto)"
-                className="flex-1 p-3 border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-green-600"
-                rows="3"
-                disabled={isLoading}
-              />
+            {/* Input area */}
+            <div className="border-t p-4 flex-shrink-0">
+              <div className="flex gap-3">
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  placeholder="Kirjoita viestisi... (Enter lähettää, Shift+Enter rivinvaihto)"
+                  className="flex-1 p-3 border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-green-600"
+                  rows="3"
+                  disabled={isLoading}
+                />
+                <button
+                  onClick={() => sendMessage()}
+                  disabled={!input.trim() || isLoading}
+                  className={`px-6 py-3 rounded-lg font-semibold ${
+                    !input.trim() || isLoading
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-green-600 text-white hover:bg-green-700'
+                  }`}
+                >
+                  {isLoading ? '⏳' : '📤'}<br />Lähetä
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                💡 Kerro mitä haluat — AI kysyy tarkentavia kysymyksiä ja luo sitten valmiin sisällön.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Sisältöanalyysi-välilehti */}
+        {activeTab === 'analyze' && (
+          <div className="bg-white rounded-lg shadow-lg flex-1 overflow-y-auto p-6">
+            {/* Ohje */}
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
+              <h3 className="font-semibold text-purple-900 mb-1">Miten tämä toimii?</h3>
+              <p className="text-sm text-purple-800">
+                AI analysoi sisältökalenterisi valitulta aikajaksolta ja tunnistaa puutteet:
+                viikko-ohjelmat, tapahtumien markkinointi, kiitos-postaukset ja hiljaiset jaksot.
+                Saat konkreettiset ehdotukset jotka voit lisätä suoraan kalenteriin!
+              </p>
+            </div>
+
+            {/* Aikavälin valinta */}
+            <div className="bg-gray-50 rounded-lg p-4 mb-6">
+              <h3 className="font-semibold text-gray-800 mb-3">Valitse aikaväli</h3>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Aloituspäivä</label>
+                  <input
+                    type="date"
+                    value={analyzeStartDate}
+                    onChange={(e) => setAnalyzeStartDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Lopetuspäivä</label>
+                  <input
+                    type="date"
+                    value={analyzeEndDate}
+                    onChange={(e) => setAnalyzeEndDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
               <button
-                onClick={() => sendMessage()}
-                disabled={!input.trim() || isLoading}
-                className={`px-6 py-3 rounded-lg font-semibold ${
-                  !input.trim() || isLoading
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-green-600 text-white hover:bg-green-700'
+                onClick={handleAnalyze}
+                disabled={analyzing}
+                className={`w-full py-3 px-6 rounded-lg font-semibold text-white transition ${
+                  analyzing ? 'bg-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'
                 }`}
               >
-                {isLoading ? '⏳' : '📤'}<br />Lähetä
+                {analyzing ? 'Analysoidaan...' : 'Analysoi sisältökalenteri'}
               </button>
             </div>
-            <p className="text-xs text-gray-500 mt-2">
-              💡 Kerro mitä haluat — AI kysyy tarkentavia kysymyksiä ja luo sitten valmiin sisällön.
-            </p>
+
+            {/* Tulokset */}
+            {(contentGaps.length > 0 || aiSuggestions.length > 0) && (
+              <div className="space-y-6">
+                {/* Yhteenveto */}
+                <div className="grid grid-cols-4 gap-3">
+                  <div className="bg-green-50 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-green-600">{analyzeEvents.length}</div>
+                    <div className="text-xs text-gray-600">Tapahtumaa</div>
+                  </div>
+                  <div className="bg-blue-50 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-blue-600">{analyzeSocialPosts.length}</div>
+                    <div className="text-xs text-gray-600">Somepostausta</div>
+                  </div>
+                  <div className="bg-red-50 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-red-600">{contentGaps.length}</div>
+                    <div className="text-xs text-gray-600">Puutetta</div>
+                  </div>
+                  <div className="bg-purple-50 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-purple-600">{aiSuggestions.length}</div>
+                    <div className="text-xs text-gray-600">Ehdotusta</div>
+                  </div>
+                </div>
+
+                {/* Sisältöpuutteet */}
+                {contentGaps.length > 0 && (
+                  <div>
+                    <h3 className="font-semibold text-gray-800 mb-3">Tunnistetut puutteet</h3>
+                    <div className="space-y-2">
+                      {contentGaps.sort((a, b) => {
+                        const order = { high: 0, medium: 1, low: 2 };
+                        return (order[a.priority] || 3) - (order[b.priority] || 3);
+                      }).map((gap, index) => (
+                        <div key={index} className={`p-3 border-l-4 rounded-r-lg ${getPriorityColor(gap.priority)}`}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs font-bold">{getPriorityBadge(gap.priority)}</span>
+                            <span className="text-xs text-gray-500">
+                              {new Date(gap.date).toLocaleDateString('fi-FI', { weekday: 'short', day: 'numeric', month: 'short' })}
+                            </span>
+                          </div>
+                          <p className="text-sm">{gap.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* AI-ehdotukset */}
+                {aiSuggestions.length > 0 && (
+                  <div>
+                    <h3 className="font-semibold text-gray-800 mb-3">AI:n ehdotukset</h3>
+                    <div className="space-y-3">
+                      {aiSuggestions.map((suggestion, index) => (
+                        <div key={index} className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-lg border border-purple-200">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xs font-bold px-2 py-0.5 rounded ${getPriorityColor(suggestion.priority)}`}>
+                                {getPriorityBadge(suggestion.priority)}
+                              </span>
+                              <span className="text-sm text-gray-600">
+                                {new Date(suggestion.date).toLocaleDateString('fi-FI', { weekday: 'long', day: 'numeric', month: 'long' })}
+                              </span>
+                            </div>
+                            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-medium">
+                              {suggestion.channel}
+                            </span>
+                          </div>
+                          <h4 className="font-semibold text-gray-900 mb-1">{suggestion.title || suggestion.type}</h4>
+                          <p className="text-sm text-gray-600 mb-3">{suggestion.reason}</p>
+
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => addSuggestionToCalendar(suggestion)}
+                              disabled={savingSuggestion === suggestion}
+                              className={`flex-1 py-2 px-3 rounded-lg font-semibold text-sm transition ${
+                                savingSuggestion === suggestion
+                                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                  : 'bg-green-600 hover:bg-green-700 text-white'
+                              }`}
+                            >
+                              {savingSuggestion === suggestion ? 'Tallennetaan...' : 'Lisää kalenteriin'}
+                            </button>
+                            <button
+                              onClick={() => openSuggestionAsPost(suggestion)}
+                              className="py-2 px-3 rounded-lg font-semibold text-sm transition bg-indigo-600 hover:bg-indigo-700 text-white"
+                            >
+                              Muokkaa & lisää
+                            </button>
+                            <button
+                              onClick={() => copyToClipboard(suggestion.reason)}
+                              className="py-2 px-3 rounded-lg transition bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm"
+                            >
+                              📋
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </div>
 
       {/* Somepostauksen lisäysmodaali */}

@@ -344,9 +344,6 @@ export default function ContentCalendar() {
               <h1 className="text-2xl font-bold text-gray-900">
                 🤖 SOME-AI
               </h1>
-              <Link href="/some-ai-debug" className="text-xs bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full hover:bg-yellow-200 transition">
-                🐛 Debug
-              </Link>
             </div>
             <div className="text-sm text-gray-600">
               {user?.email}

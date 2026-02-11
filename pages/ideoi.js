@@ -21,6 +21,16 @@ const socialChannels = [
   { id: 'newsletter', name: 'Uutiskirje', icon: '📧' }
 ]
 
+// Esimerkkipromptet uusille käyttäjille
+const examplePrompts = [
+  "Tarvitsen Instagram-postauksen viikonlopun tapahtumasta",
+  "Haluan luoda kiitos-postauksen eilisestä konsertista",
+  "Miten markkinoisin viime hetken lippuja?",
+  "Tarvitsen viikko-ohjelman maanantaiksi",
+  "Ideoi sisältöä kesäkuun tapahtumakalenteriin",
+  "Kirjoita houkutteleva Facebook-tapahtumakuvaus"
+]
+
 export default function Ideoi() {
   const router = useRouter();
   const [user, setUser] = useState(null);
@@ -29,6 +39,8 @@ export default function Ideoi() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
+  const [sessionId] = useState(() => `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`);
 
   // Somepostauksen lisäysmodaali
   const [showAddSocialPostModal, setShowAddSocialPostModal] = useState(false);
@@ -126,7 +138,7 @@ export default function Ideoi() {
 
   const getWelcomeMessage = () => [{
     role: 'assistant',
-    content: 'Hei! 👋 Olen Claude, luova assistenttisi. Autan sinua ideoimaan sisältöä Kirkkopuiston Terassille. Mitä haluaisit suunnitella tänään?'
+    content: 'Hei! 👋 Olen Kirkkopuiston Terassin sisältöassistentti. Autan sinua ideoimaan ja luomaan sisältöä someen, uutiskirjeisiin ja muihin kanaviin. Kerro mitä tarvitset — kysyn tarkentavia kysymyksiä ennen kuin luon valmiin sisällön!'
   }];
 
   // Skrollaa aina viimeisimpään viestiin
@@ -134,12 +146,13 @@ export default function Ideoi() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const sendMessage = async () => {
-    if (!input.trim() || isLoading) return;
+  const sendMessage = async (messageText) => {
+    const text = messageText || input;
+    if (!text.trim() || isLoading) return;
 
     const userMessage = {
       role: 'user',
-      content: input
+      content: text.trim()
     };
 
     // Tallenna käyttäjän viesti
@@ -151,7 +164,7 @@ export default function Ideoi() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/chat', {
+      const response = await fetch('/api/content-copilot', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -160,7 +173,8 @@ export default function Ideoi() {
           messages: newMessages.map(m => ({
             role: m.role,
             content: m.content
-          }))
+          })),
+          sessionId
         }),
       });
 
@@ -184,12 +198,13 @@ export default function Ideoi() {
       console.error('Error:', error);
       const errorMessage = {
         role: 'assistant',
-        content: '❌ Virhe: En voinut hakea vastausta. Tarkista että ANTHROPIC_API_KEY on asetettu Vercel ympäristömuuttujiin ja että sovellus on redeployatty.'
+        content: '❌ Virhe: En voinut hakea vastausta. Tarkista että ANTHROPIC_API_KEY on asetettu Vercel ympäristömuuttujiin ja että sovellus on redeployattu.'
       };
       await saveMessage(errorMessage);
       setMessages([...newMessages, errorMessage]);
     } finally {
       setIsLoading(false);
+      setTimeout(() => inputRef.current?.focus(), 100);
     }
   };
 
@@ -263,7 +278,7 @@ export default function Ideoi() {
       linkedEventId: null,
       status: 'suunniteltu',
       caption: content,
-      notes: 'Luotu Ideoi-sivulta',
+      notes: 'Luotu AI-avustajasta',
       mediaLinks: [],
       recurrence: 'none',
       recurrenceEndDate: ''
@@ -272,6 +287,11 @@ export default function Ideoi() {
     // Avaa modaali
     setShowAddSocialPostModal(true)
   }
+
+  const copyToClipboard = (content) => {
+    navigator.clipboard.writeText(content);
+    alert('📋 Kopioitu leikepöydälle!');
+  };
 
   const clearChat = async () => {
     if (confirm('Haluatko varmasti tyhjentää keskustelun?')) {
@@ -317,8 +337,8 @@ export default function Ideoi() {
         <div className="bg-white rounded-lg shadow-lg p-6 mb-4 flex-shrink-0">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-3xl font-bold text-green-800">💡 Ideoi sisältöä</h1>
-              <p className="text-gray-600">Brainstormaa Clauden kanssa • {user?.email}</p>
+              <h1 className="text-3xl font-bold text-green-800">💡 AI-avustaja</h1>
+              <p className="text-gray-600">Ideoi ja luo sisältöä Clauden kanssa • {user?.email}</p>
             </div>
             <div className="flex gap-3">
               <button
@@ -339,6 +359,24 @@ export default function Ideoi() {
         {/* Chat messages */}
         <div className="bg-white rounded-lg shadow-lg flex-1 overflow-hidden flex flex-col">
           <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            {/* Esimerkkipromptet näytetään vain alussa */}
+            {messages.length <= 1 && (
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-5 mb-4">
+                <h3 className="font-semibold text-purple-900 mb-2">Kokeile esimerkiksi:</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {examplePrompts.map((prompt, index) => (
+                    <button
+                      key={index}
+                      onClick={() => sendMessage(prompt)}
+                      className="text-left text-sm bg-white text-purple-700 px-3 py-2 rounded-lg hover:bg-purple-100 transition"
+                    >
+                      💡 {prompt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {messages.map((message, index) => (
               <div
                 key={index}
@@ -358,14 +396,22 @@ export default function Ideoi() {
                     <div className="whitespace-pre-wrap">{message.content}</div>
                   </div>
 
-                  {/* "Lisää somepäivitys" -nappi vain assistentin viesteille */}
-                  {message.role === 'assistant' && message.content && !message.content.includes('❌ Virhe') && (
-                    <button
-                      onClick={() => openAddPostModal(message.content)}
-                      className="w-full py-2 px-3 rounded-lg font-semibold transition bg-green-600 hover:bg-green-700 text-white text-sm"
-                    >
-                      ➕ Lisää somepäivitys
-                    </button>
+                  {/* Toimintonapit assistentin viesteille */}
+                  {message.role === 'assistant' && message.content && !message.content.includes('❌ Virhe') && index > 0 && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => openAddPostModal(message.content)}
+                        className="flex-1 py-2 px-3 rounded-lg font-semibold transition bg-green-600 hover:bg-green-700 text-white text-sm"
+                      >
+                        ➕ Lisää somepäivitys
+                      </button>
+                      <button
+                        onClick={() => copyToClipboard(message.content)}
+                        className="py-2 px-3 rounded-lg transition bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm"
+                      >
+                        📋 Kopioi
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -388,6 +434,7 @@ export default function Ideoi() {
           <div className="border-t p-4 flex-shrink-0">
             <div className="flex gap-3">
               <textarea
+                ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
@@ -397,7 +444,7 @@ export default function Ideoi() {
                 disabled={isLoading}
               />
               <button
-                onClick={sendMessage}
+                onClick={() => sendMessage()}
                 disabled={!input.trim() || isLoading}
                 className={`px-6 py-3 rounded-lg font-semibold ${
                   !input.trim() || isLoading
@@ -409,7 +456,7 @@ export default function Ideoi() {
               </button>
             </div>
             <p className="text-xs text-gray-500 mt-2">
-              💡 Vinkki: Kerro mitä haluat markkinoida, kenelle ja missä kanavassa. Claude auttaa ideoinnissa!
+              💡 Kerro mitä haluat — AI kysyy tarkentavia kysymyksiä ja luo sitten valmiin sisällön.
             </p>
           </div>
         </div>

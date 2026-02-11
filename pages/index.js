@@ -24,7 +24,7 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [taskAiContent, setTaskAiContent] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [viewMode, setViewMode] = useState('dashboard'); // 'dashboard', 'list', 'month', 'week'
+  const [viewMode, setViewMode] = useState('today'); // 'today', 'dashboard', 'list', 'month', 'week'
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedWeek, setSelectedWeek] = useState(new Date());
   const [teamMembers, setTeamMembers] = useState([]);
@@ -1997,141 +1997,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                 </p>
               )}
             </div>
-            <div className="flex gap-3 items-center flex-wrap">
-              <div className="relative">
-                <button
-                  onClick={() => setShowDownloadOptions(!showDownloadOptions)}
-                  className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-medium flex items-center gap-2"
-                  title="Lataa kalenteri - lisää omaan kalenteriisi (Apple, Google, Outlook)"
-                >
-                  📅 Lataa kalenteri
-                  <span className="text-xs">{showDownloadOptions ? '▲' : '▼'}</span>
-                </button>
-                {showDownloadOptions && (
-                  <div className="absolute top-full mt-2 left-0 bg-white border-2 border-green-600 rounded-lg shadow-lg p-4 z-50 min-w-[280px]">
-                    <div className="space-y-3">
-                      <div className="font-semibold text-gray-800 border-b pb-2">Valitse sisältö:</div>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={calendarDownloadFilters.includeEvents}
-                          onChange={(e) => setCalendarDownloadFilters({...calendarDownloadFilters, includeEvents: e.target.checked})}
-                          className="w-4 h-4"
-                        />
-                        <span className="text-sm">🎵 Tapahtumat</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={calendarDownloadFilters.includeSocial}
-                          onChange={(e) => setCalendarDownloadFilters({...calendarDownloadFilters, includeSocial: e.target.checked})}
-                          className="w-4 h-4"
-                        />
-                        <span className="text-sm">📱 Somepostaukset</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={calendarDownloadFilters.includeTasks}
-                          onChange={(e) => setCalendarDownloadFilters({...calendarDownloadFilters, includeTasks: e.target.checked})}
-                          className="w-4 h-4"
-                        />
-                        <span className="text-sm">⏰ Tehtävien deadlinet</span>
-                      </label>
-                      <a
-                        href={`/api/calendar.ics?includeEvents=${calendarDownloadFilters.includeEvents}&includeSocial=${calendarDownloadFilters.includeSocial}&includeTasks=${calendarDownloadFilters.includeTasks}`}
-                        target="_blank"
-                        className="block w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-center font-medium mt-4"
-                        onClick={() => setShowDownloadOptions(false)}
-                      >
-                        📥 Lataa
-                      </a>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <Link href="/perehdytys">
-                <button className="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700 font-medium">
-                  🎓 Perehdytys
-                </button>
-              </Link>
-              <Link href="/materiaalit">
-                <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
-                  📁 Materiaalit
-                </button>
-              </Link>
-              <Link href="/tehtavat">
-                <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
-                  📋 Kaikki tehtävät
-                </button>
-              </Link>
-              <Link href="/ideoi">
-                <button className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
-                  💡 Ideoi sisältöä
-                </button>
-              </Link>
-              <Link href="/uutiskirje">
-                <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
-                  📧 Uutiskirje
-                </button>
-              </Link>
-              <Link href="/mallit">
-                <button className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
-                  📝 Sisältömallit
-                </button>
-              </Link>
-              <Link href="/sisaltokalenteri">
-                <button className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
-                  SOME-AI
-                </button>
-              </Link>
-              <Link href="/copilot">
-                <button className="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700">
-                  🤖 Co-Pilot
-                </button>
-              </Link>
-              <Link href="/muistutukset">
-                <button className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">
-                  🔔 Muistutukset
-                </button>
-              </Link>
-              <Link href="/poista-duplikaatit">
-                <button className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 text-sm">
-                  🗑️ Poista duplikaatit
-                </button>
-              </Link>
-              <Link href="/tiimi">
-                <button className="bg-cyan-600 text-white px-4 py-2 rounded-lg hover:bg-cyan-700">
-                  👥 Tiimi
-                </button>
-              </Link>
-              {userProfile?.is_admin && (
-                <Link href="/admin">
-                  <button className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 font-medium">
-                    ⚙️ Admin
-                  </button>
-                </Link>
-              )}
-
-              {/* DEBUG: Näytä admin-status */}
-              <div className="flex gap-2 items-center">
-                <div className="bg-gray-800 text-white px-3 py-2 rounded text-xs font-mono">
-                  Admin: {userProfile?.is_admin ? '✅ TRUE' : '❌ FALSE'}
-                  {!userProfile && ' (profile ei ladattu)'}
-                </div>
-                <Link href="/profile-debug">
-                  <button className="bg-yellow-600 text-white px-3 py-2 rounded text-xs hover:bg-yellow-700">
-                    🔍 Debug
-                  </button>
-                </Link>
-              </div>
-
-              <button
-                onClick={handleLogout}
-                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 font-medium"
-              >
-                🚪 Kirjaudu ulos
-              </button>
+            <div className="flex items-center gap-3">
               <select
                 value={selectedYear}
                 onChange={(e) => setSelectedYear(Number(e.target.value))}
@@ -2141,7 +2007,136 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   <option key={year} value={year}>{year}</option>
                 ))}
               </select>
+              <button
+                onClick={handleLogout}
+                className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 text-sm"
+              >
+                Kirjaudu ulos
+              </button>
             </div>
+          </div>
+
+          {/* Navigaatio — ryhmitelty kategorioittain */}
+          <div className="mt-4 flex flex-wrap gap-2 items-center">
+            {/* Sisältö */}
+            <span className="text-xs text-gray-400 font-semibold uppercase mr-1">Sisältö</span>
+            <Link href="/tehtavat">
+              <button className="bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 text-sm">
+                📋 Tehtävät
+              </button>
+            </Link>
+            <Link href="/sisaltokalenteri">
+              <button className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 text-sm">
+                📅 Sisältökalenteri
+              </button>
+            </Link>
+            <Link href="/mallit">
+              <button className="bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 text-sm">
+                📝 Mallit
+              </button>
+            </Link>
+            <Link href="/muistutukset">
+              <button className="bg-orange-600 text-white px-3 py-1.5 rounded-lg hover:bg-orange-700 text-sm">
+                🔔 Muistutukset
+              </button>
+            </Link>
+
+            <span className="text-gray-300 mx-1">|</span>
+
+            {/* AI & viestintä */}
+            <span className="text-xs text-gray-400 font-semibold uppercase mr-1">AI & viestintä</span>
+            <Link href="/ideoi">
+              <button className="bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 text-sm">
+                💡 AI-avustaja
+              </button>
+            </Link>
+            <Link href="/uutiskirje">
+              <button className="bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 text-sm">
+                📧 Uutiskirje
+              </button>
+            </Link>
+
+            <span className="text-gray-300 mx-1">|</span>
+
+            {/* Hallinta */}
+            <span className="text-xs text-gray-400 font-semibold uppercase mr-1">Hallinta</span>
+            <Link href="/tiimi">
+              <button className="bg-cyan-600 text-white px-3 py-1.5 rounded-lg hover:bg-cyan-700 text-sm">
+                👥 Tiimi
+              </button>
+            </Link>
+            <Link href="/materiaalit">
+              <button className="bg-gray-600 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700 text-sm">
+                📁 Materiaalit
+              </button>
+            </Link>
+            {userProfile?.is_admin && (
+              <Link href="/admin">
+                <button className="bg-purple-700 text-white px-3 py-1.5 rounded-lg hover:bg-purple-800 text-sm">
+                  ⚙️ Admin
+                </button>
+              </Link>
+            )}
+
+            <span className="text-gray-300 mx-1">|</span>
+
+            {/* Kalenteri-lataus ja perehdytys */}
+            <div className="relative">
+              <button
+                onClick={() => setShowDownloadOptions(!showDownloadOptions)}
+                className="bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 text-sm flex items-center gap-1"
+                title="Lataa kalenteri omaan kalenteriisi"
+              >
+                📥 Lataa kalenteri
+              </button>
+              {showDownloadOptions && (
+                <div className="absolute top-full mt-2 left-0 bg-white border-2 border-green-600 rounded-lg shadow-lg p-4 z-50 min-w-[280px]">
+                  <div className="space-y-3">
+                    <div className="font-semibold text-gray-800 border-b pb-2">Valitse sisältö:</div>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={calendarDownloadFilters.includeEvents}
+                        onChange={(e) => setCalendarDownloadFilters({...calendarDownloadFilters, includeEvents: e.target.checked})}
+                        className="w-4 h-4"
+                      />
+                      <span className="text-sm">🎵 Tapahtumat</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={calendarDownloadFilters.includeSocial}
+                        onChange={(e) => setCalendarDownloadFilters({...calendarDownloadFilters, includeSocial: e.target.checked})}
+                        className="w-4 h-4"
+                      />
+                      <span className="text-sm">📱 Somepostaukset</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={calendarDownloadFilters.includeTasks}
+                        onChange={(e) => setCalendarDownloadFilters({...calendarDownloadFilters, includeTasks: e.target.checked})}
+                        className="w-4 h-4"
+                      />
+                      <span className="text-sm">⏰ Tehtävien deadlinet</span>
+                    </label>
+                    <a
+                      href={`/api/calendar.ics?includeEvents=${calendarDownloadFilters.includeEvents}&includeSocial=${calendarDownloadFilters.includeSocial}&includeTasks=${calendarDownloadFilters.includeTasks}`}
+                      target="_blank"
+                      className="block w-full bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 text-center font-medium mt-4"
+                      onClick={() => setShowDownloadOptions(false)}
+                    >
+                      📥 Lataa
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+            <Link href="/perehdytys">
+              <button className="bg-amber-600 text-white px-3 py-1.5 rounded-lg hover:bg-amber-700 text-sm">
+                🎓 Perehdytys
+              </button>
+            </Link>
           </div>
         </div>
 
@@ -2197,6 +2192,12 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             <h2 className="text-2xl font-bold">Kalenteri {selectedYear}</h2>
             <div className="flex gap-3 items-center">
               <div className="bg-gray-100 rounded-lg p-1 flex gap-1">
+                <button
+                  onClick={() => setViewMode('today')}
+                  className={`px-4 py-2 rounded ${viewMode === 'today' ? 'bg-green-600 text-white' : 'text-gray-700 hover:bg-gray-200'}`}
+                >
+                  🏠 Tänään
+                </button>
                 <button
                   onClick={() => setViewMode('dashboard')}
                   className={`px-4 py-2 rounded ${viewMode === 'dashboard' ? 'bg-green-600 text-white' : 'text-gray-700 hover:bg-gray-200'}`}
@@ -2412,6 +2413,331 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                 </p>
               </div>
             </div>
+
+          {/* Tänään-näkymä */}
+          {viewMode === 'today' && (() => {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const threeDaysLater = new Date(today);
+            threeDaysLater.setDate(threeDaysLater.getDate() + 3);
+            const sevenDaysLater = new Date(today);
+            sevenDaysLater.setDate(sevenDaysLater.getDate() + 7);
+
+            const allPosts = posts[selectedYear] || [];
+            const userName = userProfile?.full_name || '';
+
+            // Omat tehtävät (kaikki keskeneräiset, deadlinen mukaan)
+            const myTasks = [];
+            const allIncompleteTasks = [];
+
+            allPosts.forEach(post => {
+              (post.tasks || []).forEach(task => {
+                if (!task.completed && task.dueDate) {
+                  const dueDate = new Date(task.dueDate);
+                  dueDate.setHours(0, 0, 0, 0);
+                  const diffTime = dueDate - today;
+                  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                  let urgency = 'normal';
+                  if (diffDays < 0) urgency = 'overdue';
+                  else if (diffDays === 0) urgency = 'today';
+                  else if (diffDays <= 3) urgency = 'soon';
+
+                  const item = { task, event: post, dueDate: task.dueDate, diffDays, urgency };
+
+                  if (task.assignee && task.assignee === userName) {
+                    myTasks.push(item);
+                  }
+                  allIncompleteTasks.push(item);
+                }
+              });
+            });
+
+            myTasks.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+            allIncompleteTasks.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+
+            // Tämän viikon tapahtumat
+            const currentDayOfWeek = new Date().getDay();
+            const daysToMonday = (currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1);
+            const monday = new Date(today);
+            monday.setDate(today.getDate() - daysToMonday);
+            const sunday = new Date(monday);
+            sunday.setDate(monday.getDate() + 6);
+            sunday.setHours(23, 59, 59, 999);
+
+            const thisWeekEvents = allPosts.filter(post => {
+              const eventDate = new Date(post.date);
+              eventDate.setHours(0, 0, 0, 0);
+              return eventDate >= monday && eventDate <= sunday;
+            }).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            // Tapahtumat joista puuttuu sisältöä (alle 50% tehtävistä tehty)
+            const eventsNeedingContent = allPosts.filter(post => {
+              const eventDate = new Date(post.date);
+              eventDate.setHours(0, 0, 0, 0);
+              if (eventDate < today) return false;
+              const tasks = post.tasks || [];
+              if (tasks.length === 0) return false;
+              const completedTasks = tasks.filter(t => t.completed).length;
+              return completedTasks / tasks.length < 0.5;
+            }).sort((a, b) => new Date(a.date) - new Date(b.date)).slice(0, 5);
+
+            // Tänään deadlinella olevat somepostaukset
+            const todaySocialPosts = socialPosts.filter(post => {
+              const postDate = new Date(post.date);
+              postDate.setHours(0, 0, 0, 0);
+              return postDate.getTime() === today.getTime();
+            });
+
+            const getUrgencyStyle = (urgency) => {
+              switch (urgency) {
+                case 'overdue': return 'bg-red-100 border-red-400 text-red-800';
+                case 'today': return 'bg-orange-100 border-orange-400 text-orange-800';
+                case 'soon': return 'bg-yellow-100 border-yellow-400 text-yellow-800';
+                default: return 'bg-blue-50 border-blue-200 text-blue-800';
+              }
+            };
+
+            const getUrgencyLabel = (diffDays) => {
+              if (diffDays < 0) return `${Math.abs(diffDays)} pv myöhässä`;
+              if (diffDays === 0) return 'Tänään';
+              if (diffDays === 1) return 'Huomenna';
+              return `${diffDays} pv`;
+            };
+
+            const tasksToShow = myTasks.length > 0 ? myTasks : allIncompleteTasks;
+            const showingMyTasks = myTasks.length > 0;
+
+            return (
+              <div className="space-y-6">
+                {/* Tervehdys */}
+                <div className="bg-gradient-to-r from-green-100 to-blue-100 rounded-xl p-6 border border-green-200">
+                  <h3 className="text-2xl font-bold text-gray-800 mb-1">
+                    Hei{userName ? `, ${userName.split(' ')[0]}` : ''}!
+                  </h3>
+                  <p className="text-gray-600">
+                    {new Date().toLocaleDateString('fi-FI', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                  </p>
+                  <div className="flex flex-wrap gap-4 mt-4 text-sm">
+                    <div className="bg-white rounded-lg px-4 py-2 shadow-sm">
+                      <span className="text-gray-500">Tehtäviä tänään</span>
+                      <span className="ml-2 font-bold text-orange-600">{tasksToShow.filter(t => t.urgency === 'today' || t.urgency === 'overdue').length}</span>
+                    </div>
+                    <div className="bg-white rounded-lg px-4 py-2 shadow-sm">
+                      <span className="text-gray-500">Tapahtumia tällä viikolla</span>
+                      <span className="ml-2 font-bold text-green-600">{thisWeekEvents.length}</span>
+                    </div>
+                    <div className="bg-white rounded-lg px-4 py-2 shadow-sm">
+                      <span className="text-gray-500">Somepostauksia tänään</span>
+                      <span className="ml-2 font-bold text-indigo-600">{todaySocialPosts.length}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tehtävät - kiireellisimmät ensin */}
+                <div className="bg-white rounded-xl shadow-md p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-lg font-bold text-gray-800">
+                      {showingMyTasks ? 'Omat tehtäväsi' : 'Avoimet tehtävät'}
+                    </h4>
+                    <span className="text-sm text-gray-500">{tasksToShow.length} tehtävää</span>
+                  </div>
+
+                  {tasksToShow.length === 0 ? (
+                    <div className="text-center py-8 text-gray-400">
+                      <p className="text-3xl mb-2">Ei avoimia tehtäviä — hienoa!</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {tasksToShow.slice(0, 10).map((item, idx) => {
+                        const channel = channels.find(c => c.id === item.task.channel);
+                        return (
+                          <div
+                            key={idx}
+                            className={`flex items-center gap-3 p-3 rounded-lg border-l-4 ${getUrgencyStyle(item.urgency)} cursor-pointer hover:shadow-sm transition-shadow`}
+                            onClick={() => {
+                              setExpandedEvents(prev => ({ ...prev, [item.event.id]: true }));
+                              setViewMode('list');
+                            }}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-semibold text-sm truncate">{item.task.title}</span>
+                                {channel && (
+                                  <span className={`${channel.color} text-white px-1.5 py-0.5 rounded text-xs`}>
+                                    {channel.name}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-600 truncate">
+                                {item.event.title}{item.event.artist && ` — ${item.event.artist}`}
+                              </p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="text-xs font-bold">{getUrgencyLabel(item.diffDays)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {tasksToShow.length > 10 && (
+                        <button
+                          onClick={() => setViewMode('dashboard')}
+                          className="w-full text-center text-sm text-green-600 hover:text-green-800 font-medium py-2"
+                        >
+                          Näytä kaikki {tasksToShow.length} tehtävää →
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Tämän viikon tapahtumat */}
+                {thisWeekEvents.length > 0 && (
+                  <div className="bg-white rounded-xl shadow-md p-6">
+                    <h4 className="text-lg font-bold text-gray-800 mb-4">Tämän viikon tapahtumat</h4>
+                    <div className="space-y-3">
+                      {thisWeekEvents.map((event, idx) => {
+                        const eventDate = new Date(event.date);
+                        const isToday = eventDate.toDateString() === new Date().toDateString();
+                        const totalTasks = (event.tasks || []).length;
+                        const completedTasks = (event.tasks || []).filter(t => t.completed).length;
+                        const progress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+                        return (
+                          <div
+                            key={idx}
+                            className={`flex items-center gap-4 p-4 rounded-lg border ${isToday ? 'border-green-400 bg-green-50' : 'border-gray-200'} cursor-pointer hover:shadow-sm transition-shadow`}
+                            onClick={() => {
+                              setExpandedEvents(prev => ({ ...prev, [event.id]: true }));
+                              setViewMode('list');
+                            }}
+                          >
+                            <div className="text-center shrink-0 w-14">
+                              <div className={`text-xs font-medium ${isToday ? 'text-green-600' : 'text-gray-500'}`}>
+                                {eventDate.toLocaleDateString('fi-FI', { weekday: 'short' })}
+                              </div>
+                              <div className={`text-2xl font-bold ${isToday ? 'text-green-700' : 'text-gray-800'}`}>
+                                {eventDate.getDate()}
+                              </div>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-gray-800 truncate">{event.title}</p>
+                              {event.artist && <p className="text-sm text-gray-500 truncate">{event.artist}</p>}
+                              {event.time && <p className="text-xs text-gray-400">klo {event.time}</p>}
+                            </div>
+                            <div className="text-right shrink-0">
+                              <div className="text-xs text-gray-500 mb-1">{completedTasks}/{totalTasks} tehtävää</div>
+                              <div className="w-20 bg-gray-200 rounded-full h-2">
+                                <div
+                                  className={`h-2 rounded-full ${progress === 100 ? 'bg-green-500' : progress >= 50 ? 'bg-yellow-500' : 'bg-red-400'}`}
+                                  style={{ width: `${progress}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tapahtumat joista puuttuu sisältöä */}
+                {eventsNeedingContent.length > 0 && (
+                  <div className="bg-white rounded-xl shadow-md p-6">
+                    <h4 className="text-lg font-bold text-gray-800 mb-2">Tarvitsevat huomiota</h4>
+                    <p className="text-sm text-gray-500 mb-4">Tulevat tapahtumat joista yli puolet tehtävistä on tekemättä</p>
+                    <div className="space-y-2">
+                      {eventsNeedingContent.map((event, idx) => {
+                        const totalTasks = (event.tasks || []).length;
+                        const completedTasks = (event.tasks || []).filter(t => t.completed).length;
+                        const eventDate = new Date(event.date);
+                        const diffDays = Math.ceil((eventDate - today) / (1000 * 60 * 60 * 24));
+
+                        return (
+                          <div
+                            key={idx}
+                            className="flex items-center gap-3 p-3 rounded-lg border border-orange-200 bg-orange-50 cursor-pointer hover:shadow-sm transition-shadow"
+                            onClick={() => {
+                              setExpandedEvents(prev => ({ ...prev, [event.id]: true }));
+                              setViewMode('list');
+                            }}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-sm text-gray-800 truncate">{event.title}</p>
+                              <p className="text-xs text-gray-500">{eventDate.toLocaleDateString('fi-FI')} — {completedTasks}/{totalTasks} tehtävää valmiina</p>
+                            </div>
+                            <span className="text-xs font-medium text-orange-600 shrink-0">{diffDays} pv</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tänään julkaistavat somepostaukset */}
+                {todaySocialPosts.length > 0 && (
+                  <div className="bg-white rounded-xl shadow-md p-6">
+                    <h4 className="text-lg font-bold text-gray-800 mb-4">Tänään somessa</h4>
+                    <div className="space-y-2">
+                      {todaySocialPosts.map((post, idx) => {
+                        const postType = socialPostTypes.find(t => t.id === post.type);
+                        return (
+                          <div key={idx} className="flex items-center gap-3 p-3 rounded-lg border border-indigo-200 bg-indigo-50">
+                            <span className="text-xl">{postType?.icon || '📝'}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-sm text-gray-800 truncate">{post.title}</p>
+                              <p className="text-xs text-gray-500">
+                                {post.time && `klo ${post.time}`}
+                                {post.channels && post.channels.length > 0 && ` — ${post.channels.join(', ')}`}
+                              </p>
+                            </div>
+                            <span className={`text-xs px-2 py-1 rounded ${post.status === 'julkaistu' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                              {post.status === 'julkaistu' ? 'Julkaistu' : 'Odottaa'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Pikatoiminnot */}
+                <div className="bg-white rounded-xl shadow-md p-6">
+                  <h4 className="text-lg font-bold text-gray-800 mb-4">Pikatoiminnot</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <button
+                      onClick={() => setShowAddEventModal(true)}
+                      className="flex flex-col items-center gap-2 p-4 rounded-lg border-2 border-dashed border-green-300 hover:border-green-500 hover:bg-green-50 transition-all"
+                    >
+                      <span className="text-2xl">➕</span>
+                      <span className="text-sm font-medium text-gray-700">Uusi tapahtuma</span>
+                    </button>
+                    <button
+                      onClick={() => setShowAddSocialPostModal(true)}
+                      className="flex flex-col items-center gap-2 p-4 rounded-lg border-2 border-dashed border-indigo-300 hover:border-indigo-500 hover:bg-indigo-50 transition-all"
+                    >
+                      <span className="text-2xl">📱</span>
+                      <span className="text-sm font-medium text-gray-700">Uusi somepostaus</span>
+                    </button>
+                    <Link href="/ideoi">
+                      <div className="flex flex-col items-center gap-2 p-4 rounded-lg border-2 border-dashed border-purple-300 hover:border-purple-500 hover:bg-purple-50 transition-all cursor-pointer">
+                        <span className="text-2xl">💡</span>
+                        <span className="text-sm font-medium text-gray-700">Ideoi sisältöä</span>
+                      </div>
+                    </Link>
+                    <Link href="/uutiskirje">
+                      <div className="flex flex-col items-center gap-2 p-4 rounded-lg border-2 border-dashed border-green-300 hover:border-green-500 hover:bg-green-50 transition-all cursor-pointer">
+                        <span className="text-2xl">📧</span>
+                        <span className="text-sm font-medium text-gray-700">Uutiskirje</span>
+                      </div>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Viikkonäkymä - Dashboard */}
           {viewMode === 'dashboard' && (() => {

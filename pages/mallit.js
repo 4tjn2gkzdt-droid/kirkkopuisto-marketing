@@ -3,6 +3,14 @@ import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
 
+// Apufunktio aikavyöhykeongelmien välttämiseksi
+const formatLocalDate = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 // Vakiot somepostauksille
 const socialPostTypes = [
   { id: 'viikko-ohjelma', name: 'Viikko-ohjelma', icon: '📅' },
@@ -164,7 +172,7 @@ export default function ContentTemplates() {
     const { data, error } = await supabase
       .from('events')
       .select('*')
-      .gte('date', today.toISOString().split('T')[0])
+      .gte('date', formatLocalDate(today))
       .order('date', { ascending: true })
       .limit(20)
 
@@ -231,7 +239,7 @@ export default function ContentTemplates() {
   const openAddPostModal = (content) => {
     // Esitäytä lomake generoidulla sisällöllä
     const today = new Date()
-    const defaultDate = today.toISOString().split('T')[0]
+    const defaultDate = formatLocalDate(today)
 
     setNewSocialPost({
       title: currentTemplate?.name || 'Uusi postaus',

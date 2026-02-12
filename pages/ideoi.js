@@ -3,6 +3,14 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabase';
 
+// Apufunktio aikavyöhykeongelmien välttämiseksi
+const formatLocalDate = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 // Vakiot somepostauksille
 const socialPostTypes = [
   { id: 'viikko-ohjelma', name: 'Viikko-ohjelma', icon: '📅' },
@@ -277,7 +285,7 @@ export default function Ideoi() {
   const openAddPostModal = (content) => {
     // Esitäytä lomake generoidulla sisällöllä
     const today = new Date()
-    const defaultDate = today.toISOString().split('T')[0]
+    const defaultDate = formatLocalDate(today)
 
     setNewSocialPost({
       title: 'Uusi postaus',
@@ -303,8 +311,8 @@ export default function Ideoi() {
   useEffect(() => {
     const today = new Date();
     const in30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-    setAnalyzeStartDate(today.toISOString().split('T')[0]);
-    setAnalyzeEndDate(in30Days.toISOString().split('T')[0]);
+    setAnalyzeStartDate(formatLocalDate(today));
+    setAnalyzeEndDate(formatLocalDate(in30Days));
   }, []);
 
   const handleAnalyze = async () => {

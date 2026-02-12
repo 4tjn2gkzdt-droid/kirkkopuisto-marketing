@@ -7,6 +7,21 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
+// Apufunktiot aikavyöhykeongelmien välttämiseksi
+// Kaikki päivämäärät käsitellään paikallisessa ajassa (Suomen aika)
+const formatLocalDate = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const parseLocalDate = (dateString) => {
+  if (!dateString) return new Date();
+  const [year, month, day] = dateString.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
 export default function Home() {
   const router = useRouter();
   const [user, setUser] = useState(null);
@@ -425,13 +440,26 @@ export default function Home() {
     loadTeamMembers();
   }, []);
 
-  // Aseta kuukausi- ja viikkonäkymä ensimmäiseen tapahtumaan
+  // Aseta kuukausi- ja viikkonäkymä ensimmäiseen tulevaan tapahtumaan
   useEffect(() => {
     const currentPosts = posts[selectedYear] || [];
     if (currentPosts.length > 0) {
-      const firstEventDate = new Date(currentPosts[0].date);
-      setSelectedMonth(firstEventDate.getMonth());
-      setSelectedWeek(firstEventDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Etsi ensimmäinen tuleva tapahtuma
+      const futurePost = currentPosts.find(post => {
+        const postDate = parseLocalDate(post.date);
+        return postDate >= today;
+      });
+
+      // Käytä ensimmäistä tulevaa tapahtumaa, tai jos ei ole, ensimmäistä tapahtumaa
+      const targetDate = futurePost
+        ? parseLocalDate(futurePost.date)
+        : parseLocalDate(currentPosts[0].date);
+
+      setSelectedMonth(targetDate.getMonth());
+      setSelectedWeek(targetDate);
     }
   }, [posts, selectedYear]);
 
@@ -544,8 +572,8 @@ export default function Home() {
   };
 
   const createTasks = (event) => {
-    const eventDate = new Date(event.date);
-    const formatDate = (d) => d.toISOString().split('T')[0];
+    const eventDate = parseLocalDate(event.date);
+    const formatDate = (d) => formatLocalDate(d);
     
     const fourWeeks = new Date(eventDate);
     fourWeeks.setDate(fourWeeks.getDate() - 28);
@@ -800,7 +828,7 @@ export default function Home() {
     // Suodata päivämäärän mukaan jos määritelty
     if (startDate || endDate) {
       allPosts = allPosts.filter(event => {
-        const eventDate = new Date(event.date);
+        const eventDate = parseLocalDate(event.date);
         if (startDate && endDate) {
           return eventDate >= new Date(startDate) && eventDate <= new Date(endDate);
         } else if (startDate) {
@@ -817,7 +845,7 @@ export default function Home() {
     allPosts.forEach(event => {
       const eventData = {
         'Tapahtuma': event.title,
-        'Päivämäärä': new Date(event.date).toLocaleDateString('fi-FI'),
+        'Päivämäärä': parseLocalDate(event.date).toLocaleDateString('fi-FI'),
         'Aika': event.time || '',
         'Tyyppi': event.eventType === 'artist' ? 'Artisti' :
                  event.eventType === 'dj' ? 'DJ' :
@@ -852,7 +880,7 @@ export default function Home() {
     // Suodata päivämäärän mukaan jos määritelty
     if (startDate || endDate) {
       allPosts = allPosts.filter(event => {
-        const eventDate = new Date(event.date);
+        const eventDate = parseLocalDate(event.date);
         if (startDate && endDate) {
           return eventDate >= new Date(startDate) && eventDate <= new Date(endDate);
         } else if (startDate) {
@@ -869,7 +897,7 @@ export default function Home() {
     allPosts.forEach(event => {
       const eventData = {
         'Tapahtuma': event.title,
-        'Päivämäärä': new Date(event.date).toLocaleDateString('fi-FI'),
+        'Päivämäärä': parseLocalDate(event.date).toLocaleDateString('fi-FI'),
         'Aika': event.time || '',
         'Tyyppi': event.eventType === 'artist' ? 'Artisti' :
                  event.eventType === 'dj' ? 'DJ' :
@@ -1016,11 +1044,11 @@ export default function Home() {
   };
 
   const generateTasksForEventSize = (size, eventDate) => {
-    const baseDate = new Date(eventDate);
+    const baseDate = parseLocalDate(eventDate);
     const formatDate = (daysOffset) => {
       const date = new Date(baseDate);
       date.setDate(date.getDate() + daysOffset);
-      return date.toISOString().split('T')[0];
+      return formatLocalDate(date);
     };
 
     const baseTasks = {
@@ -1078,7 +1106,7 @@ export default function Home() {
 
 Tapahtuma: ${post.title}
 Artisti: ${post.artist || 'Ei ilmoitettu'}
-Päivämäärä: ${new Date(post.date).toLocaleDateString('fi-FI')}
+Päivämäärä: ${parseLocalDate(post.date).toLocaleDateString('fi-FI')}
 Aika: ${post.time || 'Ei ilmoitettu'}
 Kanava: ${channel?.name || task.channel}
 Tehtävä: ${task.title}
@@ -1196,7 +1224,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
 Tapahtuma: ${event.title}
 Artisti: ${event.artist || 'Ei ilmoitettu'}
-Päivämäärä: ${new Date(event.date).toLocaleDateString('fi-FI')}
+Päivämäärä: ${parseLocalDate(event.date).toLocaleDateString('fi-FI')}
 Aika: ${event.time || 'Ei ilmoitettu'}
 Kanava: ${channel?.name || task.channel}
 Tehtävä: ${task.title}
@@ -1415,7 +1443,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
       }
     }
 
-    const eventYear = new Date(newEvent.date).getFullYear();
+    const eventYear = parseLocalDate(newEvent.date).getFullYear();
     const currentPosts = posts[eventYear] || [];
 
     if (supabase) {
@@ -1517,7 +1545,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
         tasks: newEvent.tasks.map(t => ({ ...t, id: Date.now() + Math.random() }))
       };
       savePosts(eventYear, [...currentPosts, newPost].sort((a, b) =>
-        new Date(a.date) - new Date(b.date)
+        parseLocalDate(a.date) - parseLocalDate(b.date)
       ));
     }
 
@@ -1560,7 +1588,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
       return;
     }
 
-    const postYear = new Date(newSocialPost.date).getFullYear();
+    const postYear = parseLocalDate(newSocialPost.date).getFullYear();
 
     if (supabase) {
       try {
@@ -1609,14 +1637,14 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
           if (newSocialPost.recurrence !== 'none' && newSocialPost.recurrenceEndDate) {
             // Luo toistuvat postaukset
             const postsToCreate = [];
-            const startDate = new Date(newSocialPost.date);
-            const endDate = new Date(newSocialPost.recurrenceEndDate);
+            const startDate = parseLocalDate(newSocialPost.date);
+            const endDate = parseLocalDate(newSocialPost.recurrenceEndDate);
             let currentDate = new Date(startDate);
 
             while (currentDate <= endDate) {
               postsToCreate.push({
                 ...dataToSave,
-                date: currentDate.toISOString().split('T')[0],
+                date: formatLocalDate(currentDate),
                 year: currentDate.getFullYear(),
                 parent_post_id: null // Ensimmäinen on parent
               });
@@ -1870,7 +1898,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       currentPosts = currentPosts.filter(post => {
-        const eventDate = new Date(post.date);
+        const eventDate = parseLocalDate(post.date);
         eventDate.setHours(0, 0, 0, 0);
         return eventDate >= today;
       });
@@ -1924,14 +1952,14 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
   const getEventsForDate = (date) => {
     if (!date) return [];
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = formatLocalDate(date);
     const allPosts = filterPosts();
     return allPosts.filter(post => post.date === dateStr);
   };
 
   const getSocialPostsForDate = (date) => {
     if (!date) return [];
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = formatLocalDate(date);
     let filteredSocialPosts = [...socialPosts];
 
     // Suodata contentFilterin mukaan
@@ -1945,7 +1973,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       filteredSocialPosts = filteredSocialPosts.filter(post => {
-        const postDate = new Date(post.date);
+        const postDate = parseLocalDate(post.date);
         postDate.setHours(0, 0, 0, 0);
         return postDate >= today;
       });
@@ -2468,25 +2496,25 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             sunday.setHours(23, 59, 59, 999);
 
             const thisWeekEvents = allPosts.filter(post => {
-              const eventDate = new Date(post.date);
+              const eventDate = parseLocalDate(post.date);
               eventDate.setHours(0, 0, 0, 0);
               return eventDate >= monday && eventDate <= sunday;
-            }).sort((a, b) => new Date(a.date) - new Date(b.date));
+            }).sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date));
 
             // Tapahtumat joista puuttuu sisältöä (alle 50% tehtävistä tehty)
             const eventsNeedingContent = allPosts.filter(post => {
-              const eventDate = new Date(post.date);
+              const eventDate = parseLocalDate(post.date);
               eventDate.setHours(0, 0, 0, 0);
               if (eventDate < today) return false;
               const tasks = post.tasks || [];
               if (tasks.length === 0) return false;
               const completedTasks = tasks.filter(t => t.completed).length;
               return completedTasks / tasks.length < 0.5;
-            }).sort((a, b) => new Date(a.date) - new Date(b.date)).slice(0, 5);
+            }).sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date)).slice(0, 5);
 
             // Tänään deadlinella olevat somepostaukset
             const todaySocialPosts = socialPosts.filter(post => {
-              const postDate = new Date(post.date);
+              const postDate = parseLocalDate(post.date);
               postDate.setHours(0, 0, 0, 0);
               return postDate.getTime() === today.getTime();
             });
@@ -2599,7 +2627,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                     <h4 className="text-lg font-bold text-gray-800 mb-4">Tämän viikon tapahtumat</h4>
                     <div className="space-y-3">
                       {thisWeekEvents.map((event, idx) => {
-                        const eventDate = new Date(event.date);
+                        const eventDate = parseLocalDate(event.date);
                         const isToday = eventDate.toDateString() === new Date().toDateString();
                         const totalTasks = (event.tasks || []).length;
                         const completedTasks = (event.tasks || []).filter(t => t.completed).length;
@@ -2652,7 +2680,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                       {eventsNeedingContent.map((event, idx) => {
                         const totalTasks = (event.tasks || []).length;
                         const completedTasks = (event.tasks || []).filter(t => t.completed).length;
-                        const eventDate = new Date(event.date);
+                        const eventDate = parseLocalDate(event.date);
                         const diffDays = Math.ceil((eventDate - today) / (1000 * 60 * 60 * 24));
 
                         return (
@@ -3086,7 +3114,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
               const today = new Date();
               today.setHours(0, 0, 0, 0);
               filteredPosts = filteredPosts.filter(post => {
-                const eventDate = new Date(post.date);
+                const eventDate = parseLocalDate(post.date);
                 eventDate.setHours(0, 0, 0, 0);
                 return eventDate >= today;
               });
@@ -3148,7 +3176,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
               </div>
             ) : (
               <div className="space-y-3">
-                {filteredPosts.sort((a, b) => new Date(a.date) - new Date(b.date)).map(post => {
+                {filteredPosts.sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date)).map(post => {
                 const isExpanded = expandedEvents[post.id];
                 const completed = post.tasks.filter(t => t.completed).length;
                 const total = post.tasks.length;
@@ -3168,7 +3196,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                             <div>
                               <h3 className="font-semibold text-lg">{post.title}</h3>
                               <p className="text-sm text-gray-500">
-                                {new Date(post.date).toLocaleDateString('fi-FI')}
+                                {parseLocalDate(post.date).toLocaleDateString('fi-FI')}
                                 {post.time && ` klo ${post.time}`}
                               </p>
                               {post.summary && (
@@ -3349,7 +3377,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
               const today = new Date();
               today.setHours(0, 0, 0, 0);
               filteredSocialPosts = filteredSocialPosts.filter(post => {
-                const postDate = new Date(post.date);
+                const postDate = parseLocalDate(post.date);
                 postDate.setHours(0, 0, 0, 0);
                 return postDate >= today;
               });
@@ -3384,7 +3412,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                   <span className="text-sm text-gray-500">({filteredSocialPosts.length} kpl)</span>
                 </div>
                 <div className="space-y-3">
-                  {filteredSocialPosts.sort((a, b) => new Date(a.date) - new Date(b.date)).map(post => {
+                  {filteredSocialPosts.sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date)).map(post => {
                     const postType = socialPostTypes.find(t => t.id === post.type) || { icon: '📝', name: 'Muu', color: 'bg-gray-500' };
                     const statusEmoji = {
                       'suunniteltu': '📋',
@@ -3405,7 +3433,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                                   <span className="text-sm">{statusEmoji}</span>
                                 </div>
                                 <p className="text-sm text-gray-500">
-                                  {new Date(post.date).toLocaleDateString('fi-FI')}
+                                  {parseLocalDate(post.date).toLocaleDateString('fi-FI')}
                                   {post.time && ` klo ${post.time}`}
                                   {' • '}
                                   <span className={`font-medium ${postType.color.replace('bg-', 'text-')}`}>
@@ -4081,7 +4109,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                     // Laske deadline jos tapahtuman päivämäärä on valittu
                     let deadlineText = '';
                     if (newEvent.date) {
-                      const eventDate = new Date(newEvent.date);
+                      const eventDate = parseLocalDate(newEvent.date);
                       const deadline = new Date(eventDate);
                       deadline.setDate(eventDate.getDate() - op.daysBeforeEvent);
                       deadlineText = `📅 ${deadline.toLocaleDateString('fi-FI', { day: 'numeric', month: 'short' })}`;
@@ -4211,7 +4239,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                     }
 
                     // Luo tehtävät valittujen kanavien perusteella
-                    const eventDate = new Date(newEvent.date);
+                    const eventDate = parseLocalDate(newEvent.date);
                     const tasks = selectedMarketingChannels.map(opId => {
                       const op = marketingOperations.find(o => o.id === opId);
                       const deadline = new Date(eventDate);
@@ -4221,7 +4249,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                         id: `temp-${Date.now()}-${Math.random()}`,
                         title: op.name,
                         channel: op.channel,
-                        dueDate: deadline.toISOString().split('T')[0],
+                        dueDate: formatLocalDate(deadline),
                         dueTime: op.defaultTime,
                         assignee: defaultAssignee,
                         content: '',
@@ -4272,7 +4300,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
                     <span className="text-gray-600">📅 Päivämäärä:</span>
-                    <p className="font-semibold">{new Date(newEvent.date).toLocaleDateString('fi-FI', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                    <p className="font-semibold">{parseLocalDate(newEvent.date).toLocaleDateString('fi-FI', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
                   </div>
                   {newEvent.time && (
                     <div>
@@ -4521,7 +4549,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                       return;
                     }
 
-                    const eventYear = new Date(editingEvent.date).getFullYear();
+                    const eventYear = parseLocalDate(editingEvent.date).getFullYear();
                     const currentPosts = posts[eventYear] || [];
 
                     if (supabase && typeof editingEvent.id === 'number') {
@@ -4688,7 +4716,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
 
 Tapahtuma: ${event.title}
 ${event.artist ? `Esiintyjä: ${event.artist}` : ''}
-Päivämäärä: ${new Date(event.date).toLocaleDateString('fi-FI')}
+Päivämäärä: ${parseLocalDate(event.date).toLocaleDateString('fi-FI')}
 ${event.time ? `Aika: ${event.time}` : ''}
 
 Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingTask.task.channel}-kanavalle. Lisää sopivat hashtagit (#kirkkopuistonterassi #turku). Älä käytä emojeja.`;
@@ -4942,14 +4970,14 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
                     sunday.setHours(23, 59, 59, 999);
 
                     filteredPosts = allPosts.filter(post => {
-                      const eventDate = new Date(post.date);
+                      const eventDate = parseLocalDate(post.date);
                       return eventDate >= monday && eventDate <= sunday;
                     });
                   } else {
                     // Hae tämän kuukauden tapahtumat
                     const currentMonth = today.getMonth();
                     filteredPosts = allPosts.filter(post => {
-                      const eventDate = new Date(post.date);
+                      const eventDate = parseLocalDate(post.date);
                       return eventDate.getMonth() === currentMonth;
                     });
                   }
@@ -4963,7 +4991,7 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
                   }
 
                   // Järjestä päivämäärän mukaan
-                  filteredPosts.sort((a, b) => new Date(a.date) - new Date(b.date));
+                  filteredPosts.sort((a, b) => parseLocalDate(a.date) - parseLocalDate(b.date));
 
                   return (
                     <div className="space-y-6">
@@ -4980,7 +5008,7 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
                             </div>
                             <div className="text-right">
                               <p className="font-semibold text-gray-900">
-                                {new Date(event.date).toLocaleDateString('fi-FI', {
+                                {parseLocalDate(event.date).toLocaleDateString('fi-FI', {
                                   weekday: 'long',
                                   day: 'numeric',
                                   month: 'long'
@@ -5396,7 +5424,7 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
                   <option value="">Ei linkitetty tapahtumaan</option>
                   {(posts[selectedYear] || []).map(event => (
                     <option key={event.id} value={event.id}>
-                      {event.title} - {new Date(event.date).toLocaleDateString('fi-FI')}
+                      {event.title} - {parseLocalDate(event.date).toLocaleDateString('fi-FI')}
                     </option>
                   ))}
                 </select>

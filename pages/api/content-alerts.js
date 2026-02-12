@@ -1,6 +1,13 @@
 import { supabase } from '../../lib/supabase'
 import cors from '../../lib/cors'
 
+const formatLocalDate = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -23,8 +30,8 @@ async function handler(req, res) {
     const { data: upcomingEvents, error: eventsError } = await supabase
       .from('events')
       .select('*, tasks (*)')
-      .gte('date', today.toISOString().split('T')[0])
-      .lte('date', nextWeek.toISOString().split('T')[0])
+      .gte('date', formatLocalDate(today))
+      .lte('date', formatLocalDate(nextWeek))
       .order('date', { ascending: true })
 
     if (eventsError) throw eventsError
@@ -33,7 +40,7 @@ async function handler(req, res) {
     const { data: recentPosts, error: postsError } = await supabase
       .from('social_media_posts')
       .select('*')
-      .gte('date', weekAgo.toISOString().split('T')[0])
+      .gte('date', formatLocalDate(weekAgo))
       .order('date', { ascending: false })
 
     if (postsError) throw postsError

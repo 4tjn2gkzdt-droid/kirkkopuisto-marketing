@@ -2,6 +2,19 @@ import { supabaseAdmin } from '../../lib/supabase-admin'
 import { Resend } from 'resend'
 import Anthropic from '@anthropic-ai/sdk'
 
+const formatLocalDate = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const parseLocalDate = (dateString) => {
+  if (!dateString) return new Date()
+  const [year, month, day] = dateString.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
 // Lazy-load Resend vain kun sitä tarvitaan
 function getResendClient() {
   const apiKey = process.env.RESEND_API_KEY
@@ -140,9 +153,9 @@ export default async function handler(req, res) {
     }
 
     // Laske aikavälä tapahtumista automaattisesti
-    const eventDates = events.map(e => new Date(e.date)).sort((a, b) => a - b)
-    const startDate = eventDates[0].toISOString().split('T')[0]
-    const endDate = eventDates[eventDates.length - 1].toISOString().split('T')[0]
+    const eventDates = events.map(e => parseLocalDate(e.date)).sort((a, b) => a - b)
+    const startDate = formatLocalDate(eventDates[0])
+    const endDate = formatLocalDate(eventDates[eventDates.length - 1])
 
     console.log('Auto-calculated date range from events:', startDate, '-', endDate)
 

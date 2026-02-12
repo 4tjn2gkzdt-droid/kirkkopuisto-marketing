@@ -3,6 +3,14 @@ import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
 
+// Apufunktio aikavyöhykeongelmien välttämiseksi
+const formatLocalDate = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export default function NewsletterGenerator() {
   const router = useRouter()
   const [user, setUser] = useState(null)
@@ -17,13 +25,13 @@ export default function NewsletterGenerator() {
   // Päivämäärävalinta - oletuksena tänään ja 7 päivää eteenpäin
   const getDefaultStartDate = () => {
     const today = new Date()
-    return today.toISOString().split('T')[0]
+    return formatLocalDate(today)
   }
 
   const getDefaultEndDate = () => {
     const date = new Date()
     date.setDate(date.getDate() + 7)
-    return date.toISOString().split('T')[0]
+    return formatLocalDate(date)
   }
 
   const [startDate, setStartDate] = useState(getDefaultStartDate())
@@ -202,7 +210,7 @@ export default function NewsletterGenerator() {
   const suggestNextEventMonth = async () => {
     try {
       const today = new Date()
-      const todayStr = today.toISOString().split('T')[0]
+      const todayStr = formatLocalDate(today)
 
       console.log('Searching for next month with events starting from:', todayStr)
 
@@ -251,8 +259,8 @@ export default function NewsletterGenerator() {
       const startOfMonth = new Date(year, month - 1, 1)
       const endOfMonth = new Date(year, month, 0)
 
-      const suggestedStartDate = startOfMonth.toISOString().split('T')[0]
-      const suggestedEndDate = endOfMonth.toISOString().split('T')[0]
+      const suggestedStartDate = formatLocalDate(startOfMonth)
+      const suggestedEndDate = formatLocalDate(endOfMonth)
 
       console.log('Suggesting month:', suggestedMonth, 'with', eventsByMonth[suggestedMonth].length, 'events')
       console.log('Date range:', suggestedStartDate, '-', suggestedEndDate)

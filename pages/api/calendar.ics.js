@@ -8,6 +8,29 @@ function parseLocalDate(dateString) {
   return new Date(year, month - 1, day)
 }
 
+// Muotoilee Date-objektin YYYY-MM-DD muotoon paikallisessa ajassa
+function formatLocalDate(date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+// Muotoilee Date-objektin iCalendar-muotoon paikallisessa ajassa
+function formatICalDateLocal(date, allDay = false) {
+  if (allDay) {
+    return formatLocalDate(date).replace(/-/g, '')
+  }
+  // Aikaleimalliset tapahtumat: käytä paikallista aikaa TZID:n kanssa
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const seconds = String(date.getSeconds()).padStart(2, '0')
+  return `${year}${month}${day}T${hours}${minutes}${seconds}`
+}
+
 async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -86,22 +109,15 @@ async function handler(req, res) {
         endTime.setDate(endTime.getDate() + 1);
       }
 
-      const formatICalDate = (date, allDay = false) => {
-        if (allDay) {
-          return date.toISOString().split('T')[0].replace(/-/g, '');
-        }
-        return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-      };
-
       icalLines.push('BEGIN:VEVENT');
       icalLines.push(`UID:event-${event.id}@kirkkopuisto-marketing.vercel.app`);
 
       if (event.time) {
-        icalLines.push(`DTSTART:${formatICalDate(startTime)}`);
-        icalLines.push(`DTEND:${formatICalDate(endTime)}`);
+        icalLines.push(`DTSTART;TZID=Europe/Helsinki:${formatICalDateLocal(startTime)}`);
+        icalLines.push(`DTEND;TZID=Europe/Helsinki:${formatICalDateLocal(endTime)}`);
       } else {
-        icalLines.push(`DTSTART;VALUE=DATE:${formatICalDate(startTime, true)}`);
-        icalLines.push(`DTEND;VALUE=DATE:${formatICalDate(endTime, true)}`);
+        icalLines.push(`DTSTART;VALUE=DATE:${formatICalDateLocal(startTime, true)}`);
+        icalLines.push(`DTEND;VALUE=DATE:${formatICalDateLocal(endTime, true)}`);
       }
 
       icalLines.push(`SUMMARY:${event.title}`);
@@ -136,11 +152,11 @@ async function handler(req, res) {
             // Deadline-tapahtuma (näkyy kalenterissa)
             icalLines.push('BEGIN:VEVENT');
             icalLines.push(`UID:task-${task.id}@kirkkopuisto-marketing.vercel.app`);
-            icalLines.push(`DTSTART:${formatICalDate(dueDate)}`);
+            icalLines.push(`DTSTART;TZID=Europe/Helsinki:${formatICalDateLocal(dueDate)}`);
 
             const endDate = new Date(dueDate);
             endDate.setHours(endDate.getHours() + 1);
-            icalLines.push(`DTEND:${formatICalDate(endDate)}`);
+            icalLines.push(`DTEND;TZID=Europe/Helsinki:${formatICalDateLocal(endDate)}`);
 
             icalLines.push(`SUMMARY:⏰ DEADLINE: ${task.title}`);
 
@@ -202,13 +218,6 @@ async function handler(req, res) {
         endTime.setDate(endTime.getDate() + 1);
       }
 
-      const formatICalDate = (date, allDay = false) => {
-        if (allDay) {
-          return date.toISOString().split('T')[0].replace(/-/g, '');
-        }
-        return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-      };
-
       // Somepostauksen tyypit
       const socialPostTypes = {
         'viikko-ohjelma': '📅 Viikko-ohjelma',
@@ -227,11 +236,11 @@ async function handler(req, res) {
       icalLines.push(`UID:social-${post.id}@kirkkopuisto-marketing.vercel.app`);
 
       if (post.time) {
-        icalLines.push(`DTSTART:${formatICalDate(startTime)}`);
-        icalLines.push(`DTEND:${formatICalDate(endTime)}`);
+        icalLines.push(`DTSTART;TZID=Europe/Helsinki:${formatICalDateLocal(startTime)}`);
+        icalLines.push(`DTEND;TZID=Europe/Helsinki:${formatICalDateLocal(endTime)}`);
       } else {
-        icalLines.push(`DTSTART;VALUE=DATE:${formatICalDate(startTime, true)}`);
-        icalLines.push(`DTEND;VALUE=DATE:${formatICalDate(endTime, true)}`);
+        icalLines.push(`DTSTART;VALUE=DATE:${formatICalDateLocal(startTime, true)}`);
+        icalLines.push(`DTEND;VALUE=DATE:${formatICalDateLocal(endTime, true)}`);
       }
 
       icalLines.push(`SUMMARY:📱 ${typeLabel}: ${post.title}`);

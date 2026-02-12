@@ -28,7 +28,7 @@ export default function Home() {
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [selectedYear, setSelectedYear] = useState(2026);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [posts, setPosts] = useState({});
   const [expandedEvents, setExpandedEvents] = useState({});
   const [showImportModal, setShowImportModal] = useState(false);
@@ -108,7 +108,8 @@ export default function Home() {
   const [polishingCaption, setPolishingCaption] = useState(false);
   const [polishedVersions, setPolishedVersions] = useState(null);
 
-  const years = [2021, 2022, 2023, 2024, 2025, 2026];
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: currentYear - 2021 + 2 }, (_, i) => 2021 + i);
   
   const channels = [
     { id: 'instagram', name: 'Instagram', color: 'bg-pink-500' },
@@ -392,6 +393,7 @@ export default function Home() {
   useEffect(() => {
     const loadSocialPosts = async () => {
       if (supabase) {
+        console.log('[SOCIAL] Ladataan somepostauksia vuodelle:', selectedYear);
         const { data, error } = await supabase
           .from('social_media_posts')
           .select('*')
@@ -399,11 +401,12 @@ export default function Home() {
           .order('date', { ascending: true });
 
         if (error) {
-          console.error('Virhe ladattaessa somepostauksia:', error);
+          console.error('[SOCIAL] Virhe ladattaessa somepostauksia:', error);
           setSocialPosts([]);
         } else {
+          console.log('[SOCIAL] Löytyi', data?.length || 0, 'somepostausta vuodelle', selectedYear);
           // Muunna Supabase-data sovelluksen formaattiin
-          const formattedPosts = data.map(post => ({
+          const formattedPosts = (data || []).map(post => ({
             id: post.id,
             title: post.title,
             date: post.date,

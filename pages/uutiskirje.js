@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
+import MediaSuggestions from '../components/MediaSuggestions'
 
 // Apufunktio aikavyöhykeongelmien välttämiseksi
 const formatLocalDate = (date) => {
@@ -930,6 +931,19 @@ export default function NewsletterGenerator() {
             </p>
           )}
         </div>
+
+        {/* Kuvaehdotukset kuvapankista */}
+        {selectedEventIds.length > 0 && (
+          <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <MediaSuggestions
+              text={availableEvents.filter(e => selectedEventIds.includes(e.id)).map(e => e.title).join(', ')}
+              onSelect={(asset) => {
+                navigator.clipboard.writeText(asset.public_url)
+                alert(`Kuvan URL kopioitu leikepöydälle!\n${asset.description_fi || asset.file_name}`)
+              }}
+            />
+          </div>
+        )}
 
         {/* Variantit */}
         {variants.length > 0 && (

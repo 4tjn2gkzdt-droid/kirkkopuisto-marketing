@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { supabase } from '../lib/supabase';
 import InstallPrompt from '../components/InstallPrompt';
+import MediaSuggestions from '../components/MediaSuggestions';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
@@ -2096,6 +2097,11 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             <Link href="/materiaalit">
               <button className="bg-gray-600 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700 text-sm">
                 📁 Materiaalit
+              </button>
+            </Link>
+            <Link href="/kuvapankki">
+              <button className="bg-amber-600 text-white px-3 py-1.5 rounded-lg hover:bg-amber-700 text-sm">
+                🖼️ Kuvapankki
               </button>
             </Link>
             {userProfile?.is_admin && (
@@ -5553,6 +5559,22 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
                   </div>
                 )}
               </div>
+
+              {/* Kuvaehdotukset kuvapankista */}
+              <MediaSuggestions
+                text={newSocialPost.caption || newSocialPost.title}
+                onSelect={(asset) => {
+                  const currentLinks = newSocialPost.mediaLinks || [];
+                  if (!currentLinks.includes(asset.public_url)) {
+                    setNewSocialPost({
+                      ...newSocialPost,
+                      mediaLinks: [...currentLinks, asset.public_url]
+                    });
+                  }
+                  alert(`Kuva "${asset.description_fi || asset.file_name}" lisätty!`);
+                }}
+                className="border-t pt-4"
+              />
 
               {/* Muistiinpanot */}
               <div>

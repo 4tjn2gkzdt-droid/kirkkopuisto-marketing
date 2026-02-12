@@ -5574,13 +5574,66 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
                       mediaLinks: [...currentLinks, asset.public_url]
                     });
                   }
-                  alert(`Kuva "${asset.description_fi || asset.file_name}" lisätty!`);
                 }}
                 platform={newSocialPost.platform || 'instagram'}
                 usageType="some_post"
                 usageContext={newSocialPost.title || ''}
+                selectedUrls={newSocialPost.mediaLinks || []}
                 className="border-t pt-4"
               />
+
+              {/* Valitut kuvat */}
+              {newSocialPost.mediaLinks && newSocialPost.mediaLinks.length > 0 && (
+                <div className="border-t pt-3">
+                  <div className="text-sm font-semibold mb-2 text-gray-700">
+                    Valitut kuvat ({newSocialPost.mediaLinks.length})
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {newSocialPost.mediaLinks.map((url, idx) => (
+                      <div key={idx} className="relative group">
+                        <img
+                          src={url}
+                          alt={`Valittu kuva ${idx + 1}`}
+                          className="w-20 h-20 object-cover rounded-lg border-2 border-green-400"
+                        />
+                        <button
+                          onClick={() => {
+                            const updated = newSocialPost.mediaLinks.filter((_, i) => i !== idx);
+                            setNewSocialPost({ ...newSocialPost, mediaLinks: updated });
+                          }}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white w-5 h-5 rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                          title="Poista kuva"
+                        >
+                          ✕
+                        </button>
+                        <a
+                          href={url}
+                          download
+                          onClick={(e) => {
+                            e.preventDefault();
+                            fetch(url)
+                              .then(r => r.blob())
+                              .then(blob => {
+                                const blobUrl = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = blobUrl;
+                                a.download = url.split('/').pop() || 'kuva.jpg';
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                URL.revokeObjectURL(blobUrl);
+                              })
+                              .catch(() => window.open(url, '_blank'));
+                          }}
+                          className="absolute bottom-0 left-0 right-0 bg-blue-600 bg-opacity-80 text-white text-[10px] text-center py-0.5 opacity-0 group-hover:opacity-100 transition-opacity rounded-b-lg cursor-pointer"
+                        >
+                          📥 Lataa
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Muistiinpanot */}
               <div>

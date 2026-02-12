@@ -5573,6 +5573,9 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
                   }
                   alert(`Kuva "${asset.description_fi || asset.file_name}" lisätty!`);
                 }}
+                platform={newSocialPost.platform || 'instagram'}
+                usageType="some_post"
+                usageContext={newSocialPost.title || ''}
                 className="border-t pt-4"
               />
 

@@ -17,7 +17,7 @@ async function handler(req, res) {
       return res.status(500).json({ error: 'ANTHROPIC_API_KEY puuttuu' })
     }
 
-    const { text } = req.body
+    const { text, platform } = req.body
 
     if (!text || typeof text !== 'string') {
       return res.status(400).json({ error: 'Teksti puuttuu' })
@@ -26,6 +26,11 @@ async function handler(req, res) {
     // Käytä Claudea parsimaan relevantteja hakutermejä
     const anthropic = new Anthropic({ apiKey })
 
+    let platformHint = ''
+    if (platform === 'instagram') platformHint = '\nKuvan tulee olla visuaalisesti näyttävä, mieluiten pysty- tai neliöformaatti.'
+    else if (platform === 'facebook') platformHint = '\nKuvan tulee olla vaaka- tai neliöformaatti, informatiivinen.'
+    else if (platform === 'newsletter') platformHint = '\nKuvan tulee olla vaakaformaatti, sopiva uutiskirjeen banneriksi.'
+
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 256,
@@ -33,17 +38,18 @@ async function handler(req, res) {
         role: 'user',
         content: `Analysoi tämä markkinointiteksti ja palauta JSON-muodossa relevantteja hakutermejä kuvapankkia varten.
 
-Teksti: "${text}"
+Teksti: "${text}"${platformHint}
 
 Palauta VAIN JSON tässä muodossa:
 {
   "tags": ["tagi1", "tagi2"],
   "mood": "energinen | rauhallinen | juhlava | arkinen | tunnelmallinen | rento | null",
   "content_type": "ruoka | juoma | tapahtuma | miljöö | ihmiset | livemusiikki | muu | null",
-  "season": "kevät | alkukesä | loppukesä | keskikesä | yleinen | null"
+  "season": "kevät | alkukesä | loppukesä | keskikesä | yleinen | null",
+  "orientation": "landscape | portrait | square | null"
 }
 
-Käytä suomenkielisiä termejä. Palauta vain relevantteja kenttiä.`
+Käytä suomenkielisiä termejä (paitsi orientation). Palauta vain relevantteja kenttiä.`
       }]
     })
 
@@ -55,7 +61,7 @@ Käytä suomenkielisiä termejä. Palauta vain relevantteja kenttiä.`
     try {
       searchTerms = JSON.parse(contentText)
     } catch {
-      searchTerms = { tags: [], mood: null, content_type: null, season: null }
+      searchTerms = { tags: [], mood: null, content_type: null, season: null, orientation: null }
     }
 
     // Hae kuvat Supabasesta eri kriteereillä
@@ -71,6 +77,9 @@ Käytä suomenkielisiä termejä. Palauta vain relevantteja kenttiä.`
     }
     if (searchTerms.content_type && searchTerms.content_type !== 'null') {
       query = query.eq('content_type', searchTerms.content_type)
+    }
+    if (searchTerms.orientation && searchTerms.orientation !== 'null') {
+      query = query.eq('orientation', searchTerms.orientation)
     }
 
     const { data: filteredAssets, error: filterError } = await query
@@ -89,9 +98,14 @@ Käytä suomenkielisiä termejä. Palauta vain relevantteja kenttiä.`
         assetTags.some(at => at.toLowerCase().includes(tag.toLowerCase()) || tag.toLowerCase().includes(at.toLowerCase()))
       ).length
       const descMatch = searchTags.some(tag =>
-        (asset.description_fi || '').toLowerCase().includes(tag.toLowerCase())
+        (asset.description_fi || '').toLowerCase().includes(tag.toLowerCase()) ||
+        (asset.description_en || '').toLowerCase().includes(tag.toLowerCase())
       ) ? 1 : 0
-      return { ...asset, score: tagMatches * 2 + descMatch }
+
+      // Vähennä pisteitä paljon käytetyiltä kuvilta (monipuolisuus)
+      const usagePenalty = Math.min((asset.use_count || 0) * 0.5, 3)
+
+      return { ...asset, score: tagMatches * 2 + descMatch - usagePenalty }
     })
 
     // Järjestä pisteiden mukaan ja palauta top 6

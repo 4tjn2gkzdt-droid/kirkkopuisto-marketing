@@ -41,12 +41,16 @@ export default function MediaBank() {
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 })
   const [dragOver, setDragOver] = useState(false)
+  const [recentUploadIds, setRecentUploadIds] = useState([])
+  const [showUploadNotification, setShowUploadNotification] = useState(false)
 
   // Filtterit
   const [filterContentType, setFilterContentType] = useState('all')
   const [filterMood, setFilterMood] = useState('all')
   const [filterSeason, setFilterSeason] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedTags, setSelectedTags] = useState([])
+  const [allTags, setAllTags] = useState([])
 
   // Modaalit
   const [selectedAsset, setSelectedAsset] = useState(null)
@@ -56,13 +60,23 @@ export default function MediaBank() {
   const [analyzingAll, setAnalyzingAll] = useState(false)
   const [analyzeAllResult, setAnalyzeAllResult] = useState(null)
 
+  // Ideoi somepäivitys
+  const [showIdeaModal, setShowIdeaModal] = useState(false)
+  const [ideaPlatform, setIdeaPlatform] = useState('instagram')
+  const [ideaContext, setIdeaContext] = useState('')
+  const [ideaResults, setIdeaResults] = useState(null)
+  const [generatingIdea, setGeneratingIdea] = useState(false)
+
   useEffect(() => {
     checkUser()
   }, [])
 
   useEffect(() => {
-    if (user) loadAssets()
-  }, [user, filterContentType, filterMood, filterSeason, searchQuery])
+    if (user) {
+      loadAssets()
+      loadAllTags()
+    }
+  }, [user, filterContentType, filterMood, filterSeason, searchQuery, selectedTags])
 
   const checkUser = async () => {
     if (!supabase) { setLoading(false); return }
@@ -70,6 +84,28 @@ export default function MediaBank() {
     if (!user) { router.push('/login'); return }
     setUser(user)
     setLoading(false)
+  }
+
+  // Hae kaikki uniikit tagit ja niiden määrät
+  const loadAllTags = async () => {
+    if (!supabase) return
+    const { data } = await supabase
+      .from('media_assets')
+      .select('tags')
+      .eq('ai_analyzed', true)
+
+    if (data) {
+      const tagCounts = {}
+      data.forEach(row => {
+        (row.tags || []).forEach(tag => {
+          tagCounts[tag] = (tagCounts[tag] || 0) + 1
+        })
+      })
+      const sorted = Object.entries(tagCounts)
+        .map(([tag, count]) => ({ tag, count }))
+        .sort((a, b) => b.count - a.count)
+      setAllTags(sorted)
+    }
   }
 
   const loadAssets = async () => {
@@ -90,21 +126,27 @@ export default function MediaBank() {
       query = query.eq('season', filterSeason)
     }
     if (searchQuery.trim()) {
-      // Hae tageista ja kuvauksesta
       const q = searchQuery.trim().toLowerCase()
-      query = query.or(`description_fi.ilike.%${q}%,file_name.ilike.%${q}%`)
+      query = query.or(`description_fi.ilike.%${q}%,description_en.ilike.%${q}%,file_name.ilike.%${q}%,mood.ilike.%${q}%,content_type.ilike.%${q}%`)
+    }
+    // Tägifiltterit (Supabase array contains)
+    if (selectedTags.length > 0) {
+      query = query.contains('tags', selectedTags)
     }
 
     const { data, error, count } = await query.limit(100)
 
     if (!error && data) {
-      // Jos on tekstihaku, suodata myös tagien perusteella client-side
+      // Client-side tarkistus tageista (hakutermit)
       let filtered = data
       if (searchQuery.trim()) {
         const q = searchQuery.trim().toLowerCase()
         filtered = data.filter(a =>
           (a.description_fi || '').toLowerCase().includes(q) ||
+          (a.description_en || '').toLowerCase().includes(q) ||
           (a.file_name || '').toLowerCase().includes(q) ||
+          (a.mood || '').toLowerCase().includes(q) ||
+          (a.content_type || '').toLowerCase().includes(q) ||
           (a.tags || []).some(t => t.toLowerCase().includes(q))
         )
       }
@@ -125,7 +167,6 @@ export default function MediaBank() {
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
 
-      // Tarkista tiedostotyyppi
       if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
         continue
       }
@@ -136,7 +177,6 @@ export default function MediaBank() {
       setUploadProgress({ current: i + 1, total: files.length })
 
       try {
-        // Upload Supabase Storageen
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('media-bank')
           .upload(fileName, file, {
@@ -149,7 +189,6 @@ export default function MediaBank() {
           continue
         }
 
-        // Hae julkinen URL
         const { data: urlData } = supabase.storage
           .from('media-bank')
           .getPublicUrl(fileName)
@@ -166,7 +205,6 @@ export default function MediaBank() {
       }
     }
 
-    // Tallenna metadata tietokantaan
     if (uploadedFiles.length > 0) {
       try {
         const response = await fetch('/api/media/upload', {
@@ -178,7 +216,11 @@ export default function MediaBank() {
         const result = await response.json()
 
         if (result.success) {
-          // Triggeröi AI-analyysi taustalla jokaiselle uudelle kuvalle
+          const newIds = result.assets.map(a => a.id)
+          setRecentUploadIds(newIds)
+
+          // Triggeröi AI-analyysi taustalla
+          let analyzedCount = 0
           for (const asset of result.assets) {
             if (asset.file_type === 'image') {
               fetch('/api/media/analyze', {
@@ -186,8 +228,13 @@ export default function MediaBank() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ assetId: asset.id })
               }).then(() => {
-                // Päivitä lista kun analyysi valmis
+                analyzedCount++
                 loadAssets()
+                loadAllTags()
+                // Näytä notifikaatio kun kaikki analysoitu
+                if (analyzedCount >= result.assets.filter(a => a.file_type === 'image').length) {
+                  setShowUploadNotification(true)
+                }
               }).catch(err => console.error('Analyysivirhe:', err))
             }
           }
@@ -237,6 +284,7 @@ export default function MediaBank() {
       if (result.success) {
         setSelectedAsset(result.asset)
         loadAssets()
+        loadAllTags()
       } else {
         alert('Analyysivirhe: ' + (result.error || 'Tuntematon virhe'))
       }
@@ -258,6 +306,7 @@ export default function MediaBank() {
       const result = await response.json()
       setAnalyzeAllResult(result)
       loadAssets()
+      loadAllTags()
     } catch (err) {
       alert('Virhe: ' + err.message)
     }
@@ -279,6 +328,7 @@ export default function MediaBank() {
       setSelectedAsset({ ...selectedAsset, tags: newTags })
       setEditingTags(false)
       loadAssets()
+      loadAllTags()
     } else {
       alert('Virhe: ' + error.message)
     }
@@ -289,12 +339,10 @@ export default function MediaBank() {
     if (!confirm(`Poistetaanko "${asset.file_name}"?`)) return
 
     try {
-      // Poista storagesta
       if (supabase) {
         await supabase.storage.from('media-bank').remove([asset.storage_path])
       }
 
-      // Poista tietokannasta
       const { error } = await supabase
         .from('media_assets')
         .delete()
@@ -304,6 +352,7 @@ export default function MediaBank() {
 
       setSelectedAsset(null)
       loadAssets()
+      loadAllTags()
     } catch (err) {
       alert('Poisto epäonnistui: ' + err.message)
     }
@@ -315,7 +364,47 @@ export default function MediaBank() {
     alert('URL kopioitu leikepöydälle!')
   }
 
+  // Tägien valinta
+  const toggleTag = (tag) => {
+    setSelectedTags(prev =>
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    )
+  }
+
+  // Ideoi somepäivitys kuvasta
+  const generatePostIdea = async () => {
+    if (!selectedAsset) return
+    setGeneratingIdea(true)
+    setIdeaResults(null)
+
+    try {
+      const response = await fetch('/api/media/generate-post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mediaAssetId: selectedAsset.id,
+          platform: ideaPlatform,
+          context: ideaContext
+        })
+      })
+      const result = await response.json()
+      if (result.success) {
+        setIdeaResults(result.suggestions)
+      } else {
+        alert('Virhe: ' + (result.error || 'Tuntematon virhe'))
+      }
+    } catch (err) {
+      alert('Virhe: ' + err.message)
+    }
+    setGeneratingIdea(false)
+  }
+
   const unanalyzedCount = assets.filter(a => !a.ai_analyzed).length
+  const activeFilters = (filterContentType !== 'all' ? 1 : 0) +
+    (filterMood !== 'all' ? 1 : 0) +
+    (filterSeason !== 'all' ? 1 : 0) +
+    (searchQuery ? 1 : 0) +
+    selectedTags.length
 
   if (loading) {
     return (
@@ -369,6 +458,31 @@ export default function MediaBank() {
               <button onClick={() => setAnalyzeAllResult(null)} className="ml-2 text-green-700 underline">Sulje</button>
             </div>
           )}
+
+          {/* Upload-notifikaatio */}
+          {showUploadNotification && (
+            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm flex items-center justify-between">
+              <span>Uudet kuvat analysoitu! Haluatko ideoida somepäivityksen näistä kuvista?</span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    const recentAsset = assets.find(a => recentUploadIds.includes(a.id))
+                    if (recentAsset) {
+                      setSelectedAsset(recentAsset)
+                      setShowIdeaModal(true)
+                    }
+                    setShowUploadNotification(false)
+                  }}
+                  className="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700"
+                >
+                  Ideoi
+                </button>
+                <button onClick={() => setShowUploadNotification(false)} className="text-blue-700 underline text-xs">
+                  Sulje
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -417,6 +531,35 @@ export default function MediaBank() {
           )}
         </div>
 
+        {/* Tägipilvi */}
+        {allTags.length > 0 && (
+          <div className="bg-white rounded-xl shadow-sm p-4 mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-gray-700">Tagit</span>
+              {selectedTags.length > 0 && (
+                <button onClick={() => setSelectedTags([])} className="text-xs text-gray-500 hover:text-gray-700 underline">
+                  Tyhjennä tagivalinnat
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {allTags.slice(0, 30).map(({ tag, count }) => (
+                <button
+                  key={tag}
+                  onClick={() => toggleTag(tag)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                    selectedTags.includes(tag)
+                      ? 'bg-amber-600 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  {tag} ({count})
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Filtterit */}
         <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
           <div className="flex flex-wrap items-center gap-3">
@@ -424,7 +567,7 @@ export default function MediaBank() {
             <div className="flex-1 min-w-[200px]">
               <input
                 type="text"
-                placeholder="Hae kuvauksesta tai tageista..."
+                placeholder="Hae kuvauksesta, tageista, tunnelmasta..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
@@ -468,17 +611,18 @@ export default function MediaBank() {
             </select>
 
             {/* Reset */}
-            {(filterContentType !== 'all' || filterMood !== 'all' || filterSeason !== 'all' || searchQuery) && (
+            {activeFilters > 0 && (
               <button
                 onClick={() => {
                   setFilterContentType('all')
                   setFilterMood('all')
                   setFilterSeason('all')
                   setSearchQuery('')
+                  setSelectedTags([])
                 }}
                 className="text-sm text-gray-500 hover:text-gray-700 underline"
               >
-                Tyhjennä
+                Tyhjennä ({activeFilters})
               </button>
             )}
           </div>
@@ -501,6 +645,8 @@ export default function MediaBank() {
                 onClick={() => {
                   setSelectedAsset(asset)
                   setEditingTags(false)
+                  setShowIdeaModal(false)
+                  setIdeaResults(null)
                 }}
                 className="bg-white rounded-xl shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow group"
               >
@@ -518,10 +664,16 @@ export default function MediaBank() {
                     </div>
                   )}
 
-                  {/* AI-analysoitu badge */}
                   {!asset.ai_analyzed && (
                     <div className="absolute top-2 right-2 bg-yellow-500 text-white text-xs px-2 py-0.5 rounded-full">
                       Ei analysoitu
+                    </div>
+                  )}
+
+                  {/* Käyttökerrat */}
+                  {asset.use_count > 0 && (
+                    <div className="absolute top-2 left-2 bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">
+                      {asset.use_count}x
                     </div>
                   )}
                 </div>
@@ -553,7 +705,7 @@ export default function MediaBank() {
       {selectedAsset && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) setSelectedAsset(null) }}
+          onClick={(e) => { if (e.target === e.currentTarget) { setSelectedAsset(null); setShowIdeaModal(false); setIdeaResults(null) } }}
         >
           <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex flex-col md:flex-row">
@@ -577,139 +729,255 @@ export default function MediaBank() {
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-bold text-gray-800">Kuvan tiedot</h3>
                   <button
-                    onClick={() => setSelectedAsset(null)}
+                    onClick={() => { setSelectedAsset(null); setShowIdeaModal(false); setIdeaResults(null) }}
                     className="text-gray-400 hover:text-gray-600 text-2xl"
                   >
                     ×
                   </button>
                 </div>
 
-                <div className="space-y-3 text-sm">
-                  {/* Tiedostonimi */}
-                  <div>
-                    <div className="text-gray-500 font-medium">Tiedosto</div>
-                    <div className="text-gray-800">{selectedAsset.file_name}</div>
-                    {selectedAsset.file_size && (
-                      <div className="text-gray-400">{(selectedAsset.file_size / 1024 / 1024).toFixed(1)} MB</div>
-                    )}
-                  </div>
-
-                  {/* Kuvaus */}
-                  {selectedAsset.description_fi && (
-                    <div>
-                      <div className="text-gray-500 font-medium">Kuvaus</div>
-                      <div className="text-gray-800">{selectedAsset.description_fi}</div>
-                      {selectedAsset.description_en && (
-                        <div className="text-gray-400 italic mt-1">{selectedAsset.description_en}</div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Tagit */}
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <div className="text-gray-500 font-medium">Tagit</div>
-                      <button
-                        onClick={() => {
-                          setEditingTags(!editingTags)
-                          setEditTags((selectedAsset.tags || []).join(', '))
-                        }}
-                        className="text-amber-600 hover:text-amber-700 text-xs"
-                      >
-                        {editingTags ? 'Peruuta' : 'Muokkaa'}
-                      </button>
-                    </div>
-                    {editingTags ? (
-                      <div className="mt-1">
-                        <input
-                          type="text"
-                          value={editTags}
-                          onChange={(e) => setEditTags(e.target.value)}
-                          placeholder="tagi1, tagi2, tagi3"
-                          className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
-                        />
-                        <button
-                          onClick={saveTagEdits}
-                          className="mt-1 bg-amber-600 text-white px-3 py-1 rounded text-xs hover:bg-amber-700"
-                        >
-                          Tallenna
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {(selectedAsset.tags || []).map((tag, i) => (
-                          <span key={i} className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-xs">
-                            {tag}
-                          </span>
-                        ))}
-                        {(!selectedAsset.tags || selectedAsset.tags.length === 0) && (
-                          <span className="text-gray-400">Ei tageja</span>
+                {!showIdeaModal ? (
+                  <>
+                    <div className="space-y-3 text-sm">
+                      {/* Tiedostonimi */}
+                      <div>
+                        <div className="text-gray-500 font-medium">Tiedosto</div>
+                        <div className="text-gray-800">{selectedAsset.file_name}</div>
+                        {selectedAsset.file_size && (
+                          <div className="text-gray-400">{(selectedAsset.file_size / 1024 / 1024).toFixed(1)} MB</div>
                         )}
                       </div>
-                    )}
-                  </div>
 
-                  {/* Metadata */}
-                  <div className="grid grid-cols-2 gap-3">
-                    {selectedAsset.content_type && (
-                      <div>
-                        <div className="text-gray-500 font-medium">Tyyppi</div>
-                        <div className="text-gray-800 capitalize">{selectedAsset.content_type}</div>
-                      </div>
-                    )}
-                    {selectedAsset.mood && (
-                      <div>
-                        <div className="text-gray-500 font-medium">Tunnelma</div>
-                        <div className="text-gray-800 capitalize">{selectedAsset.mood}</div>
-                      </div>
-                    )}
-                    {selectedAsset.season && (
-                      <div>
-                        <div className="text-gray-500 font-medium">Kausi</div>
-                        <div className="text-gray-800 capitalize">{selectedAsset.season}</div>
-                      </div>
-                    )}
-                    {selectedAsset.colors && selectedAsset.colors.length > 0 && (
-                      <div>
-                        <div className="text-gray-500 font-medium">Värit</div>
-                        <div className="text-gray-800">{selectedAsset.colors.join(', ')}</div>
-                      </div>
-                    )}
-                  </div>
+                      {/* Kuvaus */}
+                      {selectedAsset.description_fi && (
+                        <div>
+                          <div className="text-gray-500 font-medium">Kuvaus</div>
+                          <div className="text-gray-800">{selectedAsset.description_fi}</div>
+                          {selectedAsset.description_en && (
+                            <div className="text-gray-400 italic mt-1">{selectedAsset.description_en}</div>
+                          )}
+                        </div>
+                      )}
 
-                  {/* AI-status */}
-                  <div className="pt-2 border-t">
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${selectedAsset.ai_analyzed ? 'bg-green-500' : 'bg-yellow-500'}`} />
-                      <span className="text-gray-600 text-xs">
-                        {selectedAsset.ai_analyzed ? 'AI-analysoitu' : 'Ei analysoitu'}
-                      </span>
+                      {/* Tagit */}
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <div className="text-gray-500 font-medium">Tagit</div>
+                          <button
+                            onClick={() => {
+                              setEditingTags(!editingTags)
+                              setEditTags((selectedAsset.tags || []).join(', '))
+                            }}
+                            className="text-amber-600 hover:text-amber-700 text-xs"
+                          >
+                            {editingTags ? 'Peruuta' : 'Muokkaa'}
+                          </button>
+                        </div>
+                        {editingTags ? (
+                          <div className="mt-1">
+                            <input
+                              type="text"
+                              value={editTags}
+                              onChange={(e) => setEditTags(e.target.value)}
+                              placeholder="tagi1, tagi2, tagi3"
+                              className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+                            />
+                            <button
+                              onClick={saveTagEdits}
+                              className="mt-1 bg-amber-600 text-white px-3 py-1 rounded text-xs hover:bg-amber-700"
+                            >
+                              Tallenna
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {(selectedAsset.tags || []).map((tag, i) => (
+                              <span key={i} className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-xs">
+                                {tag}
+                              </span>
+                            ))}
+                            {(!selectedAsset.tags || selectedAsset.tags.length === 0) && (
+                              <span className="text-gray-400">Ei tageja</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Metadata */}
+                      <div className="grid grid-cols-2 gap-3">
+                        {selectedAsset.content_type && (
+                          <div>
+                            <div className="text-gray-500 font-medium">Tyyppi</div>
+                            <div className="text-gray-800 capitalize">{selectedAsset.content_type}</div>
+                          </div>
+                        )}
+                        {selectedAsset.mood && (
+                          <div>
+                            <div className="text-gray-500 font-medium">Tunnelma</div>
+                            <div className="text-gray-800 capitalize">{selectedAsset.mood}</div>
+                          </div>
+                        )}
+                        {selectedAsset.season && (
+                          <div>
+                            <div className="text-gray-500 font-medium">Kausi</div>
+                            <div className="text-gray-800 capitalize">{selectedAsset.season}</div>
+                          </div>
+                        )}
+                        {selectedAsset.colors && selectedAsset.colors.length > 0 && (
+                          <div>
+                            <div className="text-gray-500 font-medium">Värit</div>
+                            <div className="text-gray-800">{selectedAsset.colors.join(', ')}</div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Käyttöhistoria */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <div className="text-gray-500 font-medium">Käyttökerrat</div>
+                          <div className="text-gray-800">{selectedAsset.use_count || 0}</div>
+                        </div>
+                        {selectedAsset.last_used_at && (
+                          <div>
+                            <div className="text-gray-500 font-medium">Viimeksi käytetty</div>
+                            <div className="text-gray-800">
+                              {new Date(selectedAsset.last_used_at).toLocaleDateString('fi-FI')}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* AI-status */}
+                      <div className="pt-2 border-t">
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full ${selectedAsset.ai_analyzed ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                          <span className="text-gray-600 text-xs">
+                            {selectedAsset.ai_analyzed ? 'AI-analysoitu' : 'Ei analysoitu'}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
 
-                {/* Toiminnot */}
-                <div className="mt-6 flex flex-wrap gap-2">
-                  <button
-                    onClick={() => copyUrl(selectedAsset.public_url)}
-                    className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-blue-700"
-                  >
-                    📋 Kopioi URL
-                  </button>
-                  <button
-                    onClick={() => reanalyzeAsset(selectedAsset.id)}
-                    disabled={analyzing}
-                    className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50"
-                  >
-                    {analyzing ? '⏳ Analysoidaan...' : '🤖 Analysoi uudelleen'}
-                  </button>
-                  <button
-                    onClick={() => deleteAsset(selectedAsset)}
-                    className="bg-red-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-red-700"
-                  >
-                    🗑️ Poista
-                  </button>
-                </div>
+                    {/* Toiminnot */}
+                    <div className="mt-6 flex flex-wrap gap-2">
+                      <button
+                        onClick={() => copyUrl(selectedAsset.public_url)}
+                        className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-blue-700"
+                      >
+                        📋 Kopioi URL
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowIdeaModal(true)
+                          setIdeaResults(null)
+                          setIdeaContext('')
+                        }}
+                        className="bg-green-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-green-700"
+                      >
+                        📱 Ideoi somepäivitys
+                      </button>
+                      <button
+                        onClick={() => reanalyzeAsset(selectedAsset.id)}
+                        disabled={analyzing}
+                        className="bg-purple-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50"
+                      >
+                        {analyzing ? '⏳ Analysoidaan...' : '🤖 Analysoi uudelleen'}
+                      </button>
+                      <button
+                        onClick={() => deleteAsset(selectedAsset)}
+                        className="bg-red-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-red-700"
+                      >
+                        🗑️ Poista
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  /* Ideoi somepäivitys -näkymä */
+                  <div className="space-y-4">
+                    <button
+                      onClick={() => { setShowIdeaModal(false); setIdeaResults(null) }}
+                      className="text-sm text-gray-500 hover:text-gray-700"
+                    >
+                      ← Takaisin kuvan tietoihin
+                    </button>
+
+                    <h4 className="font-semibold text-gray-800">📱 Ideoi somepäivitys tästä kuvasta</h4>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Alusta</label>
+                      <div className="flex gap-2">
+                        {[
+                          { id: 'instagram', label: 'Instagram' },
+                          { id: 'facebook', label: 'Facebook' },
+                          { id: 'general', label: 'Yleinen' }
+                        ].map(p => (
+                          <button
+                            key={p.id}
+                            onClick={() => setIdeaPlatform(p.id)}
+                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                              ideaPlatform === p.id
+                                ? 'bg-green-600 text-white'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Lisäkonteksti (valinnainen)</label>
+                      <input
+                        type="text"
+                        value={ideaContext}
+                        onChange={(e) => setIdeaContext(e.target.value)}
+                        placeholder="Esim. 'juhannustapahtumasta', 'uusi menu-annos'..."
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                      />
+                    </div>
+
+                    <button
+                      onClick={generatePostIdea}
+                      disabled={generatingIdea}
+                      className="w-full bg-green-600 text-white py-2 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50"
+                    >
+                      {generatingIdea ? '🤖 Generoidaan...' : '✨ Generoi ehdotukset'}
+                    </button>
+
+                    {/* Ehdotukset */}
+                    {ideaResults && (
+                      <div className="space-y-3 mt-4">
+                        <h5 className="font-medium text-gray-700 text-sm">Ehdotukset:</h5>
+                        {ideaResults.map((suggestion, i) => (
+                          <div key={i} className="border border-gray-200 rounded-lg p-3 hover:border-green-300 transition-colors">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-bold text-green-700">{suggestion.style}</span>
+                              {suggestion.best_time && (
+                                <span className="text-xs text-gray-400">Paras aika: {suggestion.best_time}</span>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-800 whitespace-pre-wrap">{suggestion.text}</p>
+                            {suggestion.hashtags && (
+                              <p className="text-xs text-blue-600 mt-1">{suggestion.hashtags}</p>
+                            )}
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(
+                                  suggestion.text + (suggestion.hashtags ? '\n\n' + suggestion.hashtags : '')
+                                )
+                                alert('Teksti kopioitu!')
+                              }}
+                              className="mt-2 text-xs text-green-600 hover:text-green-700 underline"
+                            >
+                              Kopioi teksti
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>

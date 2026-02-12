@@ -941,6 +941,9 @@ export default function NewsletterGenerator() {
                 navigator.clipboard.writeText(asset.public_url)
                 alert(`Kuvan URL kopioitu leikepöydälle!\n${asset.description_fi || asset.file_name}`)
               }}
+              platform="newsletter"
+              usageType="newsletter"
+              usageContext="Uutiskirje"
             />
           </div>
         )}

@@ -52,6 +52,7 @@ export default function Home() {
     artist: '',
     eventType: 'artist', // 'artist', 'dj', 'other'
     summary: '', // Tapahtuman yhteenveto 100-300 merkkiä
+    mediaLinks: [],
     tasks: []
   });
   const [eventSize, setEventSize] = useState('medium');
@@ -366,6 +367,7 @@ export default function Home() {
             artist: event.artist,
             summary: event.summary,
             images: event.images || {},
+            mediaLinks: event.media_links || [],
             tasks: (event.tasks || []).map(task => ({
               id: task.id,
               title: task.title,
@@ -1463,6 +1465,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             summary: newEvent.summary || null,
             year: eventYear,
             images: {},
+            media_links: newEvent.mediaLinks || [],
             created_by_id: user?.id || null,
             created_by_email: user?.email || null,
             created_by_name: userProfile?.full_name || user?.email || null
@@ -1512,6 +1515,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             artist: event.artist,
             summary: event.summary,
             images: event.images || {},
+            mediaLinks: event.media_links || [],
             tasks: (event.tasks || []).map(task => ({
               id: task.id,
               title: task.title,
@@ -1560,6 +1564,8 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
       time: '',
       artist: '',
       eventType: 'artist',
+      summary: '',
+      mediaLinks: [],
       tasks: []
     });
     setSelectedMarketingChannels([]);
@@ -1746,8 +1752,8 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
     }
   };
 
-  const deleteSocialPost = async (id) => {
-    if (!confirm('Haluatko varmasti poistaa tämän somepostauksen?')) {
+  const deleteSocialPost = async (id, skipConfirm = false) => {
+    if (!skipConfirm && !confirm('Haluatko varmasti poistaa tämän somepostauksen?')) {
       return;
     }
 
@@ -4065,6 +4071,96 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                 </div>
               </div>
 
+              {/* Kuvan lataus tapahtumaan */}
+              <div className="border-t pt-4 mb-4">
+                <label className="block text-sm font-bold mb-2 text-gray-800">📸 Kuvat tapahtumalle</label>
+                <div className="flex items-center gap-3 mb-3">
+                  <label className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-green-400 hover:bg-green-50 transition-colors">
+                    <span className="text-gray-500 text-sm">📱 Lataa kuva laitteelta...</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={async (e) => {
+                        const files = Array.from(e.target.files || []);
+                        if (files.length === 0 || !supabase) return;
+
+                        for (const file of files) {
+                          if (!file.type.startsWith('image/')) continue;
+                          try {
+                            const fileExt = file.name.split('.').pop();
+                            const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+
+                            const { error: uploadError } = await supabase.storage
+                              .from('media-bank')
+                              .upload(fileName, file, { cacheControl: '3600', upsert: false });
+
+                            if (uploadError) {
+                              console.error('Upload error:', uploadError);
+                              alert('Kuvan lataus epäonnistui: ' + uploadError.message);
+                              continue;
+                            }
+
+                            const { data: urlData } = supabase.storage
+                              .from('media-bank')
+                              .getPublicUrl(fileName);
+
+                            if (urlData?.publicUrl) {
+                              await fetch('/api/media/upload', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ files: [{
+                                  storagePath: fileName,
+                                  publicUrl: urlData.publicUrl,
+                                  fileName: file.name,
+                                  fileType: 'image',
+                                  fileSize: file.size
+                                }]})
+                              });
+
+                              setNewEvent(prev => ({
+                                ...prev,
+                                mediaLinks: [...(prev.mediaLinks || []), urlData.publicUrl]
+                              }));
+                            }
+                          } catch (err) {
+                            console.error('Upload failed:', err);
+                            alert('Kuvan lataus epäonnistui');
+                          }
+                        }
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                </div>
+
+                {/* Näytä ladatut kuvat */}
+                {newEvent.mediaLinks && newEvent.mediaLinks.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {newEvent.mediaLinks.map((url, idx) => (
+                      <div key={idx} className="relative group">
+                        <img
+                          src={url}
+                          alt={`Kuva ${idx + 1}`}
+                          className="w-20 h-20 object-cover rounded-lg border-2 border-green-400"
+                        />
+                        <button
+                          onClick={() => {
+                            const updated = newEvent.mediaLinks.filter((_, i) => i !== idx);
+                            setNewEvent({ ...newEvent, mediaLinks: updated });
+                          }}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white w-5 h-5 rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                          title="Poista kuva"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* Vaihe 2: Markkinointikanavat */}
               <div className="space-y-5 mb-6 border-t pt-6">
                 <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4 border-l-4 border-purple-600">
@@ -4282,6 +4378,8 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                       time: '',
                       artist: '',
                       eventType: 'artist',
+                      summary: '',
+                      mediaLinks: [],
                       tasks: []
                     });
                     setSelectedMarketingChannels([]);
@@ -5563,6 +5661,73 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
                 )}
               </div>
 
+              {/* Kuvan lataus laitteelta */}
+              <div className="border-t pt-4">
+                <label className="block text-sm font-semibold mb-2 text-gray-700">📸 Lataa kuva laitteelta</label>
+                <div className="flex items-center gap-3">
+                  <label className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition-colors">
+                    <span className="text-gray-500 text-sm">📱 Valitse kuva...</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={async (e) => {
+                        const files = Array.from(e.target.files || []);
+                        if (files.length === 0 || !supabase) return;
+
+                        for (const file of files) {
+                          if (!file.type.startsWith('image/')) continue;
+                          try {
+                            const fileExt = file.name.split('.').pop();
+                            const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+
+                            const { error: uploadError } = await supabase.storage
+                              .from('media-bank')
+                              .upload(fileName, file, { cacheControl: '3600', upsert: false });
+
+                            if (uploadError) {
+                              console.error('Upload error:', uploadError);
+                              alert('Kuvan lataus epäonnistui: ' + uploadError.message);
+                              continue;
+                            }
+
+                            const { data: urlData } = supabase.storage
+                              .from('media-bank')
+                              .getPublicUrl(fileName);
+
+                            if (urlData?.publicUrl) {
+                              // Tallenna kuvapankkiin
+                              await fetch('/api/media/upload', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ files: [{
+                                  storagePath: fileName,
+                                  publicUrl: urlData.publicUrl,
+                                  fileName: file.name,
+                                  fileType: 'image',
+                                  fileSize: file.size
+                                }]})
+                              });
+
+                              const currentLinks = newSocialPost.mediaLinks || [];
+                              setNewSocialPost(prev => ({
+                                ...prev,
+                                mediaLinks: [...(prev.mediaLinks || []), urlData.publicUrl]
+                              }));
+                            }
+                          } catch (err) {
+                            console.error('Upload failed:', err);
+                            alert('Kuvan lataus epäonnistui');
+                          }
+                        }
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+
               {/* Kuvaehdotukset kuvapankista */}
               <MediaSuggestions
                 text={newSocialPost.caption || newSocialPost.title}
@@ -5656,6 +5821,32 @@ Luo houkutteleva, lyhyt ja napakka teksti joka sopii ${channel?.name || editingT
               >
                 💾 Tallenna
               </button>
+              {editingSocialPost && (
+                <button
+                  onClick={async () => {
+                    if (!confirm('Haluatko varmasti poistaa tämän somepostauksen? Tätä ei voi perua.')) return;
+                    await deleteSocialPost(editingSocialPost.id, true);
+                    setShowAddSocialPostModal(false);
+                    setEditingSocialPost(null);
+                    setNewSocialPost({
+                      title: '',
+                      date: '',
+                      time: '',
+                      type: 'viikko-ohjelma',
+                      channels: [],
+                      assignee: '',
+                      linkedEventId: null,
+                      status: 'suunniteltu',
+                      caption: '',
+                      notes: '',
+                      mediaLinks: []
+                    });
+                  }}
+                  className="px-6 py-3 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 font-semibold"
+                >
+                  🗑️ Poista
+                </button>
+              )}
               <button
                 onClick={() => {
                   setShowAddSocialPostModal(false);

@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import cors from '../../lib/cors';
+import { BRAND_VOICE_PROMPT } from '../../lib/brand-voice';
 
 async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -58,12 +59,11 @@ async function handler(req, res) {
         role: 'user',
         content: message
       }],
-      system: `Olet markkinointisisällön kirjoittaja Kirkkopuiston Terassille Turussa.
-Luo houkuttelevia, napakkoja ja ammattimaisesti kirjoitettuja markkinointitekstejä eri kanaviin.
-Käytä rennoa mutta selkeää suomen kieltä.
-Sisällytä aina relevantti CTA (call-to-action).
-Käytä sopivia emojeja säästeliäästi.
-Lisää hashtagit loppuun: #kirkkopuistonterassi #turku ja muita relevantteja.`
+      system: `${BRAND_VOICE_PROMPT}
+
+Luo houkuttelevia markkinointitekstejä brändiäänen mukaisesti.
+Sisällytä aina relevantti CTA (call-to-action) – kutsu paikalle, älä mainitse varauksia tai lippuja.
+Lisää hashtagit loppuun: #terdefiilis #kirkkopuistonterassi ja muita relevantteja.`
     });
 
     console.log('Claude API response received:', {

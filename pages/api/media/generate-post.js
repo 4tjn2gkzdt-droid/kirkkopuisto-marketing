@@ -1,34 +1,29 @@
 import { supabaseAdmin } from '../../../lib/supabase-admin'
 import Anthropic from '@anthropic-ai/sdk'
 import cors from '../../../lib/cors'
+import { BRAND_VOICE_PROMPT } from '../../../lib/brand-voice'
 
-const SYSTEM_PROMPT = `Olet Kirkkopuiston Terassin somevastaava. Sinulle annetaan kuva ravintolan kuvapankista.
+const SYSTEM_PROMPT = `${BRAND_VOICE_PROMPT}
+
+Sinulle annetaan kuva Kirkkopuiston Terassin kuvapankista sekä sen metatiedot.
 Luo 2-3 erilaista somepostausehdotusta kuvan perusteella.
 
-Ehdotukset ovat erilaisia tyyliltään:
-1. Informatiivinen/asiallinen
-2. Rento/hauska
-3. Tunnelmallinen/houkutteleva
+Ehdotusten tyylit:
+1. Tunnelmallinen/tarinallinen – maalaa kuva sanoin
+2. Informatiivinen/kutsuva – kerro mitä tapahtuu ja kutsu mukaan
+3. Rento/yhteisöllinen – puhu kuin ystävälle
 
 Jokainen ehdotus sisältää:
-- Postauksen teksti (sopivan pituinen valitulle alustalle)
-- 3-5 relevanttia hashtagia
-- Ehdotus parhaasta julkaisuajankohdasta
-
-Platform-ohjeet:
-- Instagram: visuaalinen, emojit ok, max 2200 merkkiä, hashtagit erilliseen kappaleeseen
-- Facebook: voi olla pidempi, keskustelevampi, linkki ok
-- Yleinen: neutraali, toimii missä vain
-
-Kirjoita suomeksi. Kirkkopuiston Terassi on ravintola/terassi Turussa joka on tunnettu
-livemusiikista, tapahtumista, hyvästä ruoasta ja rennosta tunnelmasta.
+- text: postauksen teksti (sopivan pituinen valitulle alustalle)
+- hashtags: 4-7 relevanttia hashtagia (aina mukana #terdefiilis)
+- best_time: ehdotus parhaasta julkaisuajankohdasta
 
 Palauta VAIN JSON-taulukko tässä muodossa:
 [
   {
-    "style": "Informatiivinen",
+    "style": "Tunnelmallinen",
     "text": "Postauksen teksti...",
-    "hashtags": "#kirkkopuisto #turku #terassi",
+    "hashtags": "#terdefiilis #kirkkopuistonterassi #turku",
     "best_time": "Tiistai klo 18"
   }
 ]`

@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import cors from '../../lib/cors'
+import { BRAND_VOICE_PROMPT } from '../../lib/brand-voice'
 
 // Increase timeout for this API route
 export const config = {
@@ -59,8 +60,9 @@ Vastaa JSON-muodossa:
         role: 'user',
         content: prompt
       }],
-      system: `Olet sisältöstrategisti Kirkkopuiston Terassille.
-Luot houkuttelevia somepostauksia.
+      system: `${BRAND_VOICE_PROMPT}
+
+Olet sisältöstrategisti Kirkkopuiston Terassille. Luot houkuttelevia somepostauksia brändiäänen mukaisesti.
 Vastaa AINA JSON-muodossa.`
     })
 

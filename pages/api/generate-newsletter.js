@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../../lib/supabase-admin'
 import { Resend } from 'resend'
 import Anthropic from '@anthropic-ai/sdk'
+import { BRAND_VOICE_PROMPT } from '../../lib/brand-voice'
 
 const formatLocalDate = (date) => {
   const year = date.getFullYear()
@@ -243,9 +244,9 @@ Pidä teksti napakkana ja helppolukuisena. Käytä emojeja säästeliäästi.`
             role: 'user',
             content: prompt
           }],
-          system: `Olet luova markkinointisisällön kirjoittaja Kirkkopuiston Terassille.
-Luo houkuttelevia uutiskirjeitä jotka saavat ihmiset innostumaan tapahtumista.
-TÄRKEÄÄ: Kirkkopuistossa ei voi varata pöytiä eikä sinne myydä lippuja. Älä mainitse näitä koskaan.
+          system: `${BRAND_VOICE_PROMPT}
+
+Luo houkuttelevia uutiskirjeitä brändiäänen mukaisesti.
 Sinuttele lukijaa aina. Ole leikkisä mutta vältä liikaa imelyyttä.
 Vastaa AINA JSON-muodossa. Älä lisää markdown-muotoilua tai muuta tekstiä, vain puhdas JSON.`
         })

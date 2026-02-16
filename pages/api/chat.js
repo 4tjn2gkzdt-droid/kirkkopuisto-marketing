@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import cors from '../../lib/cors';
+import { ensureMessagesImageMediaTypes } from '../../lib/image-utils';
 
 async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -25,7 +26,7 @@ async function handler(req, res) {
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 4096,
-      messages: messages,
+      messages: ensureMessagesImageMediaTypes(messages),
       system: `Olet luova markkinointi-assistentti Kirkkopuiston Terassille.
 Autoit käyttäjää ideoimaan sisältöä someen, uutiskirjeisiin ja muihin markkinointikanaviin.
 Vastaa aina suomeksi ja ole inspiroiva mutta myös käytännönläheinen.

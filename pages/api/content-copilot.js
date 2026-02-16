@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { supabase } from '../../lib/supabase'
 import cors from '../../lib/cors'
+import { ensureMessagesImageMediaTypes } from '../../lib/image-utils'
 
 async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -23,11 +24,13 @@ async function handler(req, res) {
 
     console.log('Content copilot request, messages:', messages.length)
 
-    // Muotoile viestit Claude API:lle
-    const formattedMessages = messages.map(msg => ({
-      role: msg.role,
-      content: msg.content
-    }))
+    // Muotoile viestit Claude API:lle ja varmista kuvien media_type
+    const formattedMessages = ensureMessagesImageMediaTypes(
+      messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }))
+    )
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',

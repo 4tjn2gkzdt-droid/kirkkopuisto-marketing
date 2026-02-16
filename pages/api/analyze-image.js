@@ -1,15 +1,16 @@
 import Anthropic from '@anthropic-ai/sdk'
 import cors from '../../lib/cors'
+import { detectMediaType } from '../../lib/image-utils'
 
 async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const { imageUrl, analysisType = 'full' } = req.body
+  const { imageUrl, imageBase64, mediaType, analysisType = 'full' } = req.body
 
-  if (!imageUrl) {
-    return res.status(400).json({ error: 'imageUrl puuttuu' })
+  if (!imageUrl && !imageBase64) {
+    return res.status(400).json({ error: 'imageUrl tai imageBase64 puuttuu' })
   }
 
   try {
@@ -86,6 +87,28 @@ Vastaa JSON:
 
     console.log(`Analyzing image with type: ${analysis.name}`)
 
+    // Luo kuva-sisältöblokki joko URL:sta tai base64-datasta
+    let imageContent
+    if (imageBase64) {
+      const cleanData = imageBase64.replace(/^data:[^;]+;base64,/, '')
+      imageContent = {
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: mediaType || detectMediaType(imageBase64),
+          data: cleanData
+        }
+      }
+    } else {
+      imageContent = {
+        type: 'image',
+        source: {
+          type: 'url',
+          url: imageUrl
+        }
+      }
+    }
+
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 1536,
@@ -93,13 +116,7 @@ Vastaa JSON:
       messages: [{
         role: 'user',
         content: [
-          {
-            type: 'image',
-            source: {
-              type: 'url',
-              url: imageUrl
-            }
-          },
+          imageContent,
           {
             type: 'text',
             text: analysis.prompt

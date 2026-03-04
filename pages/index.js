@@ -73,7 +73,7 @@ export default function Home() {
   const [taskFilter, setTaskFilter] = useState('all'); // 'all', 'my-tasks', 'urgent', 'incomplete'
   const [assigneeFilter, setAssigneeFilter] = useState('all');
   const [generatingTaskId, setGeneratingTaskId] = useState(null);
-  const [autoGenerateContent, setAutoGenerateContent] = useState(true);
+  const [autoGenerateContent, setAutoGenerateContent] = useState(false);
   const [generatingProgress, setGeneratingProgress] = useState({ current: 0, total: 0, isGenerating: false });
 
   // Kalenterin lataussuodattimet
@@ -366,6 +366,7 @@ export default function Home() {
             time: event.time,
             artist: event.artist,
             summary: event.summary,
+            eventType: event.event_type || 'artist',
             images: event.images || {},
             mediaLinks: event.media_links || [],
             tasks: (event.tasks || []).map(task => ({
@@ -487,6 +488,9 @@ export default function Home() {
                 artist: post.artist || null,
                 year: year,
                 images: post.images || {},
+                summary: post.summary || null,
+                media_links: post.mediaLinks || [],
+                event_type: post.eventType || 'artist',
                 created_by_id: user?.id || null,
                 created_by_email: user?.email || null,
                 created_by_name: userProfile?.full_name || user?.email || null
@@ -529,6 +533,9 @@ export default function Home() {
                 time: post.time || null,
                 artist: post.artist || null,
                 images: post.images || {},
+                summary: post.summary || null,
+                media_links: post.mediaLinks || [],
+                event_type: post.eventType || 'artist',
                 updated_by_id: user?.id || null,
                 updated_by_email: user?.email || null,
                 updated_by_name: userProfile?.full_name || user?.email || null
@@ -690,7 +697,9 @@ export default function Home() {
           time: event.time,
           artist: event.artist,
           summary: event.summary,
+          eventType: event.event_type || 'artist',
           images: event.images || {},
+          mediaLinks: event.media_links || [],
           tasks: (event.tasks || []).map(task => ({
             id: task.id,
             title: task.title,
@@ -699,7 +708,8 @@ export default function Home() {
             dueTime: task.due_time,
             completed: task.completed,
             content: task.content,
-            assignee: task.assignee
+            assignee: task.assignee,
+            notes: task.notes
           }))
         }));
         setPosts(prev => ({ ...prev, [selectedYear]: formattedEvents }));
@@ -1514,6 +1524,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             time: event.time,
             artist: event.artist,
             summary: event.summary,
+            eventType: event.event_type || 'artist',
             images: event.images || {},
             mediaLinks: event.media_links || [],
             tasks: (event.tasks || []).map(task => ({
@@ -4669,7 +4680,12 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                             time: editingEvent.time || null,
                             artist: editingEvent.artist || null,
                             summary: editingEvent.summary || null,
-                            images: editingEvent.images || {}
+                            event_type: editingEvent.eventType || 'artist',
+                            images: editingEvent.images || {},
+                            media_links: editingEvent.mediaLinks || [],
+                            updated_by_id: user?.id || null,
+                            updated_by_email: user?.email || null,
+                            updated_by_name: userProfile?.full_name || user?.email || null
                           })
                           .eq('id', editingEvent.id);
 
@@ -4692,6 +4708,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                             summary: event.summary,
                             eventType: event.event_type || 'artist',
                             images: event.images || {},
+                            mediaLinks: event.media_links || [],
                             tasks: (event.tasks || []).map(task => ({
                               id: task.id,
                               title: task.title,
@@ -4700,7 +4717,8 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                               dueTime: task.due_time,
                               completed: task.completed,
                               content: task.content,
-                              assignee: task.assignee
+                              assignee: task.assignee,
+                              notes: task.notes
                             }))
                           }));
                           setPosts(prev => ({ ...prev, [eventYear]: formattedEvents }));

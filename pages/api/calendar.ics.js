@@ -66,7 +66,7 @@ async function handler(req, res) {
     // Hae somepostaukset jos valittu
     if (includeSocial) {
       const { data, error } = await supabase
-        .from('social_posts')
+        .from('social_media_posts')
         .select('*')
         .gte('date', '2024-01-01')
         .order('date', { ascending: true });

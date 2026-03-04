@@ -285,7 +285,7 @@ Vastaa AINA JSON-muodossa. Älä lisää markdown-muotoilua tai muuta tekstiä, 
                 date: new Date(e.date).toLocaleDateString('fi-FI'),
                 description: e.summary || 'Tule mukaan!'
               })),
-              cta: 'Varaa pöytä ja tule nauttimaan! 🎵'
+              cta: 'Tule nauttimaan livemusiikista ja terassitunnelmasta! 🎵'
             },
             usage: response.usage,
             parseError: true

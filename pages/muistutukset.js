@@ -258,9 +258,9 @@ export default function ContentAlerts() {
                   📝 Mallit
                 </button>
               </Link>
-              <Link href="/copilot">
+              <Link href="/ideoi">
                 <button className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition">
-                  🤖 Co-Pilot
+                  🤖 Ideoi
                 </button>
               </Link>
               <Link href="/sisaltokalenteri">

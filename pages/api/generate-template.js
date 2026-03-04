@@ -49,7 +49,7 @@ LUO POSTAUS JOKA:
 - Alkaa iskevällä otsikolla ("Viikon huiput! 🌟" tai vastaava)
 - Listaa jokainen tapahtuma numeroidusti
 - Luo innostusta ja odotusta
-- Päättyy CTA:han (Varaa pöytä nyt!)
+- Päättyy CTA:han (Tule paikalle!)
 - Sisältää 5-8 relevanttia hashtagia
 
 Tyyli: Energinen ja innostava

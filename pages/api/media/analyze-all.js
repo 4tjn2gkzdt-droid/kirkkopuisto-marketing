@@ -12,7 +12,8 @@ Analysoi kuva ja palauta JSON-vastaus seuraavassa muodossa:
   "mood": "yksi näistä: energinen | rauhallinen | juhlava | arkinen | tunnelmallinen | rento",
   "season": "yksi näistä: kevät | alkukesä | loppukesä | keskikesä | yleinen",
   "content_type": "yksi näistä: ruoka | juoma | tapahtuma | miljöö | ihmiset | livemusiikki | muu",
-  "colors": ["pääväri1", "pääväri2"]
+  "colors": ["pääväri1", "pääväri2"],
+  "orientation": "yksi näistä: landscape | portrait | square"
 }
 
 Konteksti: Kirkkopuiston Terassi on ravintola/terassi joka järjestää tapahtumia,
@@ -93,6 +94,7 @@ async function handler(req, res) {
             season: analysis.season || null,
             content_type: analysis.content_type || null,
             colors: analysis.colors || [],
+            orientation: analysis.orientation || null,
             ai_analyzed: true,
             updated_at: new Date().toISOString()
           })

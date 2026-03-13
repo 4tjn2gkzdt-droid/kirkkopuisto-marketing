@@ -490,7 +490,6 @@ export default function Home() {
                 images: post.images || {},
                 summary: post.summary || null,
                 media_links: post.mediaLinks || [],
-                event_type: post.eventType || 'artist',
                 created_by_id: user?.id || null,
                 created_by_email: user?.email || null,
                 created_by_name: userProfile?.full_name || user?.email || null
@@ -535,7 +534,6 @@ export default function Home() {
                 images: post.images || {},
                 summary: post.summary || null,
                 media_links: post.mediaLinks || [],
-                event_type: post.eventType || 'artist',
                 updated_by_id: user?.id || null,
                 updated_by_email: user?.email || null,
                 updated_by_name: userProfile?.full_name || user?.email || null
@@ -709,7 +707,6 @@ export default function Home() {
               summary: event.summary || null,
               year: eventYear,
               images: event.images || {},
-              event_type: event.eventType || 'artist',
               media_links: event.mediaLinks || [],
               created_by_id: user?.id || null,
               created_by_email: user?.email || null,
@@ -4761,7 +4758,6 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                             time: editingEvent.time || null,
                             artist: editingEvent.artist || null,
                             summary: editingEvent.summary || null,
-                            event_type: editingEvent.eventType || 'artist',
                             images: editingEvent.images || {},
                             media_links: editingEvent.mediaLinks || [],
                             updated_by_id: user?.id || null,

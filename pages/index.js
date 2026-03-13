@@ -617,49 +617,65 @@ export default function Home() {
   const parseImportedData = (text) => {
     const lines = text.trim().split('\n');
     const events = [];
-    
-    for (const line of lines) {
+
+    // Tarkista onko ensimmäinen rivi otsikkorivi
+    const firstLine = lines[0]?.toLowerCase() || '';
+    const startIndex = (firstLine.includes('päivä') || firstLine.includes('date') || firstLine.includes('pvm')) ? 1 : 0;
+
+    for (let i = startIndex; i < lines.length; i++) {
+      const line = lines[i];
       if (!line.trim()) continue;
-      const parts = line.split('\t');
-      
+
+      // Tukee sekä tab- että puolipisteillä erotettuja kenttiä (Excel Suomi)
+      const parts = line.includes('\t') ? line.split('\t') : line.split(';');
+
       if (parts.length >= 2) {
         const dateStr = parts[0]?.trim() || '';
         const eventType = parts[1]?.trim() || '';
         const artist = parts[2]?.trim() || '';
         const time = parts[3]?.trim() || '';
-        
+
         if (!dateStr || !eventType || eventType === '-') continue;
-        
+
         let date = '';
-        const dateMatch = dateStr.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
-        if (dateMatch) {
-          const [, day, month, year] = dateMatch;
+        // Tukee: 1.6.2026, 01.06.2026, 1.6. (olettaa selectedYear)
+        const dateMatchFull = dateStr.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+        const dateMatchShort = dateStr.match(/(\d{1,2})\.(\d{1,2})\./);
+
+        if (dateMatchFull) {
+          const [, day, month, year] = dateMatchFull;
           date = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        } else if (dateMatchShort) {
+          const [, day, month] = dateMatchShort;
+          date = `${selectedYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
         }
-        
+
         let title = eventType;
         if (artist && artist !== 'Julkaistaan myöhemmin' && artist !== '-') {
           title = `${eventType}: ${artist}`;
         }
-        
+
         let cleanTime = time.replace('.', ':');
         if (cleanTime === '-') cleanTime = '';
-        
+
         if (date && title) {
           const event = {
             title,
             date,
             artist: artist === 'Julkaistaan myöhemmin' ? '' : artist,
             time: cleanTime,
-            id: Date.now() + Math.random(),
-            images: {}
+            id: Date.now() + i + Math.random(),
+            images: {},
+            summary: '',
+            eventType: 'artist',
+            mediaLinks: []
           };
           event.tasks = createTasks(event);
           events.push(event);
         }
       }
     }
-    
+
     return events;
   };
 
@@ -674,67 +690,116 @@ export default function Home() {
   const handleImport = async () => {
     const parsed = parseImportedData(importText);
     if (parsed.length === 0) {
-      alert('Ei voitu lukea tapahtumia');
+      alert('Ei voitu lukea tapahtumia. Tarkista muoto:\nPäivämäärä (TAB) Tyyppi (TAB) Artisti (TAB) Aika\n\nEsim: 1.6.2026  Livemusiikki  Artisti  20.00');
       return;
     }
 
-    const currentPosts = posts[selectedYear] || [];
-    await savePosts(selectedYear, [...currentPosts, ...parsed]);
-
-    // Lataa data uudelleen Supabasesta varmistaaksesi että kaikki on tallennettu
     if (supabase) {
-      const { data: events, error } = await supabase
-        .from('events')
-        .select(`*, tasks (*)`)
-        .eq('year', selectedYear)
-        .order('date', { ascending: true });
+      // Tallenna vain uudet tapahtumat suoraan Supabaseen
+      try {
+        for (const event of parsed) {
+          const eventYear = parseLocalDate(event.date).getFullYear();
+          const { data: savedEvent, error: eventError } = await supabase
+            .from('events')
+            .insert({
+              title: event.title,
+              date: event.date,
+              time: event.time || null,
+              artist: event.artist || null,
+              summary: event.summary || null,
+              year: eventYear,
+              images: event.images || {},
+              event_type: event.eventType || 'artist',
+              media_links: event.mediaLinks || [],
+              created_by_id: user?.id || null,
+              created_by_email: user?.email || null,
+              created_by_name: userProfile?.full_name || user?.email || null
+            })
+            .select()
+            .single();
 
-      if (!error && events) {
-        const formattedEvents = events.map(event => ({
-          id: event.id,
-          title: event.title,
-          date: event.date,
-          time: event.time,
-          artist: event.artist,
-          summary: event.summary,
-          eventType: event.event_type || 'artist',
-          images: event.images || {},
-          mediaLinks: event.media_links || [],
-          tasks: (event.tasks || []).map(task => ({
-            id: task.id,
-            title: task.title,
-            channel: task.channel,
-            dueDate: task.due_date,
-            dueTime: task.due_time,
-            completed: task.completed,
-            content: task.content,
-            assignee: task.assignee,
-            notes: task.notes
-          }))
-        }));
-        setPosts(prev => ({ ...prev, [selectedYear]: formattedEvents }));
+          if (eventError) throw eventError;
 
-        // Generoi sisältö kaikille uusille tapahtumille jos automaattinen generointi on päällä
-        if (autoGenerateContent) {
-          // Löydä juuri tuodut tapahtumat
-          const importedEventIds = parsed.map(p => p.title); // Käytetään titlea koska ID muuttuu
-          const importedEvents = formattedEvents.filter(e =>
-            importedEventIds.includes(e.title)
-          );
+          // Tallenna tehtävät
+          if (event.tasks && event.tasks.length > 0) {
+            const tasksToInsert = event.tasks.map(task => ({
+              event_id: savedEvent.id,
+              title: task.title,
+              channel: task.channel,
+              due_date: task.dueDate,
+              due_time: task.dueTime || null,
+              completed: false,
+              content: task.content || null,
+              assignee: task.assignee || null,
+              notes: task.notes || null,
+              created_by_id: user?.id || null,
+              created_by_email: user?.email || null,
+              created_by_name: userProfile?.full_name || user?.email || null
+            }));
 
-          if (importedEvents.length > 0) {
-            setShowImportModal(false);
-            setImportText('');
+            const { error: tasksError } = await supabase
+              .from('tasks')
+              .insert(tasksToInsert);
 
-            // Generoi sisältö kaikille tuoduille tapahtumille
-            for (const event of importedEvents) {
-              await generateContentForAllTasks(event);
-            }
-
-            alert(`✨ Lisätty ${parsed.length} tapahtumaa ja generoitu sisältö tehtäville!`);
-            return;
+            if (tasksError) throw tasksError;
           }
         }
+      } catch (error) {
+        console.error('Virhe tuonnissa:', error);
+        alert('Virhe tallennettaessa tapahtumia: ' + error.message);
+        return;
+      }
+    } else {
+      // LocalStorage fallback
+      const currentPosts = posts[selectedYear] || [];
+      localStorage.setItem(`posts-${selectedYear}`, JSON.stringify([...currentPosts, ...parsed]));
+    }
+
+    // Lataa data uudelleen Supabasesta
+    if (supabase) {
+      // Selvitä mihin vuosiin tuodut tapahtumat kuuluvat
+      const importedYears = [...new Set(parsed.map(e => parseLocalDate(e.date).getFullYear()))];
+      // Varmista että selectedYear on mukana
+      if (!importedYears.includes(selectedYear)) importedYears.push(selectedYear);
+
+      for (const year of importedYears) {
+        const { data: events, error } = await supabase
+          .from('events')
+          .select(`*, tasks (*)`)
+          .eq('year', year)
+          .order('date', { ascending: true });
+
+        if (!error && events) {
+          const formattedEvents = events.map(event => ({
+            id: event.id,
+            title: event.title,
+            date: event.date,
+            time: event.time,
+            artist: event.artist,
+            summary: event.summary,
+            eventType: event.event_type || 'artist',
+            images: event.images || {},
+            mediaLinks: event.media_links || [],
+            tasks: (event.tasks || []).map(task => ({
+              id: task.id,
+              title: task.title,
+              channel: task.channel,
+              dueDate: task.due_date,
+              dueTime: task.due_time,
+              completed: task.completed,
+              content: task.content,
+              assignee: task.assignee,
+              notes: task.notes
+            }))
+          }));
+          setPosts(prev => ({ ...prev, [year]: formattedEvents }));
+        }
+      }
+
+      // Vaihda ensimmäisen tuodun tapahtuman vuoteen
+      const firstImportYear = parseLocalDate(parsed[0].date).getFullYear();
+      if (firstImportYear !== selectedYear) {
+        setSelectedYear(firstImportYear);
       }
     }
 
@@ -3915,13 +3980,29 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
         {showImportModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
-              <h3 className="text-xl font-bold mb-4">Tuo tapahtumia</h3>
+              <h3 className="text-xl font-bold mb-4">Tuo tapahtumia Excelistä</h3>
+              <p className="text-sm text-gray-600 mb-2">
+                Kopioi Excelistä rivit ja liitä alle. Sarakkeet: <strong>Päivämäärä | Tyyppi | Artisti | Aika</strong>
+              </p>
+              <p className="text-xs text-gray-400 mb-3">
+                Esim: 1.6.2026 → Livemusiikki → Artisti → 20.00 (sarakkeet erotettu tabulaattorilla)
+              </p>
               <textarea
                 value={importText}
                 onChange={(e) => setImportText(e.target.value)}
                 className="w-full p-3 border rounded-lg h-48 font-mono text-sm"
-                placeholder="Liitä taulukko..."
+                placeholder={"1.6.2026\tLivemusiikki\tArtisti\t20.00\n15.6.2026\tDJ-ilta\tDJ Nimi\t22.00"}
               />
+              {importText && (
+                <p className="text-sm mt-2 text-gray-600">
+                  {(() => {
+                    const preview = parseImportedData(importText);
+                    return preview.length > 0
+                      ? `Tunnistettu ${preview.length} tapahtumaa`
+                      : 'Ei tunnistettuja tapahtumia - tarkista muoto';
+                  })()}
+                </p>
+              )}
               <div className="mt-3 flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <input
                   type="checkbox"

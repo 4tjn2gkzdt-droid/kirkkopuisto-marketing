@@ -119,7 +119,8 @@ export default function Home() {
     { id: 'newsletter', name: 'Uutiskirje', color: 'bg-green-500' },
     { id: 'print', name: 'Printit', color: 'bg-purple-500' },
     { id: 'ts-meno', name: 'TS Menovinkit', color: 'bg-orange-500' },
-    { id: 'turku-calendar', name: 'Turun kalenteri', color: 'bg-blue-700' }
+    { id: 'turku-calendar', name: 'Turun kalenteri', color: 'bg-blue-700' },
+    { id: 'website', name: 'Nettisivut', color: 'bg-teal-600' }
   ];
 
   // Somepostausten tyypit
@@ -234,6 +235,15 @@ export default function Home() {
       daysBeforeEvent: 28,
       defaultTime: '10:00',
       description: 'Kaupungin virallinen kalenteri'
+    },
+    {
+      id: 'website',
+      name: 'Nettisivut',
+      channel: 'website',
+      icon: '🌐',
+      daysBeforeEvent: 14,
+      defaultTime: '10:00',
+      description: 'Tapahtumasivu omille nettisivuille'
     }
   ];
 
@@ -601,9 +611,13 @@ export default function Home() {
     const oneDay = new Date(eventDate);
     oneDay.setDate(oneDay.getDate() - 1);
     
+    const twoWeeks = new Date(eventDate);
+    twoWeeks.setDate(twoWeeks.getDate() - 14);
+
     return [
       { id: `t1-${Date.now()}-${Math.random()}`, title: 'Turun tapahtumakalenteri', channel: 'turku-calendar', dueDate: formatDate(fourWeeks), dueTime: '10:00', completed: false, content: '', assignee: '' },
       { id: `t2-${Date.now()}-${Math.random()}`, title: 'TS Menovinkit', channel: 'ts-meno', dueDate: formatDate(fourWeeks), dueTime: '11:00', completed: false, content: '', assignee: '' },
+      { id: `t8-${Date.now()}-${Math.random()}`, title: 'Nettisivut - tapahtumasivu', channel: 'website', dueDate: formatDate(twoWeeks), dueTime: '10:00', completed: false, content: '', assignee: '' },
       { id: `t3-${Date.now()}-${Math.random()}`, title: 'Instagram-postaus', channel: 'instagram', dueDate: formatDate(oneWeek), dueTime: '10:00', completed: false, content: '', assignee: '' },
       { id: `t4-${Date.now()}-${Math.random()}`, title: 'Facebook-tapahtuma', channel: 'facebook', dueDate: formatDate(oneWeek), dueTime: '11:00', completed: false, content: '', assignee: '' },
       { id: `t5-${Date.now()}-${Math.random()}`, title: 'TikTok-video', channel: 'tiktok', dueDate: formatDate(fiveDays), dueTime: '14:00', completed: false, content: '', assignee: '' },
@@ -1367,7 +1381,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
     }
 
     // Kysytään käyttäjältä mitkä kanavat
-    const availableChannels = ['instagram', 'facebook', 'tiktok', 'linkedin', 'newsletter'];
+    const availableChannels = ['instagram', 'facebook', 'tiktok', 'linkedin', 'newsletter', 'website'];
     const eventChannels = [...new Set(event.tasks.map(t => t.channel))];
 
     // Mappi kanavista
@@ -1377,7 +1391,8 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
       'tiktok': 'tiktok',
       'linkedin': 'linkedin',
       'newsletter': 'newsletter',
-      'uutiskirje': 'newsletter'
+      'uutiskirje': 'newsletter',
+      'website': 'website'
     };
 
     const selectedChannels = eventChannels

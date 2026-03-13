@@ -62,6 +62,13 @@ async function handler(req, res) {
         style: 'Informatiivinen, kattava kuvaus. Selkeä struktuuri. Ei hashtageja, mutta CTA-linkit.',
         format: 'email',
         extras: 'Sisällytä: mitä, milloin, missä, miksi tulla. Lisää selkeä varausohje.'
+      },
+      website: {
+        name: 'Nettisivut (Tapahtumasivu)',
+        maxLength: 2000,
+        style: 'SEO-optimoitu, informatiivinen ja houkutteleva. Selkeä rakenne: otsikko, intro, tiedot, kuvaus. Ei hashtageja.',
+        format: 'webpage',
+        extras: 'Kirjoita tapahtumasivun sisältö: lyhyt intro-kappale, tapahtuman tiedot (paikka, aika, artisti), pidempi kuvaus tunnelmasta ja ohjelmasta, sekä CTA (Tule paikalle!). Huomioi hakukoneoptimointi.'
       }
     }
 

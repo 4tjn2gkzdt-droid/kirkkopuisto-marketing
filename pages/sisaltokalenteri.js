@@ -60,10 +60,17 @@ export default function ContentCalendar() {
   useEffect(() => {
     checkUser()
     // Aseta oletusaikavä li: tästä päivästä 30 päivää eteenpäin
+    // Käytetään paikallisia päivämäärämenetelmiä (ei toISOString) jotta aikavyöhyke ei siirtele päiviä
+    const toLocalDateStr = (d) => {
+      const y = d.getFullYear()
+      const m = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      return `${y}-${m}-${day}`
+    }
     const today = new Date()
     const in30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-    setStartDate(today.toISOString().split('T')[0])
-    setEndDate(in30Days.toISOString().split('T')[0])
+    setStartDate(toLocalDateStr(today))
+    setEndDate(toLocalDateStr(in30Days))
   }, [])
 
   const checkUser = async () => {

@@ -1929,16 +1929,24 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
     return days;
   };
 
+  // Muodosta päivämäärämerkkijono paikallisessa ajassa (ei UTC), jotta kalenterinäkymä toimii oikein
+  const toLocalDateStr = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
   const getEventsForDate = (date) => {
     if (!date) return [];
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = toLocalDateStr(date);
     const allPosts = filterPosts();
     return allPosts.filter(post => post.date === dateStr);
   };
 
   const getSocialPostsForDate = (date) => {
     if (!date) return [];
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = toLocalDateStr(date);
     let filteredSocialPosts = [...socialPosts];
 
     // Suodata contentFilterin mukaan

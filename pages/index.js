@@ -348,6 +348,7 @@ export default function Home() {
             time: event.time,
             artist: event.artist,
             summary: event.summary,
+            eventType: event.event_type || 'artist',
             images: event.images || {},
             tasks: (event.tasks || []).map(task => ({
               id: task.id,
@@ -451,6 +452,7 @@ export default function Home() {
                 date: post.date,
                 time: post.time || null,
                 artist: post.artist || null,
+                event_type: post.eventType || 'artist',
                 year: year,
                 images: post.images || {},
                 created_by_id: user?.id || null,
@@ -494,6 +496,7 @@ export default function Home() {
                 date: post.date,
                 time: post.time || null,
                 artist: post.artist || null,
+                event_type: post.eventType || 'artist',
                 images: post.images || {},
                 updated_by_id: user?.id || null,
                 updated_by_email: user?.email || null,
@@ -656,6 +659,7 @@ export default function Home() {
           time: event.time,
           artist: event.artist,
           summary: event.summary,
+          eventType: event.event_type || 'artist',
           images: event.images || {},
           tasks: (event.tasks || []).map(task => ({
             id: task.id,
@@ -665,7 +669,8 @@ export default function Home() {
             dueTime: task.due_time,
             completed: task.completed,
             content: task.content,
-            assignee: task.assignee
+            assignee: task.assignee,
+            notes: task.notes
           }))
         }));
         setPosts(prev => ({ ...prev, [selectedYear]: formattedEvents }));
@@ -1429,6 +1434,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             time: newEvent.time || null,
             artist: newEvent.artist || null,
             summary: newEvent.summary || null,
+            event_type: newEvent.eventType || 'artist',
             year: eventYear,
             images: {},
             created_by_id: user?.id || null,
@@ -1479,6 +1485,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
             time: event.time,
             artist: event.artist,
             summary: event.summary,
+            eventType: event.event_type || 'artist',
             images: event.images || {},
             tasks: (event.tasks || []).map(task => ({
               id: task.id,
@@ -4208,6 +4215,7 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                             time: editingEvent.time || null,
                             artist: editingEvent.artist || null,
                             summary: editingEvent.summary || null,
+                            event_type: editingEvent.eventType || 'artist',
                             images: editingEvent.images || {}
                           })
                           .eq('id', editingEvent.id);
@@ -4239,7 +4247,8 @@ Pidä tyyli rennon ja kutsuvana. Maksimi 2-3 kappaletta.`;
                               dueTime: task.due_time,
                               completed: task.completed,
                               content: task.content,
-                              assignee: task.assignee
+                              assignee: task.assignee,
+                              notes: task.notes
                             }))
                           }));
                           setPosts(prev => ({ ...prev, [eventYear]: formattedEvents }));
